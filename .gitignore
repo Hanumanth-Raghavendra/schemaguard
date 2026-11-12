@@ -1,0 +1,19 @@
+# Build output
+target/
+# IDEs
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+# OS
+.DS_Store
+Thumbs.db
+# Secrets and local config
+.env
+.env.*
+!.env.example
+# Node (web module, later phases)
+node_modules/
+dist/

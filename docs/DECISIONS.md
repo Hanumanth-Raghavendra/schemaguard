@@ -1,0 +1,15 @@
+# Architecture decisions
+
+One entry per decision, newest last. A decision is changed only by adding a new entry that supersedes it.
+
+| ID | Date | Decision | Why |
+| --- | --- | --- | --- |
+| D-001 | 2026-11-12 | PostgreSQL DDL only for 1.0 | Dialects differ too much to do several well; Postgres lock behaviour is the best documented |
+| D-002 | 2026-11-12 | One repository, Maven multi-module: `engine`, later `api`, `cli`; `web` and `action` alongside | The engine is reused by three products and must stay free of framework code |
+| D-003 | 2026-11-12 | `engine` has zero runtime dependencies | Testable without Spring, tiny CLI jar, nothing to break on upgrade |
+| D-004 | 2026-11-12 | Hand-written lexer and recursive-descent parser instead of a parsing library | Full control over `ALTER` coverage and error positions; unsupported input is reported, not guessed at |
+| D-005 | 2026-11-12 | The lexer emits `WORD` and does not classify keywords | Most PostgreSQL keywords are non-reserved, so only the parser has the context to decide |
+| D-006 | 2026-11-12 | The engine never throws on bad SQL; it returns diagnostics with source spans | One error must not hide the rest of a large dump; the UI needs line and column |
+| D-007 | 2026-11-12 | No license file yet (all rights reserved by default) | Open source vs source-available affects the income path; decide before 1.0 |
+| D-008 | 2026-11-12 | Java 21, JUnit 6.1.3, AssertJ 3.27.7, JaCoCo 0.8.16; line-coverage gate of 85% on `engine` | Versions checked against Maven Central on this date; the gate keeps the engine honest |
+| D-009 | 2026-11-12 | Base package `io.github.hanumanthraghavendra.schemaguard`, groupId `io.github.hanumanth-raghavendra` | The reverse-domain namespace the author actually controls, valid for Maven Central later |
