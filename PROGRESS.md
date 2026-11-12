@@ -5,37 +5,49 @@
 - **Current phase:** 1 (scaffold, CI, lexer, parser, schema model)
 - **Last updated:** 2026-11-12
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
-- **State:** build green locally, 67 tests, engine line coverage 99.7% (gate: 85%)
+- **State:** build green, 222 tests, engine line coverage 99.6%, branch 94.7% (gate: 85% line)
+- **Size:** 49 files in 16 folders; 2716 lines of main Java, 1517 lines of test Java (Trackly reference: 249 files, 5,888 Java + 11,781 JS lines)
 
 ## Next step
 
-**1.3 Schema model.** In `engine/src/main/java/.../engine/model/`, add immutable records:
-`QualifiedName` (schema + name, case-exact), `DataType` (name, modifiers, array dimensions),
-`Column` (name, type, nullable, default expression text, identity/generated), `Constraint`
-(sealed: `PrimaryKey`, `ForeignKey`, `Unique`, `Check`), `Index`, `EnumType`, `Sequence`,
-`Table`, and `Schema` (the root, with lookup by qualified name). Unit tests for equality and lookup.
+**1.4b Remaining DDL statements.** In `engine/.../parser/StatementParser.java`, replace the
+"unsupported" fallthrough for these, one at a time, each with tests in `ParserTest`:
 
-**1.4 Parser.** `engine/.../parser/`: a `TokenCursor`, a statement splitter (on `SEMICOLON`,
-skipping `META_COMMAND` and `COPY_DATA`), and a recursive-descent parser for `CREATE TABLE`
-first. Any statement it does not understand becomes an `SG-PARSE` "unsupported statement"
-diagnostic (never skipped silently). Then `CREATE TYPE ... AS ENUM`, `CREATE SEQUENCE`,
-`CREATE INDEX`, `ALTER TABLE ... ADD CONSTRAINT / ALTER COLUMN`, `DROP`.
+1. `CREATE TYPE name AS ENUM (...)` -> new model record `EnumType(QualifiedName, List<String> labels)`.
+2. `CREATE SEQUENCE` -> model record `Sequence` (start, increment, min, max, cache, cycle, owned by).
+3. `CREATE [UNIQUE] INDEX [CONCURRENTLY] [IF NOT EXISTS] name ON [ONLY] table [USING method] (...)`
+   `[INCLUDE (...)] [NULLS [NOT] DISTINCT] [WITH (...)] [TABLESPACE x] [WHERE predicate]`
+   -> model record `Index` with `IndexColumn` (column or expression, sort order, nulls order, opclass).
+4. `ALTER TABLE [IF EXISTS] [ONLY] name action [, ...]` -> `Statement.AlterTable` holding a sealed
+   `AlterAction` list: `AddColumn`, `DropColumn`, `AlterColumnType` (with USING), `SetDefault`,
+   `DropDefault`, `SetNotNull`, `DropNotNull`, `AddConstraint` (reuse `parseTableConstraint`, which
+   already accepts `NOT VALID`), `DropConstraint`, `ValidateConstraint`, `RenameColumn`,
+   `RenameTable`, `RenameConstraint`. Actions not listed stay "unsupported feature" warnings.
+5. `DROP TABLE | INDEX | TYPE | SEQUENCE [IF EXISTS] names [CASCADE | RESTRICT]`.
 
-**1.5 Golden tests.** `engine/src/test/resources/golden/*.sql` with expected model snapshots;
-phase 1 is done when a real `pg_dump --schema-only` file parses into the model.
+**1.5 Catalog.** `engine/.../model/Catalog.java` (tables, enums, sequences, indexes by
+`QualifiedName`) and `engine/.../catalog/CatalogBuilder.java`, which applies statements in order.
+It must also: expand `serial` types into integer + sequence + default; resolve unqualified
+user-defined types against known enums (see D-012); report "table does not exist" style errors.
+
+**1.6 Golden tests.** `engine/src/test/resources/golden/*.sql` with expected catalog snapshots.
+Phase 1 is done when a real `pg_dump --schema-only` file builds a catalog with no "unsupported"
+warnings for tables, indexes, enums and sequences.
 
 ## Done
 
 - [x] **Phase 0** Blueprint (2026-11-12)
 - [x] **1.1** Scaffold: Maven multi-module build, Maven wrapper, GitHub Actions CI, coverage gate, docs (2026-11-12)
-- [x] **1.2** Lexer with 67 tests (2026-11-12)
+- [x] **1.2** Lexer (2026-11-12)
+- [x] **1.3** Schema model: `QualifiedName`, `DataType`, `Column`, sealed `Constraint` family, `Table`, `Expression` (2026-11-12)
+- [x] **1.4a** Parser: statement splitter, token cursor, type parser, expression renderer, full `CREATE TABLE` (2026-11-12)
 
 ## Phases
 
 | Phase | Deliverable | Status |
 | --- | --- | --- |
 | 0 | Blueprint | Done |
-| 1 | Scaffold, CI, lexer, parser, schema model | In progress (1.1, 1.2 done) |
+| 1 | Scaffold, CI, lexer, parser, schema model | In progress (1.1 to 1.4a done) |
 | 2 | Diff engine with rename detection | Not started |
 | 3 | Rules engine, lock knowledge base, scoring | Not started |
 | 4 | Migration planner, SQL generation, real-database oracle tests (Testcontainers) | Not started |
@@ -51,9 +63,20 @@ phase 1 is done when a real `pg_dump --schema-only` file parses into the model.
 - Never commit on a red build. `./mvnw -B -ntp verify` must pass first.
 - Pin dependency versions only after checking the registry, never from memory.
 - Decisions go in `docs/DECISIONS.md`; explanations for interviews go in `docs/INTERVIEW.md`.
+- In tests, do not use `@CsvSource` for SQL: its quote handling mangles `'` and `"`. Use the
+  `rows(...)` helper with `@MethodSource` as in `ParserTest`.
 
 ## Known issues and open questions
 
 - License not chosen yet (see D-007).
-- Lexer limitations, both rare in DDL: `U&` Unicode-escape syntax is reported as unsupported;
-  adjacent string constants split across lines are not concatenated.
+- Lexer: `U&` Unicode-escape syntax is reported as unsupported; adjacent string constants split
+  across lines are not concatenated. Both are rare in DDL.
+- Parser: PostgreSQL 18 temporal keys (`WITHOUT OVERLAPS`, `PERIOD`) are reported as syntax
+  errors rather than as unsupported features.
+- Parser: unnamed constraints keep an empty name. PostgreSQL's generated names
+  (`t_pkey`, `t_col_key`, ...) are derived in phase 2 and verified against a real server in phase 4.
+- Expressions are compared as canonical text. Two dumps from PostgreSQL compare reliably; a
+  hand-written expression may differ from the server's rewritten form (extra casts). The diff
+  engine must flag such differences as "possibly cosmetic" (phase 2).
+- `Identifiers.RESERVED` lists fully reserved keywords only. Before generating SQL in phase 4,
+  check it against the server's `pg_get_keywords()` in the oracle tests.
