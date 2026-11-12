@@ -41,3 +41,50 @@ characters with one character of lookahead (two in a few places), so it runs in 
 - What does it not handle? (`U&` Unicode escapes, and string constants continued across lines.
   Both are reported or documented, not silently mis-read.)
 - Why records? (Immutable value types with generated `equals`/`hashCode`; tokens never change after creation.)
+
+## Phase 1.3 and 1.4a: the schema model and the CREATE TABLE parser
+
+**What it is.** `Parser.parse(sql)` returns one `Statement` per SQL statement plus diagnostics.
+`CREATE TABLE` becomes a `Table` made of immutable records (`Column`, `DataType`, and a sealed
+`Constraint` family: `PrimaryKey`, `Unique`, `ForeignKey`, `Check`).
+
+**How recursive descent works.** Each grammar rule is a method, and methods call each other the
+way the grammar nests: `parseCreateTable` -> `parseTableElement` -> `parseColumn` ->
+`TypeParser.parse` / `referencesClause` / `defaultExpression`. `TokenCursor` gives the lookahead:
+`acceptWord("unique")` consumes a keyword if it is next, `acceptWords("primary", "key")` consumes
+several only if all are present. There is no backtracking, so parsing is O(n) in the token count.
+
+**Design choices worth explaining**
+
+1. **Sealed interfaces + records + pattern-matching `switch`.** `Constraint` is sealed, so the
+   compiler knows every subtype. A `switch` over a constraint needs no `default`, and adding a
+   fifth constraint kind makes every such switch fail to compile until it is handled.
+2. **Canonical types (D-012).** `int`, `int4` and `integer` all become `integer`; `char` becomes
+   `character(1)`; `decimal(10)` becomes `numeric(10,0)`. Without this the diff engine would
+   report differences that do not exist.
+3. **Where a DEFAULT ends.** PostgreSQL's grammar restricts a default to a "b_expr", which cannot
+   contain a bare `NOT`. So in `DEFAULT now() NOT NULL` the default is `now()`. The parser reads
+   until a top-level keyword that starts another column constraint.
+4. **Expressions as canonical text (D-011).** `TOTAL>=0` and `(( total >= 0 ))` both render as
+   `total >= 0`. The renderer normalises case, spacing, quoting and redundant outer parentheses,
+   and tells a unary minus (`-1`) from a binary one (`a - 1`) by looking at the previous token.
+5. **Errors as control flow, contained (D-014).** A syntax error throws a private `ParseError`
+   that is caught once per statement and turned into a diagnostic with a line and column. One
+   bad statement never affects the next.
+6. **Nothing is dropped silently.** Every statement becomes `CreateTable`, `Ignored` (known and
+   irrelevant, such as `SET`), `Unsupported` (with a warning) or `Invalid` (with an error).
+7. **The same checks the server makes.** Duplicate columns, two primary keys, and a key over a
+   column that does not exist are all reported at parse time.
+
+**Questions you should be able to answer**
+
+- What is recursive descent, and what are its limits? (One method per rule, top-down. It cannot
+  handle left-recursive grammars directly, which is why expressions are not parsed into a tree here.)
+- Why records and sealed types instead of classes with setters? (Immutability: a parsed table can
+  be shared and compared safely; `equals` comes for free, which the diff engine relies on.)
+- How do you test a parser? (222 tests: a table of 50 type spellings, 31 syntax errors with exact
+  messages, and a test that cuts a valid script at every character position and asserts the
+  parser never throws.)
+- Why not use an existing SQL parser library? (D-004.)
+- What happens with SQL the parser does not understand? (A warning with the statement kind and
+  position; the rest of the file is still analysed.)

@@ -5,7 +5,7 @@
 A PostgreSQL migration-safety platform. Give it two versions of a schema and it tells you
 what changed, what that change will lock or break in production, and how to ship it safely.
 
-> **Status: early development.** The lexer is complete; the parser is in progress.
+> **Status: early development.** The lexer and the `CREATE TABLE` parser are complete; other DDL statements are in progress.
 > See [PROGRESS.md](PROGRESS.md) for the current state and roadmap.
 
 ## Why
