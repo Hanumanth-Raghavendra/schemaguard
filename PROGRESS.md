@@ -5,8 +5,8 @@
 - **Current phase:** 1 (scaffold, CI, lexer, parser, schema model)
 - **Last updated:** 2026-11-13
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
-- **State:** build green, 366 tests, engine line coverage 99.7%, branch 95.8% (gate: 85% line)
-- **Size:** 69 files in 16 folders; 3796 lines of main Java, 2516 lines of test Java (Trackly reference: 249 files, 5,888 Java + 11,781 JS lines)
+- **State:** build green, 371 tests, engine line coverage 99.7%, branch 95.8% (gate: 85% line)
+- **Size:** 73 files in 18 folders; 3796 lines of main Java, 2701 lines of test Java (Trackly reference: 249 files, 5,888 Java + 11,781 JS lines)
 
 ## Next step
 
@@ -32,11 +32,20 @@
 7. Tests: one per statement kind and per error, plus "a dump and the same schema written by
    hand build equal catalogs".
 
-**1.6 Golden tests.** `engine/src/test/resources/golden/*.sql` with expected catalog snapshots.
-Phase 1 is done when a real `pg_dump --schema-only` file builds a catalog with no "unsupported"
-warnings for tables, indexes, enums and sequences. No PostgreSQL is installed in the Claude
-build container, so the fixture must be written from PostgreSQL's documented dump format, and
-is checked against a real server in phase 4 (Testcontainers in CI).
+   Sequence defaults must be resolved here: a real dump prints `NO MAXVALUE` where the source
+   said `MAXVALUE -1` on a descending sequence, because -1 is the default (see `RealDumpTest`).
+   Ascending: min 1, max of the type, start = min. Descending: max -1, min of the type, start = max.
+
+**1.6 Golden tests (started).** `engine/src/test/resources/golden/shop/` holds a hand-written
+schema and the same schema dumped by a real PostgreSQL 16.15; `RealDumpTest` parses both. Still to
+do once the catalog exists: assert that `source.sql` and `pg_dump_16.sql` build **equal catalogs**.
+That is the phase 1 exit test. Add a second fixture with a different style of schema.
+
+**Local PostgreSQL.** The Claude build container has PostgreSQL 16 server binaries in
+`/usr/lib/postgresql/16/bin` (run them as the `postgres` user, for example with
+`runuser -u postgres -- ...`; a work directory under `/var/lib/postgresql/` works). The exact
+recipe is in `engine/src/test/resources/golden/README.md`. Use it to check any doubt about
+PostgreSQL behaviour instead of relying on memory. Docker is not available there.
 
 ## Done
 
@@ -46,6 +55,7 @@ is checked against a real server in phase 4 (Testcontainers in CI).
 - [x] **1.3** Schema model: `QualifiedName`, `DataType`, `Column`, sealed `Constraint` family, `Table`, `Expression` (2026-11-12)
 - [x] **1.4a** Parser: statement splitter, token cursor, type parser, expression renderer, full `CREATE TABLE` (2026-11-12)
 - [x] **1.4b** Parser: `CREATE TYPE ... AS ENUM`, `ALTER TYPE` add/rename value, `CREATE SEQUENCE`, `ALTER SEQUENCE ... OWNED BY`, `CREATE INDEX`, `ALTER TABLE` (17 actions), `DROP`; parser split into one class per statement family (2026-11-13)
+- [x] **1.6 (part)** First golden fixture: a real `pg_dump` from PostgreSQL 16.15 parses with no errors and only the four expected "unsupported" warnings (view, function, trigger, partition attach) (2026-11-13)
 
 ## Phases
 
