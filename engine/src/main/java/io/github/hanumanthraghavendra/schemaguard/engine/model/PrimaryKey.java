@@ -18,4 +18,9 @@ public record PrimaryKey(
     public PrimaryKey withDeferrability(Deferrability value) {
         return new PrimaryKey(name, columns, include, value);
     }
+
+    @Override
+    public PrimaryKey withName(Optional<String> value) {
+        return new PrimaryKey(value, columns, include, deferrability);
+    }
 }

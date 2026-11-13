@@ -134,3 +134,58 @@ them share one cursor, one parser can hand over to another in the middle of a st
   a primary key or unique constraint is added without blocking writes. Phase 4 generates this.)
 - What does the parser still not understand? (Views, functions, triggers, policies, partitions:
   each is reported by name with its position.)
+
+## Phase 1.5 and 1.6: the catalog and the oracle tests
+
+**What it is.** `CatalogBuilder.fromSql(script)` runs a script the way a server would run it on
+an empty database and returns a `Catalog`: every table, index, sequence and enum, by name.
+A migration tool needs this because its input is rarely one tidy `CREATE TABLE`; it is a
+schema plus two years of `ALTER TABLE`.
+
+**How it works.** `CatalogState` holds four sorted maps. For each statement the builder copies
+the state, applies the statement, and on any error restores the copy and records a diagnostic
+(D-020). `TableOperations` holds the rules: what a new column or constraint needs, what a
+rename has to update, what a drop takes with it.
+
+**Design choices worth explaining**
+
+1. **The server is the specification (D-023).** Each fixture is a script plus the `pg_dump` of
+   a real PostgreSQL 16 that ran the script. The test builds a catalog from both and requires
+   them to be equal. That checks generated names, serial expansion, renames and cascades
+   against what PostgreSQL actually did, not against what I assumed it does.
+2. **It caught real mistakes.** Things I believed and the server corrected: a descending
+   sequence prints `NO MAXVALUE` for -1; `id int PRIMARY KEY, UNIQUE (id)` creates one key, not
+   two; a foreign key is tied to one specific key, so dropping that key needs CASCADE even if
+   another key covers the same column; `ADD PRIMARY KEY (missing)` has a different error
+   message from `ADD UNIQUE (missing)`.
+3. **Generated names (D-022).** `t_pkey`, `t_a_b_key`, `t_a_fkey`, `t_a_check`, `t_a_idx`,
+   `t_a_seq`. When a name would pass 63 characters, the longer of table and column is shortened
+   one character at a time; a taken name gets a number after the label (`t_a_idx1`). This is a
+   port of `makeObjectName` and `ChooseRelationName` from the PostgreSQL source.
+4. **`serial` is not a type.** It expands into an integer column, NOT NULL, a sequence owned by
+   the column, and a `nextval` default. The builder does that expansion, so `id serial` and the
+   four statements `pg_dump` writes for it produce the same catalog.
+5. **Dependencies on drop.** Dropping a column silently removes that table's constraints and
+   indexes that use it. Things outside it, foreign keys in other tables and generated columns
+   computed from it, need CASCADE; without it the statement fails, as in PostgreSQL.
+6. **Atomic statements (D-020).** State values are immutable records, so "copy the state" is
+   four shallow map copies and restoring is trivially correct. Immutability pays for itself here.
+7. **Fingerprints (D-024).** `total >= 0` and `(total >= (0)::numeric)` are the same condition
+   printed two ways. Removing parentheses and casts from both gives the same string. It can be
+   fooled, since removing parentheses can hide a change in evaluation order, so the diff engine
+   will report "probably cosmetic", never "identical".
+8. **Messages in PostgreSQL's words (D-021).** All 73 error cases in `CatalogBuilderTest` were
+   run against a real server and compared message by message.
+
+**Questions you should be able to answer**
+
+- What is an oracle test? (A test whose expected result comes from a trusted reference
+  implementation, here PostgreSQL itself, instead of from the author.)
+- Why build a catalog instead of diffing the SQL text? (Two scripts can be textually different
+  and describe the same schema, or the reverse. Only the resulting schema can be compared.)
+- How do you keep a failed statement from corrupting state? (Copy, apply, restore on error.
+  Cheap because every value in the state is immutable.)
+- How does `Catalog` equality work? (It is a record of sorted maps of records, and constraints
+  are sorted by name, so `equals` is structural and independent of how the schema was written.)
+- Where is this still approximate? (Expressions are text; see "Known issues" in PROGRESS.md.
+  Each limit is listed, and none fails silently.)

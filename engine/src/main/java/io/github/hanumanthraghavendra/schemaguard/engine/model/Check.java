@@ -17,4 +17,13 @@ public record Check(Optional<String> name, Expression expression, boolean noInhe
     public Check withNotValid(boolean value) {
         return new Check(name, expression, noInherit, value);
     }
+
+    @Override
+    public Check withName(Optional<String> value) {
+        return new Check(value, expression, noInherit, notValid);
+    }
+
+    public Check withExpression(Expression value) {
+        return new Check(name, value, noInherit, notValid);
+    }
 }

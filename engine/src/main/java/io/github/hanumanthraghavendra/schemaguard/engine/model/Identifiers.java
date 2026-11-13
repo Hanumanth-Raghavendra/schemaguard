@@ -41,6 +41,11 @@ public final class Identifiers {
         return RESERVED.contains(name);
     }
 
+    /** True for PostgreSQL's fully reserved keywords, given in lower case. */
+    public static boolean isReserved(String word) {
+        return RESERVED.contains(word);
+    }
+
     public static String quote(String name) {
         return '"' + name.replace("\"", "\"\"") + '"';
     }

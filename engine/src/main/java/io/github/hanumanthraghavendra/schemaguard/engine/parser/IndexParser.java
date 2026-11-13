@@ -77,7 +77,10 @@ final class IndexParser extends ParserBase {
         Optional<String> column = Optional.empty();
         Optional<Expression> expression = Optional.empty();
         if (cursor.is(TokenType.LPAREN)) {
-            expression = Optional.of(parenthesizedExpression());
+            // "(a)" is the column a, exactly as PostgreSQL stores it.
+            Expression inner = parenthesizedExpression();
+            column = Expressions.asColumn(inner);
+            expression = column.isPresent() ? Optional.empty() : Optional.of(inner);
         } else {
             int from = cursor.position();
             Token first = cursor.peek();

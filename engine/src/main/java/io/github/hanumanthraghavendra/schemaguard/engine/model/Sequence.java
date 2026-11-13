@@ -41,4 +41,9 @@ public record Sequence(
         return new Sequence(
                 name, persistence, dataType, start, increment, minValue, maxValue, cache, cycle, value);
     }
+
+    public Sequence withName(QualifiedName value) {
+        return new Sequence(
+                value, persistence, dataType, start, increment, minValue, maxValue, cache, cycle, ownedBy);
+    }
 }

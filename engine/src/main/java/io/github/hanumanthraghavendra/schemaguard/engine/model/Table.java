@@ -37,4 +37,22 @@ public record Table(
                 .map(PrimaryKey.class::cast)
                 .findFirst();
     }
+
+    public Optional<Constraint> constraint(String constraintName) {
+        return constraints.stream()
+                .filter(c -> c.name().equals(Optional.of(constraintName)))
+                .findFirst();
+    }
+
+    public Table withName(QualifiedName value) {
+        return new Table(value, columns, constraints, persistence, inherits, partitionBy);
+    }
+
+    public Table withColumns(List<Column> value) {
+        return new Table(name, value, constraints, persistence, inherits, partitionBy);
+    }
+
+    public Table withConstraints(List<Constraint> value) {
+        return new Table(name, columns, value, persistence, inherits, partitionBy);
+    }
 }

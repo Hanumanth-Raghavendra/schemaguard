@@ -5,7 +5,7 @@
 A PostgreSQL migration-safety platform. Give it two versions of a schema and it tells you
 what changed, what that change will lock or break in production, and how to ship it safely.
 
-> **Status: early development.** The lexer and parser are complete for tables, indexes, sequences, enums, `ALTER TABLE` and `DROP`. Next: the schema catalog.
+> **Status: early development.** The engine reads a PostgreSQL schema, including one built up by `ALTER TABLE` migrations, into a catalog that is checked against a real PostgreSQL 16. Next: the diff engine.
 > See [PROGRESS.md](PROGRESS.md) for the current state and roadmap.
 
 ## Why
