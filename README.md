@@ -5,7 +5,7 @@
 A PostgreSQL migration-safety platform. Give it two versions of a schema and it tells you
 what changed, what that change will lock or break in production, and how to ship it safely.
 
-> **Status: early development.** The engine reads a PostgreSQL schema, including one built up by `ALTER TABLE` migrations, into a catalog that is checked against a real PostgreSQL 16. Next: the diff engine.
+> **Status: early development.** The engine reads PostgreSQL schemas (including ones built up by migrations) and reports every difference between two of them, with rename detection. Both are checked against a real PostgreSQL 16. Next: risk rules.
 > See [PROGRESS.md](PROGRESS.md) for the current state and roadmap.
 
 ## Why

@@ -29,4 +29,8 @@ public record Index(
         include = List.copyOf(include);
         Objects.requireNonNull(predicate, "predicate");
     }
+
+    public Index withName(Optional<String> value) {
+        return new Index(value, table, unique, method, columns, include, nullsNotDistinct, predicate);
+    }
 }

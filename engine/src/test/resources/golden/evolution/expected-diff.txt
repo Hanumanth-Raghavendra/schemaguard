@@ -1,0 +1,33 @@
+~ enum app.role: value 'writer' removed
+~ enum app.role: value 'author' added before 'admin'
+? enum app.role: value 'writer' may have been renamed to 'author' (confidence 0.58: takes the place of the removed value; names 17% similar)
+~ enum app.status: value 'scheduled' added before 'published'
+~ enum app.status: value 'deleted' added at the end
++ table app.activity_log (4 columns, 1 constraint)
+- table app.audit_log
++ table app.comments (5 columns, 4 constraints)
++ index app.comments_post_idx ON app.comments USING btree (post_id, created_at DESC)
+- table app.post_tags
+~ column app.posts.body: NOT NULL added
+~ column app.posts.status: default 'draft'::app.status -> 'scheduled'::app.status
+~ column app.posts.views: type integer -> bigint
++ column app.posts.slug text
+~ constraint app.posts.posts_author_id_fkey: FOREIGN KEY (author_id) REFERENCES app.users (id) -> FOREIGN KEY (author_id) REFERENCES app.users (id) ON DELETE CASCADE
+~ constraint app.posts.posts_views_check: renamed to posts_views_nonnegative
++ constraint app.posts.posts_published_check CHECK ((status <> 'published'::app.status) or (published_at is not null))
++ constraint app.posts.posts_slug_key UNIQUE (slug)
+~ index app.posts_status_idx: ON app.posts USING btree (status) -> ON app.posts USING btree (status) WHERE (status <> 'archived'::app.status)
+~ index app.posts_title_idx: renamed to posts_lower_title_idx
+- table app.tags
+~ column app.users.email: type character varying(255) -> text
++ column app.users.full_name text
++ column app.users.last_login timestamp with time zone
+- column app.users.display_name text
+- column app.users.bio text
+? column app.users.display_name may have been renamed to full_name (confidence 0.65: same type and attributes; names 50% similar; both are column 3)
++ constraint app.users.users_email_lower CHECK (email = lower(email)) NOT VALID
+? table app.audit_log may have been renamed to app.activity_log (confidence 0.79: same 4 columns; names 58% similar)
+~ sequence app.audit_log_id_seq: owned by app.audit_log.id -> app.activity_log.id
+- sequence app.invoice_number
++ sequence app.order_number AS integer START WITH 1 INCREMENT BY 10 MINVALUE 1 MAXVALUE 2147483647 CACHE 1
+- sequence app.tags_id_seq

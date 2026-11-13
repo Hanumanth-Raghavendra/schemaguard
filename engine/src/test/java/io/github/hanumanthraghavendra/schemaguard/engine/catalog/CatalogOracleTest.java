@@ -4,14 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.hanumanthraghavendra.schemaguard.engine.diagnostics.Diagnostic;
 import io.github.hanumanthraghavendra.schemaguard.engine.diagnostics.Severity;
+import io.github.hanumanthraghavendra.schemaguard.engine.diff.Normalized;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Catalog;
-import io.github.hanumanthraghavendra.schemaguard.engine.model.Check;
-import io.github.hanumanthraghavendra.schemaguard.engine.model.Column;
-import io.github.hanumanthraghavendra.schemaguard.engine.model.Constraint;
-import io.github.hanumanthraghavendra.schemaguard.engine.model.Expression;
-import io.github.hanumanthraghavendra.schemaguard.engine.model.GeneratedColumn;
-import io.github.hanumanthraghavendra.schemaguard.engine.model.Index;
-import io.github.hanumanthraghavendra.schemaguard.engine.model.IndexColumn;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.QualifiedName;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Table;
 import io.github.hanumanthraghavendra.schemaguard.engine.parser.Expressions;
@@ -31,8 +25,8 @@ import org.junit.jupiter.params.provider.ValueSource;
  * script equals the catalog we build from the dump, then our reading of the script (generated
  * names, serial columns, renames, cascading drops) agrees with what the server actually did.
  *
- * <p>Expressions are compared by fingerprint, because the server prints them with extra
- * parentheses and casts.
+ * <p>Expressions are compared through {@link Normalized}, because the server prints them with
+ * extra parentheses and casts.
  */
 class CatalogOracleTest {
 
@@ -79,8 +73,8 @@ class CatalogOracleTest {
     // ---------------------------------------------------------------- comparison
 
     private static void assertSameSchema(Catalog script, Catalog dump) {
-        Catalog a = withFingerprints(script);
-        Catalog b = withFingerprints(dump);
+        Catalog a = Normalized.catalog(script);
+        Catalog b = Normalized.catalog(dump);
 
         assertThat(a.enums()).as("enumerated types").isEqualTo(b.enums());
         assertThat(a.sequences().keySet()).as("sequence names").isEqualTo(b.sequences().keySet());
@@ -101,54 +95,5 @@ class CatalogOracleTest {
         assertThat(a.indexes().keySet()).as("index names").isEqualTo(b.indexes().keySet());
         a.indexes().forEach((name, index) -> assertThat(index).as("index %s", name).isEqualTo(b.indexes().get(name)));
         assertThat(a).isEqualTo(b);
-    }
-
-    /** The same catalog with every expression replaced by its fingerprint. */
-    private static Catalog withFingerprints(Catalog catalog) {
-        Map<QualifiedName, Table> tables = new TreeMap<>();
-        catalog.tables()
-                .forEach(
-                        (name, table) ->
-                                tables.put(
-                                        name,
-                                        table.withColumns(table.columns().stream().map(CatalogOracleTest::reduce).toList())
-                                                .withConstraints(
-                                                        table.constraints().stream()
-                                                                .map(CatalogOracleTest::reduce)
-                                                                .toList())));
-        Map<QualifiedName, Index> indexes = new TreeMap<>();
-        catalog.indexes().forEach((name, index) -> indexes.put(name, reduce(index)));
-        return new Catalog(tables, catalog.enums(), catalog.sequences(), indexes);
-    }
-
-    private static Expression reduce(Expression expression) {
-        return new Expression(Expressions.fingerprint(expression));
-    }
-
-    private static Column reduce(Column column) {
-        return column.withDefaultValue(column.defaultValue().map(CatalogOracleTest::reduce))
-                .withGenerated(column.generated().map(g -> new GeneratedColumn(reduce(g.expression()), g.stored())));
-    }
-
-    private static Constraint reduce(Constraint constraint) {
-        return constraint instanceof Check check ? check.withExpression(reduce(check.expression())) : constraint;
-    }
-
-    private static Index reduce(Index index) {
-        List<IndexColumn> keys =
-                index.columns().stream()
-                        .map(
-                                k ->
-                                        new IndexColumn(
-                                                k.column(),
-                                                k.expression().map(CatalogOracleTest::reduce),
-                                                k.collation(),
-                                                k.operatorClass(),
-                                                k.order(),
-                                                k.nulls()))
-                        .toList();
-        return new Index(
-                index.name(), index.table(), index.unique(), index.method(), keys, index.include(),
-                index.nullsNotDistinct(), index.predicate().map(CatalogOracleTest::reduce));
     }
 }

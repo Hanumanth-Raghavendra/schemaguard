@@ -127,6 +127,37 @@ public final class Expressions {
         return isCall ? name : "expr";
     }
 
+    /**
+     * True if the expression must be wrapped in parentheses to be used as a column DEFAULT.
+     *
+     * <p>A DEFAULT is a restricted expression ("b_expr"): it cannot contain bare keywords such
+     * as {@code AND}, {@code IS} or {@code AT TIME ZONE}, because the parser would read them as
+     * the start of the next column constraint. A function call, a literal, a cast or an
+     * arithmetic expression needs no parentheses; anything with a top-level keyword does.
+     */
+    public static boolean needsParenthesesAsDefault(Expression expression) {
+        List<Token> tokens = tokens(expression);
+        int depth = 0;
+        for (int i = 0; i < tokens.size(); i++) {
+            TokenType type = tokens.get(i).type();
+            if (type == TokenType.LPAREN || type == TokenType.LBRACKET) {
+                depth++;
+            } else if (type == TokenType.RPAREN || type == TokenType.RBRACKET) {
+                depth--;
+            } else if (type == TokenType.DOUBLE_COLON) {
+                i = Math.max(i, skipType(tokens, i + 1) - 1);
+            } else if (type == TokenType.WORD && depth == 0 && i > 0) {
+                TokenType previous = tokens.get(i - 1).type();
+                TokenType next = i + 1 < tokens.size() ? tokens.get(i + 1).type() : TokenType.EOF;
+                boolean partOfName = previous == TokenType.DOT || next == TokenType.DOT || next == TokenType.LPAREN;
+                if (!partOfName) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private static List<Token> tokens(Expression expression) {

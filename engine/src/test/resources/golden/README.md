@@ -10,9 +10,15 @@ PostgreSQL 16.15 server built from that script, written back by `pg_dump --schem
 | `shop/` | A realistic schema: enum, identity and serial columns, generated column, composite and deferrable keys, partitioned table, six kinds of index, sequences, a view, a function and a trigger |
 | `names/` | Everything PostgreSQL has to name itself: unnamed constraints and indexes, serial sequences, repeated names, names long enough to be shortened, duplicate keys that are merged |
 | `migrations/` | A schema changed by a run of migrations: every `ALTER TABLE` action the catalog models, renames, a move to another schema, and drops with CASCADE |
+| `evolution/` | A small app at version 1 (`before.sql`) and the migration to version 2 (`migration.sql`). Holds `before_pg_dump_16.sql`, `after_pg_dump_16.sql`, and `expected-diff.txt`, the reviewed diff between the two dumps |
 
 `CatalogOracleTest` requires the catalog built from `source.sql` to equal the catalog built
 from `pg_dump_16.sql`. `RealDumpTest` checks the parser against the `shop` dump.
+`DiffGoldenTest` checks the diff engine against `evolution/`, and `SqlWriterTest` writes every
+fixture back as SQL and reads it again.
+
+`expected-diff.txt` is a reviewed golden file. After an intended change to the diff output,
+rewrite it with `./mvnw -B -ntp verify -Dgolden.update=true` and review the change.
 
 `pg_dump_16.sql` is generated. Do not edit it by hand.
 
