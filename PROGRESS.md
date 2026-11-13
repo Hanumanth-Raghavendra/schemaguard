@@ -32,7 +32,7 @@
 7. Tests: one per statement kind and per error, plus "a dump and the same schema written by
    hand build equal catalogs".
 
-   Sequence defaults must be resolved here: a real dump prints `NO MAXVALUE` where the source
+8. Sequence defaults must be resolved here: a real dump prints `NO MAXVALUE` where the source
    said `MAXVALUE -1` on a descending sequence, because -1 is the default (see `RealDumpTest`).
    Ascending: min 1, max of the type, start = min. Descending: max -1, min of the type, start = max.
 
