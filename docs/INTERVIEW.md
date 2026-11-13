@@ -189,3 +189,66 @@ rename has to update, what a drop takes with it.
   are sorted by name, so `equals` is structural and independent of how the schema was written.)
 - Where is this still approximate? (Expressions are text; see "Known issues" in PROGRESS.md.
   Each limit is listed, and none fails silently.)
+
+## Phase 2: the diff engine and the SQL writer
+
+**What it is.** `SchemaDiff.compare(before, after)` takes two catalogs and lists every
+difference as a `Change`, one of 34 record types: tables, columns, constraints, indexes,
+enum values and sequences, each added, dropped or changed. `ChangeFormatter` prints one line
+per change. `SqlWriter` turns any model object back into PostgreSQL DDL.
+
+Example, from the evolution fixture (two real `pg_dump` files):
+
+```
+~ column app.posts.views: type integer -> bigint
+~ constraint app.posts.posts_views_check: renamed to posts_views_nonnegative
+~ index app.posts_title_idx: renamed to posts_lower_title_idx
+- column app.users.display_name text
++ column app.users.full_name text
+? column app.users.display_name may have been renamed to full_name (confidence 0.65: same type and attributes; names 50% similar; both are column 3)
+```
+
+**How it works.** Objects are matched by name. Leftovers are matched by definition: a
+constraint or index with an identical definition under a new name is a rename (D-028). A
+first pass compares exactly, a second compares with expressions normalized, so a rename that
+PostgreSQL also re-printed is still found. Everything still unmatched is a drop or an add.
+
+**Design choices worth explaining**
+
+1. **Certain versus probable renames (D-028, D-029).** An index is nothing but its definition,
+   so "same definition, new name" is certainly a rename. Two columns with the same type are not
+   certainly the same column: they may hold different data. So the diff reports the drop, the
+   add and a scored candidate, and never decides. The cost of a wrong guess is data loss.
+2. **Explainable scoring (D-030).** Confidence is built from three readable facts: same
+   definition, name similarity, same position. The evidence is printed next to the number, so a
+   user can see *why*. Edit distance alone fails on real renames (`email` to `email_address`
+   is 8 edits), so similarity also checks word containment and abbreviation.
+3. **Greedy one-to-one matching.** Candidates are sorted by confidence and taken greedily so no
+   column is in two candidates. Optimal assignment (Hungarian algorithm) would be overkill:
+   there are rarely more than a handful of candidates per table, and greedy is predictable.
+4. **Cosmetic changes (D-031).** `total >= 0` and `(total >= (0)::numeric)` are flagged
+   cosmetic, not hidden. `significant()` filters them; `changes()` keeps them.
+5. **Literal diff (D-027).** The diff lists what differs; deciding what SQL to run, and what
+   happens implicitly, belongs to the planner. Separation of concerns.
+6. **Determinism.** Every collection is sorted, so the same input always gives the same
+   output. That makes golden-file testing possible.
+7. **Golden-file tests (D-032).** The whole diff of the evolution fixture is compared with a
+   reviewed text file. Changing the output means regenerating the file and reviewing its diff.
+8. **The writer is proven, not assumed (D-026).** For every fixture: catalog to script to
+   catalog is exact through our parser, and PostgreSQL 16 accepts each script and dumps it
+   back to an identical catalog. Phase 4 builds migration SQL on this.
+
+**Questions you should be able to answer**
+
+- How do you tell a rename from a drop plus an add? (Indexes and constraints: by definition,
+  certain. Columns and tables: you can't be sure from the schema alone, so report a scored
+  candidate with its evidence and let the user decide.)
+- What is edit distance, and what is its complexity? (Levenshtein: fewest insertions,
+  deletions and substitutions; dynamic programming, O(n x m) time, O(m) memory with two rows.)
+- Why is the diff a list of typed records and not text? (The rules engine and planner need
+  structure; text is only one rendering of it. The sealed interface makes every consumer
+  handle every kind.)
+- How do you test something whose output is large? (Golden files, plus properties that must
+  always hold: a schema compared with itself is empty; reversing the inputs reverses each change.)
+- How do you know the generated SQL is valid? (It is loaded into a real PostgreSQL in the
+  round-trip check, and the result is dumped and compared.)

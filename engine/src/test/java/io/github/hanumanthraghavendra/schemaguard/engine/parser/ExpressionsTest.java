@@ -102,4 +102,30 @@ class ExpressionsTest {
         assertThat(Expressions.indexColumnName(e("'x'::text"))).isEqualTo("expr");
         assertThat(Expressions.indexColumnName(e("f(a"))).isEqualTo("expr");
     }
+
+    @ParameterizedTest
+    @CsvSource(
+            delimiter = '|',
+            quoteCharacter = '"',
+            textBlock =
+                    """
+                    'x'::text                                      | false
+                    ''::character varying                          | false
+                    '2026-01-01'::timestamp with time zone         | false
+                    now()                                          | false
+                    current_timestamp                              | false
+                    -1                                             | false
+                    a + 1                                          | false
+                    public.f(a, 1)                                 | false
+                    nextval('public.s'::regclass)                  | false
+                    array[1, 2]::integer[]                         | false
+                    (a is null)                                    | false
+                    b is not null                                  | true
+                    now() at time zone 'utc'                       | true
+                    case when a > 0 then 1 else 0 end              | true
+                    a and b                                        | true
+                    """)
+    void defaultsNeedParenthesesOnlyAroundKeywords(String expression, boolean needed) {
+        assertThat(Expressions.needsParenthesesAsDefault(e(expression))).isEqualTo(needed);
+    }
 }
