@@ -3,36 +3,40 @@
 > **To resume:** read this file, then start at "Next step". Do not re-plan; the plan is fixed below.
 
 - **Current phase:** 1 (scaffold, CI, lexer, parser, schema model)
-- **Last updated:** 2026-11-12
+- **Last updated:** 2026-11-13
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
-- **State:** build green, 222 tests, engine line coverage 99.6%, branch 94.7% (gate: 85% line)
-- **Size:** 49 files in 16 folders; 2716 lines of main Java, 1517 lines of test Java (Trackly reference: 249 files, 5,888 Java + 11,781 JS lines)
+- **State:** build green, 366 tests, engine line coverage 99.7%, branch 95.8% (gate: 85% line)
+- **Size:** 69 files in 16 folders; 3796 lines of main Java, 2516 lines of test Java (Trackly reference: 249 files, 5,888 Java + 11,781 JS lines)
 
 ## Next step
 
-**1.4b Remaining DDL statements.** In `engine/.../parser/StatementParser.java`, replace the
-"unsupported" fallthrough for these, one at a time, each with tests in `ParserTest`:
+**1.5 Catalog.** New package `engine/src/main/java/.../engine/catalog/`:
 
-1. `CREATE TYPE name AS ENUM (...)` -> new model record `EnumType(QualifiedName, List<String> labels)`.
-2. `CREATE SEQUENCE` -> model record `Sequence` (start, increment, min, max, cache, cycle, owned by).
-3. `CREATE [UNIQUE] INDEX [CONCURRENTLY] [IF NOT EXISTS] name ON [ONLY] table [USING method] (...)`
-   `[INCLUDE (...)] [NULLS [NOT] DISTINCT] [WITH (...)] [TABLESPACE x] [WHERE predicate]`
-   -> model record `Index` with `IndexColumn` (column or expression, sort order, nulls order, opclass).
-4. `ALTER TABLE [IF EXISTS] [ONLY] name action [, ...]` -> `Statement.AlterTable` holding a sealed
-   `AlterAction` list: `AddColumn`, `DropColumn`, `AlterColumnType` (with USING), `SetDefault`,
-   `DropDefault`, `SetNotNull`, `DropNotNull`, `AddConstraint` (reuse `parseTableConstraint`, which
-   already accepts `NOT VALID`), `DropConstraint`, `ValidateConstraint`, `RenameColumn`,
-   `RenameTable`, `RenameConstraint`. Actions not listed stay "unsupported feature" warnings.
-5. `DROP TABLE | INDEX | TYPE | SEQUENCE [IF EXISTS] names [CASCADE | RESTRICT]`.
-
-**1.5 Catalog.** `engine/.../model/Catalog.java` (tables, enums, sequences, indexes by
-`QualifiedName`) and `engine/.../catalog/CatalogBuilder.java`, which applies statements in order.
-It must also: expand `serial` types into integer + sequence + default; resolve unqualified
-user-defined types against known enums (see D-012); report "table does not exist" style errors.
+1. `model/Catalog.java`: an immutable snapshot of a schema: tables, enums, sequences and indexes,
+   each looked up by `QualifiedName` (an index is keyed by its table's schema + its own name).
+2. `catalog/CatalogBuilder.java`: starts empty and applies `Statement`s in source order.
+   `CreateTable`, `CreateIndex`, `CreateEnum`, `CreateSequence` add objects; `Drop` removes them
+   (dropping a table also removes its indexes and the sequences its columns own);
+   `AddEnumValue`, `RenameEnumValue`, `AlterSequenceOwner` modify them; `AlterTable` applies each
+   `AlterAction` to the table (needs `with...` copy methods on `Table` and `Column`).
+   `Ignored`, `Unsupported` and `Invalid` are skipped.
+3. Catalog errors are diagnostics with codes `SG-CAT-001...`, never exceptions: relation already
+   exists / does not exist (honouring `IF EXISTS` and `IF NOT EXISTS`), column does not exist,
+   constraint does not exist, duplicate column.
+4. `serial`, `bigserial`, `smallserial` expand into the integer type + NOT NULL + a sequence
+   `<table>_<column>_seq` owned by the column + `DEFAULT nextval('<schema>.<seq>'::regclass)`.
+5. Unqualified user-defined types are resolved against known enums (see D-012).
+6. Unnamed constraints and indexes get PostgreSQL's generated names (`t_pkey`, `t_col_key`,
+   `t_col_fkey`, `t_col_check`, `t_col_idx`) so the diff can match them. Verified against a
+   real server in phase 4.
+7. Tests: one per statement kind and per error, plus "a dump and the same schema written by
+   hand build equal catalogs".
 
 **1.6 Golden tests.** `engine/src/test/resources/golden/*.sql` with expected catalog snapshots.
 Phase 1 is done when a real `pg_dump --schema-only` file builds a catalog with no "unsupported"
-warnings for tables, indexes, enums and sequences.
+warnings for tables, indexes, enums and sequences. No PostgreSQL is installed in the Claude
+build container, so the fixture must be written from PostgreSQL's documented dump format, and
+is checked against a real server in phase 4 (Testcontainers in CI).
 
 ## Done
 
@@ -41,13 +45,14 @@ warnings for tables, indexes, enums and sequences.
 - [x] **1.2** Lexer (2026-11-12)
 - [x] **1.3** Schema model: `QualifiedName`, `DataType`, `Column`, sealed `Constraint` family, `Table`, `Expression` (2026-11-12)
 - [x] **1.4a** Parser: statement splitter, token cursor, type parser, expression renderer, full `CREATE TABLE` (2026-11-12)
+- [x] **1.4b** Parser: `CREATE TYPE ... AS ENUM`, `ALTER TYPE` add/rename value, `CREATE SEQUENCE`, `ALTER SEQUENCE ... OWNED BY`, `CREATE INDEX`, `ALTER TABLE` (17 actions), `DROP`; parser split into one class per statement family (2026-11-13)
 
 ## Phases
 
 | Phase | Deliverable | Status |
 | --- | --- | --- |
 | 0 | Blueprint | Done |
-| 1 | Scaffold, CI, lexer, parser, schema model | In progress (1.1 to 1.4a done) |
+| 1 | Scaffold, CI, lexer, parser, schema model | In progress (1.1 to 1.4b done; 1.5 catalog and 1.6 golden tests left) |
 | 2 | Diff engine with rename detection | Not started |
 | 3 | Rules engine, lock knowledge base, scoring | Not started |
 | 4 | Migration planner, SQL generation, real-database oracle tests (Testcontainers) | Not started |
@@ -80,3 +85,8 @@ warnings for tables, indexes, enums and sequences.
   engine must flag such differences as "possibly cosmetic" (phase 2).
 - `Identifiers.RESERVED` lists fully reserved keywords only. Before generating SQL in phase 4,
   check it against the server's `pg_get_keywords()` in the oracle tests.
+- `ALTER TABLE`: one action the parser does not model (`SET STATISTICS`, `ENABLE ROW LEVEL
+  SECURITY`, `ATTACH PARTITION`, ...) makes the whole statement "unsupported" (see D-019).
+- `ALTER TABLE ... ADD CONSTRAINT name NOT NULL col` becomes `SetNotNull` and loses the name.
+- `ALTER TABLE` accepts `RENAME` mixed with other actions; PostgreSQL requires it alone.
+- Any `ALTER ... OWNER TO role` statement is ignored as a whole, by its last three tokens.
