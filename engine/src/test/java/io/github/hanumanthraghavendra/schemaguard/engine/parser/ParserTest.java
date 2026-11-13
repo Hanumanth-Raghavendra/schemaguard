@@ -1,5 +1,9 @@
 package io.github.hanumanthraghavendra.schemaguard.engine.parser;
 
+import static io.github.hanumanthraghavendra.schemaguard.engine.parser.ParserAssertions.kinds;
+import static io.github.hanumanthraghavendra.schemaguard.engine.parser.ParserAssertions.rows;
+import static io.github.hanumanthraghavendra.schemaguard.engine.parser.ParserAssertions.syntaxError;
+import static io.github.hanumanthraghavendra.schemaguard.engine.parser.ParserAssertions.unsupportedFeature;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -62,54 +66,6 @@ class ParserTest {
         return constraint(table("CREATE TABLE t (a int, CHECK (" + condition + "))"), Check.class)
                 .expression()
                 .sql();
-    }
-
-    /** Parses a statement expected to fail with exactly one syntax error; returns its message. */
-    private static String syntaxError(String sql) {
-        ParseResult result = Parser.parse(sql);
-        assertThat(result.diagnostics()).as("diagnostics for: %s", sql).hasSize(1);
-        Diagnostic diagnostic = result.diagnostics().get(0);
-        assertThat(diagnostic.severity()).isEqualTo(Severity.ERROR);
-        assertThat(diagnostic.code()).isEqualTo(ParseErrors.SYNTAX_ERROR);
-        assertThat(result.statements()).hasSize(1).first().isInstanceOf(Statement.Invalid.class);
-        assertThat(result.hasErrors()).isTrue();
-        return diagnostic.message();
-    }
-
-    /** Parses a statement expected to hit an unsupported feature; returns the warning message. */
-    private static String unsupportedFeature(String sql) {
-        ParseResult result = Parser.parse(sql);
-        assertThat(result.diagnostics()).as("diagnostics for: %s", sql).hasSize(1);
-        Diagnostic diagnostic = result.diagnostics().get(0);
-        assertThat(diagnostic.severity()).isEqualTo(Severity.WARNING);
-        assertThat(diagnostic.code()).isEqualTo(ParseErrors.UNSUPPORTED_FEATURE);
-        assertThat(result.statements()).hasSize(1).first().isInstanceOf(Statement.Unsupported.class);
-        assertThat(result.hasErrors()).isFalse();
-        return diagnostic.message();
-    }
-
-    /** Turns lines of "input | expected" into test arguments. */
-    private static Stream<Arguments> rows(String block) {
-        return block.lines()
-                .filter(line -> !line.isBlank())
-                .map(
-                        line -> {
-                            int bar = line.lastIndexOf('|');
-                            return Arguments.of(line.substring(0, bar).strip(), line.substring(bar + 1).strip());
-                        });
-    }
-
-    private static List<String> kinds(ParseResult result) {
-        return result.statements().stream()
-                .map(
-                        s ->
-                                switch (s) {
-                                    case Statement.CreateTable c -> "table:" + c.table().name().name();
-                                    case Statement.Ignored i -> "ignored:" + i.kind();
-                                    case Statement.Unsupported u -> "unsupported:" + u.kind();
-                                    case Statement.Invalid i -> "invalid";
-                                })
-                .toList();
     }
 
     // ---------------------------------------------------------------- tests
@@ -566,19 +522,19 @@ class ParserTest {
                             "ignored:CREATE SCHEMA",
                             "ignored:CREATE EXTENSION",
                             "table:t",
-                            "unsupported:CREATE INDEX",
-                            "unsupported:CREATE UNIQUE INDEX",
+                            "index:i",
+                            "index:u",
                             "unsupported:CREATE FUNCTION",
                             "unsupported:CREATE MATERIALIZED VIEW",
-                            "unsupported:ALTER TABLE",
-                            "unsupported:DROP TABLE",
+                            "alter:t",
+                            "drop:TABLE",
                             "unsupported:UPDATE",
                             "unsupported:DO");
-            assertThat(result.diagnostics()).hasSize(8);
+            assertThat(result.diagnostics()).hasSize(4);
             assertThat(result.diagnostics()).extracting(Diagnostic::code).containsOnly(ParseErrors.UNSUPPORTED_STATEMENT);
             assertThat(result.diagnostics()).extracting(Diagnostic::severity).containsOnly(Severity.WARNING);
             assertThat(result.diagnostics().get(0).message())
-                    .isEqualTo("Unsupported statement: CREATE INDEX. It was not analysed.");
+                    .isEqualTo("Unsupported statement: CREATE FUNCTION. It was not analysed.");
             assertThat(result.hasErrors()).isFalse();
         }
 
@@ -648,7 +604,7 @@ class ParserTest {
                             \\unrestrict Xq9
                             """);
 
-            assertThat(result.hasErrors()).isFalse();
+            assertThat(result.diagnostics()).isEmpty();
             assertThat(result.tables()).hasSize(1);
             Table orders = result.tables().get(0);
             assertThat(orders.name()).hasToString("public.orders");
@@ -662,13 +618,13 @@ class ParserTest {
                     .containsExactly(
                             "ignored:SET",
                             "ignored:SELECT",
-                            "unsupported:CREATE TYPE",
+                            "enum:order_status",
                             "table:orders",
                             "ignored:ALTER TABLE",
-                            "unsupported:CREATE SEQUENCE",
-                            "unsupported:ALTER TABLE",
-                            "unsupported:ALTER TABLE",
-                            "unsupported:CREATE INDEX");
+                            "sequence:orders_id_seq",
+                            "alter:orders",
+                            "alter:orders",
+                            "index:orders_customer_idx");
         }
     }
 
@@ -817,6 +773,18 @@ class ParserTest {
                     1\t2
                     \\.
                     CREATE RULE r AS ON INSERT TO t DO ALSO (SELECT 1; SELECT 2);
+                    CREATE TYPE mood AS ENUM ('a', 'b'); ALTER TYPE mood ADD VALUE IF NOT EXISTS 'c' AFTER 'b';
+                    CREATE TEMP SEQUENCE s AS integer START WITH 1 INCREMENT BY -1 NO MINVALUE MAXVALUE 9 CACHE 1 CYCLE OWNED BY t.a;
+                    CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS i ON ONLY t USING btree
+                        (a DESC NULLS LAST, lower(b) COLLATE "C" ops (x = 1), (a + 1)) INCLUDE (b)
+                        NULLS NOT DISTINCT WITH (fillfactor = 70) TABLESPACE fast WHERE (a > 0);
+                    ALTER TABLE IF EXISTS ONLY t ADD COLUMN IF NOT EXISTS c int DEFAULT 1 PRIMARY KEY,
+                        ALTER COLUMN c SET DATA TYPE bigint COLLATE "C" USING c::bigint,
+                        ALTER c ADD GENERATED BY DEFAULT AS IDENTITY (START WITH 1), ALTER c DROP IDENTITY IF EXISTS,
+                        ADD CONSTRAINT u UNIQUE USING INDEX i DEFERRABLE INITIALLY DEFERRED,
+                        ADD CONSTRAINT f FOREIGN KEY (c) REFERENCES o (id) NOT VALID, VALIDATE CONSTRAINT f,
+                        DROP CONSTRAINT IF EXISTS u CASCADE, RENAME CONSTRAINT f TO g, RENAME COLUMN c TO d, SET SCHEMA x;
+                    DROP INDEX CONCURRENTLY IF EXISTS i, j CASCADE; ALTER SEQUENCE IF EXISTS s OWNED BY NONE;
                     """;
             assertThat(Parser.parse(sql).hasErrors()).isFalse();
             for (int end = 0; end <= sql.length(); end++) {

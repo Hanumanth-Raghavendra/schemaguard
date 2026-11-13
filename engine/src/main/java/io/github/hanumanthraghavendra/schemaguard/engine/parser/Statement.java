@@ -1,8 +1,16 @@
 package io.github.hanumanthraghavendra.schemaguard.engine.parser;
 
+import io.github.hanumanthraghavendra.schemaguard.engine.model.ColumnRef;
+import io.github.hanumanthraghavendra.schemaguard.engine.model.EnumType;
+import io.github.hanumanthraghavendra.schemaguard.engine.model.Index;
+import io.github.hanumanthraghavendra.schemaguard.engine.model.ObjectKind;
+import io.github.hanumanthraghavendra.schemaguard.engine.model.QualifiedName;
+import io.github.hanumanthraghavendra.schemaguard.engine.model.Sequence;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Table;
 import io.github.hanumanthraghavendra.schemaguard.engine.source.SourceSpan;
+import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * One parsed SQL statement.
@@ -19,6 +27,66 @@ public sealed interface Statement {
         public CreateTable {
             Objects.requireNonNull(table, "table");
             Objects.requireNonNull(span, "span");
+        }
+    }
+
+    record AlterTable(
+            QualifiedName table,
+            boolean ifExists,
+            boolean only,
+            List<AlterAction> actions,
+            SourceSpan span)
+            implements Statement {
+        public AlterTable {
+            Objects.requireNonNull(table, "table");
+            actions = List.copyOf(actions);
+        }
+    }
+
+    /** @param only true for {@code ON ONLY table}: do not recurse into partitions */
+    record CreateIndex(
+            Index index, boolean concurrently, boolean ifNotExists, boolean only, SourceSpan span)
+            implements Statement {
+        public CreateIndex {
+            Objects.requireNonNull(index, "index");
+        }
+    }
+
+    record CreateEnum(EnumType type, SourceSpan span) implements Statement {}
+
+    /** {@code ALTER TYPE ... ADD VALUE}. At most one of {@code before} and {@code after} is set. */
+    record AddEnumValue(
+            QualifiedName type,
+            String value,
+            boolean ifNotExists,
+            Optional<String> before,
+            Optional<String> after,
+            SourceSpan span)
+            implements Statement {}
+
+    record RenameEnumValue(QualifiedName type, String from, String to, SourceSpan span)
+            implements Statement {}
+
+    record CreateSequence(Sequence sequence, boolean ifNotExists, SourceSpan span)
+            implements Statement {}
+
+    /** {@code ALTER SEQUENCE ... OWNED BY}. An empty owner means {@code OWNED BY NONE}. */
+    record AlterSequenceOwner(
+            QualifiedName sequence, boolean ifExists, Optional<ColumnRef> ownedBy, SourceSpan span)
+            implements Statement {}
+
+    /** @param concurrently only ever true for {@code DROP INDEX CONCURRENTLY} */
+    record Drop(
+            ObjectKind kind,
+            List<QualifiedName> names,
+            boolean ifExists,
+            boolean cascade,
+            boolean concurrently,
+            SourceSpan span)
+            implements Statement {
+        public Drop {
+            Objects.requireNonNull(kind, "kind");
+            names = List.copyOf(names);
         }
     }
 

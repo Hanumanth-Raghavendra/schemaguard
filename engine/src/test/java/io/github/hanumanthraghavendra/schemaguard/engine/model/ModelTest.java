@@ -111,4 +111,71 @@ class ModelTest {
         assertThat(table.primaryKey()).contains(key);
         assertThatThrownBy(() -> table.columns().add(id)).isInstanceOf(UnsupportedOperationException.class);
     }
+
+    @Test
+    void indexKeyIsEitherAColumnOrAnExpression() {
+        IndexColumn column = IndexColumn.ofColumn("a");
+        assertThat(column.order()).isEqualTo(SortOrder.ASC);
+        assertThat(column.nulls()).isEqualTo(NullsOrder.LAST);
+        assertThatThrownBy(
+                        () ->
+                                new IndexColumn(
+                                        Optional.of("a"),
+                                        Optional.of(new Expression("a + 1")),
+                                        Optional.empty(),
+                                        Optional.empty(),
+                                        SortOrder.ASC,
+                                        NullsOrder.LAST))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(
+                        () ->
+                                new IndexColumn(
+                                        Optional.empty(),
+                                        Optional.empty(),
+                                        Optional.empty(),
+                                        Optional.empty(),
+                                        SortOrder.ASC,
+                                        NullsOrder.LAST))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void sequenceRejectsAZeroIncrementAndCanChangeOwner() {
+        QualifiedName name = new QualifiedName("public", "s");
+        Sequence sequence =
+                new Sequence(
+                        name, Persistence.PERMANENT, Optional.empty(), Optional.empty(), 1,
+                        Optional.empty(), Optional.empty(), 1, false, Optional.empty());
+        ColumnRef owner = new ColumnRef(new QualifiedName("public", "t"), "id");
+        assertThat(sequence.withOwnedBy(Optional.of(owner)).ownedBy()).contains(owner);
+        assertThat(sequence.ownedBy()).isEmpty();
+        assertThatThrownBy(
+                        () ->
+                                new Sequence(
+                                        name, Persistence.PERMANENT, Optional.empty(), Optional.empty(), 0,
+                                        Optional.empty(), Optional.empty(), 1, false, Optional.empty()))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ColumnRef(null, "id")).isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void enumAndIndexCopyTheirLists() {
+        List<String> labels = new ArrayList<>(List.of("a", "b"));
+        EnumType type = new EnumType(new QualifiedName("public", "mood"), labels);
+        labels.clear();
+        assertThat(type.labels()).containsExactly("a", "b");
+
+        Index index =
+                new Index(
+                        Optional.of("i"), new QualifiedName("public", "t"), false, "btree",
+                        List.of(IndexColumn.ofColumn("a")), List.of(), false, Optional.empty());
+        assertThatThrownBy(() -> index.columns().clear()).isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> index.include().add("x")).isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void objectKindsKnowTheirKeyword() {
+        assertThat(ObjectKind.TABLE.keyword()).isEqualTo("table");
+        assertThat(ObjectKind.SEQUENCE.keyword()).isEqualTo("sequence");
+    }
 }

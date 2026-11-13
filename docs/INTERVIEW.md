@@ -88,3 +88,49 @@ several only if all are present. There is no backtracking, so parsing is O(n) in
 - Why not use an existing SQL parser library? (D-004.)
 - What happens with SQL the parser does not understand? (A warning with the statement kind and
   position; the rest of the file is still analysed.)
+
+## Phase 1.4b: indexes, sequences, enums, ALTER TABLE and DROP
+
+**What it is.** The parser now understands every statement a `pg_dump` schema file is made of.
+`Statement` has twelve variants; `ALTER TABLE` yields a list of `AlterAction`s (seventeen kinds).
+
+**How the parser is organised (D-016).** `StatementParser` looks at the first few keywords and
+dispatches. `ParserBase` holds the shared `TokenCursor` and the fragments many statements use
+(`qualifiedName`, `columnList`, `ifExists`, `signedInteger`). `TableElementParser` parses columns
+and constraints and is used by both `CREATE TABLE` and `ALTER TABLE ... ADD`. Because all of
+them share one cursor, one parser can hand over to another in the middle of a statement.
+
+**Design choices worth explaining**
+
+1. **Actions, not results (D-017).** `ALTER TABLE t ALTER c SET NOT NULL` is stored as
+   `SetNotNull("c")`, not as a changed table. Two migrations can end in the same schema and take
+   very different locks on the way; the rules engine needs to see the path.
+2. **Lookahead instead of backtracking.** `ADD CONSTRAINT x UNIQUE USING INDEX i` and
+   `ADD CONSTRAINT x UNIQUE (a)` start the same way. `isConstraintUsingIndex()` peeks a few
+   tokens ahead and decides before consuming anything, so the parser never has to undo work.
+3. **Three kinds of index key.** A column (`email`), a function call (`lower(email)`) or any
+   expression in parentheses (`(a + b)`). The parser tells them apart by what follows the first
+   name: nothing, or an opening parenthesis.
+4. **Defaults made explicit (D-018).** `CREATE INDEX i ON t (a)` and
+   `CREATE INDEX i ON t USING btree (a ASC NULLS LAST)` produce equal `Index` records, because
+   the defaults are filled in. A descending key defaults to NULLS FIRST, as in PostgreSQL.
+5. **Where an expression ends.** `SET DEFAULT coalesce(a, 0), DROP COLUMN b`: the default ends
+   at the first comma that is not inside parentheses or brackets, tracked with a depth counter.
+6. **Signed numbers.** The lexer never produces a negative number; `-5` is an operator and a
+   number, because `a-5` must be a subtraction. `signedInteger()` puts the sign back for
+   `INCREMENT BY -5`, and handles `-9223372036854775808`, which only fits once the sign is attached.
+7. **All or nothing (D-019).** If one action in an `ALTER TABLE` is not understood, the whole
+   statement is reported as unsupported instead of being half-analysed.
+
+**Questions you should be able to answer**
+
+- Why is `AlterAction` a sealed interface of records? (The compiler checks every `switch` over
+  actions is complete, so adding an eighteenth action cannot be forgotten in the catalog or rules.)
+- Why does `ALTER TABLE` reuse the `CREATE TABLE` code? (Same grammar for column definitions and
+  constraints; one implementation means one set of bugs and one set of tests.)
+- How do you add support for a new statement? (A record in `Statement`, a parse method or class,
+  one line in the dispatcher, tests. The compiler then points at every `switch` that must handle it.)
+- What is `USING INDEX` for? (Building a unique index `CONCURRENTLY` and then promoting it is how
+  a primary key or unique constraint is added without blocking writes. Phase 4 generates this.)
+- What does the parser still not understand? (Views, functions, triggers, policies, partitions:
+  each is reported by name with its position.)
