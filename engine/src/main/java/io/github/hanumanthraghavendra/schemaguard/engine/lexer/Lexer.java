@@ -36,6 +36,12 @@ public final class Lexer {
 
     private static final char END = '\0';
 
+    /**
+     * PostgreSQL keeps at most 63 bytes of an identifier and silently drops the rest. This
+     * counts characters, which is the same thing for ASCII names.
+     */
+    private static final int MAX_IDENTIFIER_LENGTH = 63;
+
     private final String src;
     private final int length;
     private final List<Token> tokens = new ArrayList<>();
@@ -218,7 +224,7 @@ public final class Lexer {
             advance();
         }
         String text = slice(start);
-        emit(TokenType.WORD, text, asciiLowerCase(text), start);
+        emit(TokenType.WORD, text, truncateIdentifier(asciiLowerCase(text)), start);
     }
 
     // ---------------------------------------------------------------- strings
@@ -347,14 +353,14 @@ public final class Lexer {
                             "Zero-length quoted identifier",
                             start);
                 }
-                emit(TokenType.QUOTED_IDENTIFIER, slice(start), value.toString(), start);
+                emit(TokenType.QUOTED_IDENTIFIER, slice(start), truncateIdentifier(value.toString()), start);
                 return;
             }
             value.append(c);
             advance();
         }
         error(LexErrors.UNTERMINATED_QUOTED_IDENTIFIER, "Unterminated quoted identifier", start);
-        emit(TokenType.QUOTED_IDENTIFIER, slice(start), value.toString(), start);
+        emit(TokenType.QUOTED_IDENTIFIER, slice(start), truncateIdentifier(value.toString()), start);
     }
 
     /** Lexes {@code $1}, {@code $$...$$} or {@code $tag$...$tag$}. On entry the cursor is on the dollar sign. */
@@ -639,6 +645,10 @@ public final class Lexer {
             }
         }
         return chars == null ? text : new String(chars);
+    }
+
+    private static String truncateIdentifier(String name) {
+        return name.length() <= MAX_IDENTIFIER_LENGTH ? name : name.substring(0, MAX_IDENTIFIER_LENGTH);
     }
 
     private static String describe(int codePoint) {

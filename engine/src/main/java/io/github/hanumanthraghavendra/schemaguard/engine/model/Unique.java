@@ -22,4 +22,9 @@ public record Unique(
     public Unique withDeferrability(Deferrability value) {
         return new Unique(name, columns, include, nullsNotDistinct, value);
     }
+
+    @Override
+    public Unique withName(Optional<String> value) {
+        return new Unique(value, columns, include, nullsNotDistinct, deferrability);
+    }
 }

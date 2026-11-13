@@ -25,11 +25,16 @@ final class ExpressionRenderer {
 
     /** Renders an expression, first removing parentheses that wrap the whole of it. */
     static Expression toExpression(List<Token> tokens) {
+        return new Expression(render(unwrap(tokens)));
+    }
+
+    /** Removes every pair of parentheses that wraps the whole token list. */
+    static List<Token> unwrap(List<Token> tokens) {
         List<Token> core = tokens;
         while (isWrappedInParentheses(core)) {
             core = core.subList(1, core.size() - 1);
         }
-        return new Expression(render(core));
+        return core;
     }
 
     static String render(List<Token> tokens) {

@@ -178,4 +178,35 @@ class ModelTest {
         assertThat(ObjectKind.TABLE.keyword()).isEqualTo("table");
         assertThat(ObjectKind.SEQUENCE.keyword()).isEqualTo("sequence");
     }
+
+    @Test
+    void qualifiedNamesSortBySchemaThenName() {
+        List<QualifiedName> names =
+                new ArrayList<>(
+                        List.of(
+                                new QualifiedName("shop", "a"),
+                                new QualifiedName("app", "z"),
+                                new QualifiedName("app", "b")));
+        names.sort(null);
+        assertThat(names).extracting(QualifiedName::toSql).containsExactly("app.b", "app.z", "shop.a");
+    }
+
+    @Test
+    void withMethodsReturnChangedCopies() {
+        Column column =
+                new Column("a", DataType.of("integer"), false, Optional.empty(), Identity.NONE, Optional.empty(), Optional.empty());
+        assertThat(column.withName("b").name()).isEqualTo("b");
+        assertThat(column.withType(DataType.of("text")).type()).isEqualTo(DataType.of("text"));
+        assertThat(column.withIdentity(Identity.ALWAYS).identity()).isEqualTo(Identity.ALWAYS);
+        assertThat(column.withCollation(Optional.of("\"C\"")).collation()).contains("\"C\"");
+        assertThat(column).as("the original is untouched").isEqualTo(column.withName("a"));
+
+        Unique unique = new Unique(Optional.empty(), List.of("a"), List.of(), false, Deferrability.NOT_DEFERRABLE);
+        assertThat(unique.withName(Optional.of("u")).name()).contains("u");
+        Check check = new Check(Optional.empty(), new Expression("a > 0"), false, false);
+        assertThat(check.withName(Optional.of("c")).withExpression(new Expression("a > 1")))
+                .isEqualTo(new Check(Optional.of("c"), new Expression("a > 1"), false, false));
+        assertThat(Identifiers.isReserved("select")).isTrue();
+        assertThat(Identifiers.isReserved("orders")).isFalse();
+    }
 }

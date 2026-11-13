@@ -13,4 +13,7 @@ public sealed interface Constraint permits PrimaryKey, Unique, ForeignKey, Check
 
     /** The name given with {@code CONSTRAINT name}, or empty if PostgreSQL will choose one. */
     Optional<String> name();
+
+    /** A copy of this constraint under another name. */
+    Constraint withName(Optional<String> value);
 }

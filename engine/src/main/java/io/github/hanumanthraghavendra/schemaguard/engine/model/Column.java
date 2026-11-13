@@ -25,4 +25,28 @@ public record Column(
     public Column withNotNull(boolean value) {
         return new Column(name, type, value, defaultValue, identity, generated, collation);
     }
+
+    public Column withName(String value) {
+        return new Column(value, type, notNull, defaultValue, identity, generated, collation);
+    }
+
+    public Column withType(DataType value) {
+        return new Column(name, value, notNull, defaultValue, identity, generated, collation);
+    }
+
+    public Column withDefaultValue(Optional<Expression> value) {
+        return new Column(name, type, notNull, value, identity, generated, collation);
+    }
+
+    public Column withIdentity(Identity value) {
+        return new Column(name, type, notNull, defaultValue, value, generated, collation);
+    }
+
+    public Column withGenerated(Optional<GeneratedColumn> value) {
+        return new Column(name, type, notNull, defaultValue, identity, value, collation);
+    }
+
+    public Column withCollation(Optional<String> value) {
+        return new Column(name, type, notNull, defaultValue, identity, generated, value);
+    }
 }

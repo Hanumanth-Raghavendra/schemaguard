@@ -47,4 +47,19 @@ public record ForeignKey(
                 name, columns, referencedTable, referencedColumns, onDelete, onUpdate,
                 onDeleteColumns, match, deferrability, value);
     }
+
+    @Override
+    public ForeignKey withName(Optional<String> value) {
+        return new ForeignKey(
+                value, columns, referencedTable, referencedColumns, onDelete, onUpdate,
+                onDeleteColumns, match, deferrability, notValid);
+    }
+
+    /** A copy that points the same rules at other columns or another table. */
+    public ForeignKey withReferences(
+            List<String> localColumns, QualifiedName table, List<String> tableColumns) {
+        return new ForeignKey(
+                name, localColumns, table, tableColumns, onDelete, onUpdate, onDeleteColumns,
+                match, deferrability, notValid);
+    }
 }

@@ -146,6 +146,16 @@ class LexerTest {
         }
 
         @Test
+        void identifiersAreCutAtSixtyThreeCharactersAsTheServerDoes() {
+            String name = "n".repeat(70);
+            Token word = only(name.toUpperCase(java.util.Locale.ROOT));
+            assertThat(word.value()).isEqualTo("n".repeat(63));
+            assertThat(word.text()).hasSize(70);
+            assertThat(only("\"" + name + "\"").value()).hasSize(63);
+            assertThat(only("n".repeat(63)).value()).hasSize(63);
+        }
+
+        @Test
         void positionalParameter() {
             Token token = only("$12");
             assertThat(token.type()).isEqualTo(PARAMETER);
