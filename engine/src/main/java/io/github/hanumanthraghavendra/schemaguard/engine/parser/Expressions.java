@@ -80,6 +80,25 @@ public final class Expressions {
         return out.toString();
     }
 
+    /**
+     * The names of the functions the expression calls, in lower case unless quoted, in the
+     * order they appear. A schema in front of the name is dropped: {@code pg_catalog.now()}
+     * gives {@code now}. Type names with modifiers, as in {@code x::numeric(10,2)}, are not
+     * function calls and are left out.
+     */
+    public static List<String> functionCalls(Expression expression) {
+        List<Token> tokens = tokens(expression);
+        List<String> names = new ArrayList<>();
+        for (int i = 0; i + 1 < tokens.size(); i++) {
+            boolean called = isName(tokens.get(i)) && tokens.get(i + 1).type() == TokenType.LPAREN;
+            boolean castTarget = i > 0 && tokens.get(i - 1).type() == TokenType.DOUBLE_COLON;
+            if (called && !castTarget) {
+                names.add(tokens.get(i).value());
+            }
+        }
+        return names;
+    }
+
     /** The column name, if the expression is nothing but one column reference. */
     public static Optional<String> asColumn(Expression expression) {
         List<Token> tokens = tokens(expression);

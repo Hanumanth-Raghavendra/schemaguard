@@ -65,8 +65,21 @@ final class TableOperations {
             addColumn(name, column);
         }
         for (Constraint constraint : withoutRedundantKeys(parsed.constraints())) {
-            addConstraint(name, constraint);
+            addConstraint(name, validated(constraint));
         }
+    }
+
+    /**
+     * PostgreSQL accepts NOT VALID inside CREATE TABLE and then ignores it: a new table has no
+     * rows that could break the constraint, so the constraint is stored as valid.
+     */
+    private static Constraint validated(Constraint constraint) {
+        return switch (constraint) {
+            case Check check -> check.withNotValid(false);
+            case ForeignKey foreignKey -> foreignKey.withNotValid(false);
+            case PrimaryKey key -> key;
+            case Unique key -> key;
+        };
     }
 
     /**

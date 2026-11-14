@@ -92,11 +92,13 @@ class SqlWriterTest {
                                 ON DELETE SET NULL (y) ON UPDATE CASCADE NOT VALID,
                             CONSTRAINT t_check CHECK (z > 0) NO INHERIT NOT VALID
                         );
+                        ALTER TABLE t ADD CONSTRAINT t_later CHECK (x > 0) NOT VALID;
                         DROP TABLE p CASCADE;
                         """);
         assertThat(table.constraints().stream().map(SqlWriter::constraint))
                 .containsExactly(
-                        "CONSTRAINT t_check CHECK (z > 0) NO INHERIT NOT VALID",
+                        "CONSTRAINT t_check CHECK (z > 0) NO INHERIT",
+                        "CONSTRAINT t_later CHECK (x > 0) NOT VALID",
                         "CONSTRAINT t_pk PRIMARY KEY (x) INCLUDE (y) DEFERRABLE INITIALLY DEFERRED",
                         "CONSTRAINT t_u UNIQUE NULLS NOT DISTINCT (y) DEFERRABLE");
     }
@@ -111,12 +113,14 @@ class SqlWriterTest {
                             CONSTRAINT t_fk FOREIGN KEY (y, z) REFERENCES p (a, b) MATCH FULL
                                 ON DELETE SET NULL (y) ON UPDATE CASCADE DEFERRABLE NOT VALID,
                             CONSTRAINT t_plain FOREIGN KEY (y) REFERENCES p);
+                        ALTER TABLE t ADD CONSTRAINT t_later FOREIGN KEY (y) REFERENCES p NOT VALID;
                         """);
         Table table = catalog.table(new QualifiedName("public", "t")).orElseThrow();
         assertThat(table.constraints().stream().map(SqlWriter::constraint))
                 .containsExactly(
                         "CONSTRAINT t_fk FOREIGN KEY (y, z) REFERENCES public.p (a, b) MATCH FULL ON DELETE SET NULL (y)"
-                                + " ON UPDATE CASCADE DEFERRABLE NOT VALID",
+                                + " ON UPDATE CASCADE DEFERRABLE",
+                        "CONSTRAINT t_later FOREIGN KEY (y) REFERENCES public.p (id) NOT VALID",
                         "CONSTRAINT t_plain FOREIGN KEY (y) REFERENCES public.p (id)");
     }
 

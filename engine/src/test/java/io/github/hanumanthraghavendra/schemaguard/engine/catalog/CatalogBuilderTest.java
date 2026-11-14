@@ -431,6 +431,22 @@ class CatalogBuilderTest {
         }
 
         @Test
+        void notValidInsideCreateTableIsIgnoredAsPostgresDoes() {
+            // Measured on PostgreSQL 16: pg_constraint.convalidated is true for both.
+            Catalog catalog =
+                    catalog(
+                            """
+                            CREATE TABLE p (id int PRIMARY KEY);
+                            CREATE TABLE t (
+                                a int,
+                                CONSTRAINT positive CHECK (a > 0) NOT VALID,
+                                CONSTRAINT t_fk FOREIGN KEY (a) REFERENCES p (id) NOT VALID);
+                            """);
+            assertThat(((Check) table(catalog, "t").constraint("positive").orElseThrow()).notValid()).isFalse();
+            assertThat(((ForeignKey) table(catalog, "t").constraint("t_fk").orElseThrow()).notValid()).isFalse();
+        }
+
+        @Test
         void aUniqueIndexCanBecomeThePrimaryKey() {
             Catalog catalog =
                     catalog("CREATE TABLE t (a int); CREATE UNIQUE INDEX i ON t (a); ALTER TABLE t ADD PRIMARY KEY USING INDEX i;");

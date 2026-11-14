@@ -1,0 +1,113 @@
+Risk: 100/100 CRITICAL
+Findings: 20 (5 critical, 9 high, 2 medium, 4 low)
+
+~ enum app.role: value 'writer' removed
+  HIGH     SG-R303  Enum value is removed  [data loss, score 60]
+      Value 'writer' is removed from enum app.role. The type has to be created again, and rows that hold the value must be changed first.
+      Safer: Stop writing the value and update the rows that hold it. Then create the new type, convert each column with ALTER COLUMN ... TYPE ... USING, and drop the old type. Often it is simpler to leave the value in the type and stop using it.
+
+~ enum app.role: value 'author' added before 'admin'
+  LOW      SG-R508  New enum value needs care in two places  [compatibility, score 10]
+      Value 'author' is added to enum app.role. It cannot be used until the transaction that adds it has committed.
+      Safer: Add the value in a migration of its own. Release the code that can read the new value before the code that writes it.
+
+? enum app.role: value 'writer' may have been renamed to 'author' (confidence 0.58: takes the place of the removed value; names 17% similar)
+  MEDIUM   SG-R306  Possible enum value rename would be applied as remove and add  [data loss, score 17]
+      Value 'writer' of enum app.role may have been renamed to 'author'. RENAME VALUE keeps the rows that hold it.
+      Safer: If it is a rename, use ALTER TYPE ... RENAME VALUE. It takes no table lock and keeps every row, but the application must accept the new name at the same moment.
+
+~ enum app.status: value 'scheduled' added before 'published'
+  LOW      SG-R508  New enum value needs care in two places  [compatibility, score 10]
+      Value 'scheduled' is added to enum app.status. It cannot be used until the transaction that adds it has committed.
+      Safer: Add the value in a migration of its own. Release the code that can read the new value before the code that writes it.
+
+~ enum app.status: value 'deleted' added at the end
+  LOW      SG-R508  New enum value needs care in two places  [compatibility, score 10]
+      Value 'deleted' is added to enum app.status. It cannot be used until the transaction that adds it has committed.
+      Safer: Add the value in a migration of its own. Release the code that can read the new value before the code that writes it.
+
+- table app.audit_log
+  CRITICAL SG-R301  Table is dropped with all its rows  [data loss, score 85]
+      Dropping app.audit_log deletes all its rows for good.
+      Direct route: DROP TABLE takes ACCESS EXCLUSIVE on app.audit_log (blocks reads and writes) and ACCESS EXCLUSIVE on each table it references (blocks reads and writes), held briefly
+      Safer: First release application code that no longer uses the table. Then rename the table instead of dropping it, wait a release or two to be sure nothing misses it, take a backup, and drop it last.
+  LOW      SG-R111  Statements that need a full lock should run with a lock timeout  [locking, score 10]
+      This migration locks 5 tables app.audit_log, app.post_tags, app.posts, app.tags, app.users against reads and writes. Each statement first waits for the queries already running there, and blocks all new ones while it waits.
+      Safer: Run SET lock_timeout = '5s' before the migration and try again if it times out. A failed attempt costs nothing; a waiting one blocks everybody.
+
+- table app.post_tags
+  CRITICAL SG-R301  Table is dropped with all its rows  [data loss, score 85]
+      Dropping app.post_tags deletes all its rows for good.
+      Direct route: DROP TABLE takes ACCESS EXCLUSIVE on app.post_tags (blocks reads and writes) and ACCESS EXCLUSIVE on each table it references (blocks reads and writes), held briefly
+      Safer: First release application code that no longer uses the table. Then rename the table instead of dropping it, wait a release or two to be sure nothing misses it, take a backup, and drop it last.
+
+~ column app.posts.body: NOT NULL added
+  HIGH     SG-R106  SET NOT NULL scans the table under a full lock  [locking, score 60]
+      Making app.posts.body NOT NULL reads every row to look for NULLs while reads and writes wait. It fails if a NULL is found.
+      Direct route: ALTER COLUMN ... SET NOT NULL takes ACCESS EXCLUSIVE on app.posts (blocks reads and writes), held while every row is read
+      Safer: Add CHECK (column IS NOT NULL) NOT VALID, run VALIDATE CONSTRAINT, then SET NOT NULL: PostgreSQL 12 and later take the valid constraint as proof and skip the scan. Drop the constraint afterwards. Fill any NULLs before validating.
+
+~ column app.posts.views: type integer -> bigint
+  HIGH     SG-R201  Column type change rewrites the table  [table rewrite, score 60]
+      Changing app.posts.views from integer to bigint rewrites the whole table while reads and writes wait.
+      Direct route: ALTER COLUMN ... TYPE takes ACCESS EXCLUSIVE on app.posts (blocks reads and writes), held while the whole table is written again
+      Safer: Add a new column of the new type, fill it in batches, keep it in step with a trigger, then switch the application over and drop the old column. Some changes need no rewrite at all: a longer varchar, varchar to text, or a numeric with more digits and the same scale.
+
+~ constraint app.posts.posts_author_id_fkey: FOREIGN KEY (author_id) REFERENCES app.users (id) -> FOREIGN KEY (author_id) REFERENCES app.users (id) ON DELETE CASCADE
+  HIGH     SG-R109  Constraint definition changes, so the constraint is dropped and added again  [locking, score 60]
+      Constraint posts_author_id_fkey on app.posts has a new definition. Dropping it and adding it again checks every row under a lock.
+      Direct route: ADD CONSTRAINT ... FOREIGN KEY takes SHARE ROW EXCLUSIVE on app.posts (blocks writes, reads continue) and SHARE ROW EXCLUSIVE on each table it references (blocks writes, reads continue), held while every row is read
+      Safer: Add the new definition under a new name with NOT VALID, run VALIDATE CONSTRAINT, and only then drop the old constraint. The table is never without the rule and never locked for long. For a key, build the new unique index concurrently first.
+
++ constraint app.posts.posts_published_check CHECK ((status <> 'published'::app.status) or (published_at is not null))
+  HIGH     SG-R105  CHECK constraint is added without NOT VALID  [locking, score 60]
+      Adding check constraint posts_published_check reads every row of app.posts while reads and writes wait.
+      Direct route: ADD CONSTRAINT ... CHECK takes ACCESS EXCLUSIVE on app.posts (blocks reads and writes), held while every row is read
+      Safer: Add the constraint with NOT VALID, which is quick, then run ALTER TABLE ... VALIDATE CONSTRAINT as a second statement. Validation reads the rows under a lock that lets reads and writes continue.
+
++ constraint app.posts.posts_slug_key UNIQUE (slug)
+  HIGH     SG-R108  UNIQUE constraint is added by building its index under a full lock  [locking, score 60]
+      Adding unique constraint posts_slug_key builds a unique index on app.posts while reads and writes wait. It fails if rows hold duplicates.
+      Direct route: ADD CONSTRAINT ... UNIQUE takes ACCESS EXCLUSIVE on app.posts (blocks reads and writes), held while every row is read
+      Safer: Build the index first with CREATE UNIQUE INDEX CONCURRENTLY, then attach it with ALTER TABLE ... ADD CONSTRAINT ... UNIQUE USING INDEX, which only needs a brief lock. Look for duplicates before starting.
+
+~ index app.posts_status_idx: ON app.posts USING btree (status) -> ON app.posts USING btree (status) WHERE (status <> 'archived'::app.status)
+  HIGH     SG-R103  Index definition changes, so the index is rebuilt  [locking, score 60]
+      Index posts_status_idx has a new definition. Dropping and rebuilding it blocks writes to app.posts during the build and leaves queries without the index in between.
+      Direct route: CREATE INDEX takes SHARE on app.posts (blocks writes, reads continue), held while every row is read
+      Safer: Build the new definition under a temporary name with CREATE INDEX CONCURRENTLY, drop the old index with DROP INDEX CONCURRENTLY, then rename the new one with ALTER INDEX ... RENAME.
+
+- table app.tags
+  CRITICAL SG-R301  Table is dropped with all its rows  [data loss, score 85]
+      Dropping app.tags deletes all its rows for good.
+      Direct route: DROP TABLE takes ACCESS EXCLUSIVE on app.tags (blocks reads and writes) and ACCESS EXCLUSIVE on each table it references (blocks reads and writes), held briefly
+      Safer: First release application code that no longer uses the table. Then rename the table instead of dropping it, wait a release or two to be sure nothing misses it, take a backup, and drop it last.
+
+- column app.users.display_name text
+  CRITICAL SG-R302  Column is dropped with all its values  [data loss, score 85]
+      Dropping app.users.display_name deletes its values in every row for good.
+      Direct route: DROP COLUMN takes ACCESS EXCLUSIVE on app.users (blocks reads and writes), held briefly
+      Safer: First release application code that no longer reads or writes the column, then drop it in a later migration. Keep a backup of the values until the change has proven itself.
+
+- column app.users.bio text
+  CRITICAL SG-R302  Column is dropped with all its values  [data loss, score 85]
+      Dropping app.users.bio deletes its values in every row for good.
+      Direct route: DROP COLUMN takes ACCESS EXCLUSIVE on app.users (blocks reads and writes), held briefly
+      Safer: First release application code that no longer reads or writes the column, then drop it in a later migration. Keep a backup of the values until the change has proven itself.
+
+? column app.users.display_name may have been renamed to full_name (confidence 0.65: same type and attributes; names 50% similar; both are column 3)
+  HIGH     SG-R305  Possible rename would be applied as drop and add  [data loss, score 39]
+      Column app.users.display_name may have been renamed to full_name. Applied as drop and add, its values are lost.
+      Safer: If it is a rename, write ALTER TABLE ... RENAME (TO or COLUMN) yourself. To rename without breaking the running application, add the new name next to the old one, write to both, move the readers over, and remove the old name last. If it is not a rename, nothing needs to change.
+
+? table app.audit_log may have been renamed to app.activity_log (confidence 0.79: same 4 columns; names 58% similar)
+  HIGH     SG-R305  Possible rename would be applied as drop and add  [data loss, score 47]
+      Table app.audit_log may have been renamed to app.activity_log. Applied as drop and create, all its rows are lost.
+      Safer: If it is a rename, write ALTER TABLE ... RENAME (TO or COLUMN) yourself. To rename without breaking the running application, add the new name next to the old one, write to both, move the readers over, and remove the old name last. If it is not a rename, nothing needs to change.
+
+- sequence app.invoice_number
+  MEDIUM   SG-R504  Sequence is dropped  [compatibility, score 30]
+      Sequence app.invoice_number is dropped. Every nextval on it starts to fail, and its position is lost.
+      Safer: Search the application and the database for the sequence name before dropping it. If the numbers must continue, note the last value with SELECT last_value FROM the sequence first.
+
+14 changes without findings

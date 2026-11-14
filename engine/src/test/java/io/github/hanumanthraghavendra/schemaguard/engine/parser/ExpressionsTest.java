@@ -128,4 +128,13 @@ class ExpressionsTest {
     void defaultsNeedParenthesesOnlyAroundKeywords(String expression, boolean needed) {
         assertThat(Expressions.needsParenthesesAsDefault(e(expression))).isEqualTo(needed);
     }
+
+    @Test
+    void functionCallsAreFoundWithoutTheirSchemaAndWithoutCastTargets() {
+        assertThat(Expressions.functionCalls(new Expression("lower(a) || pg_catalog.now()::varchar(10)")))
+                .containsExactly("lower", "now");
+        assertThat(Expressions.functionCalls(new Expression("a IN (1, 2) AND (b > 0)"))).isEmpty();
+        assertThat(Expressions.functionCalls(new Expression("\"My Fn\"(coalesce(a, 0))"))).containsExactly("My Fn", "coalesce");
+        assertThat(Expressions.functionCalls(new Expression("CURRENT_TIMESTAMP"))).isEmpty();
+    }
 }

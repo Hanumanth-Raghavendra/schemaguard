@@ -252,3 +252,59 @@ PostgreSQL also re-printed is still found. Everything still unmatched is a drop 
   always hold: a schema compared with itself is empty; reversing the inputs reverses each change.)
 - How do you know the generated SQL is valid? (It is loaded into a real PostgreSQL in the
   round-trip check, and the result is dumped and compared.)
+
+## Phase 3: the risk engine
+
+**What it is.** `RiskAnalyzer.analyze(diff)` runs 38 rules over a diff and returns a
+`RiskReport`: a list of findings and a score from 0 to 100. Each finding names the rule, the
+change, what happens, the lock the direct statement takes, and the safer way.
+
+```
+~ column app.posts.views: type integer -> bigint
+  HIGH     SG-R201  Column type change rewrites the table  [table rewrite, score 60]
+      Changing app.posts.views from integer to bigint rewrites the whole table while reads and writes wait.
+      Direct route: ALTER COLUMN ... TYPE takes ACCESS EXCLUSIVE on app.posts (blocks reads and writes), held while the whole table is written again
+```
+
+**How the lock facts were obtained.** Not from memory and not from blog posts. A script runs
+each of 51 kinds of DDL inside `BEGIN ... ROLLBACK` on a real PostgreSQL 16 and reads three
+things before the rollback: the lock (`pg_locks`), whether the table's file changed
+(`pg_relation_filenode`, a rewrite), and whether the table's scan counter went up
+(`pg_stat_xact_user_tables`, a full read). The results are a fixture file. The Java enum
+`Operation` holds the same facts, and a test fails if the two differ.
+
+**Likely questions**
+
+- *Why measure instead of reading the documentation?* The documentation gives the lock per
+  statement but not every case of rewrite or scan, and what people remember is often wrong.
+  Measuring found three mistakes of mine before they shipped: `NOT VALID` inside `CREATE
+  TABLE` is silently ignored (my first fixture "validated" a constraint that was already
+  valid, and showed no scan); `txid_current()` is stable, not volatile; and `VALIDATE
+  CONSTRAINT` on a foreign key also locks the referenced table (ROW SHARE).
+- *How do you detect that a statement read the whole table?* The per-transaction statistics
+  view counts sequential scans as they start. Counter before, statement, counter after, all in
+  one transaction.
+- *How did you measure `CREATE INDEX CONCURRENTLY`, which cannot run in a transaction?* Three
+  sessions: one holds a lock that makes it wait, one runs it, one reads `pg_locks` for the
+  waiting session.
+- *Which design pattern are the rules?* Strategy: one class per rule behind one abstract
+  `Rule`, collected in a registry. `ChangeRule<C>` is a small Template Method on top: it does
+  the looping and filtering, the subclass only judges one change.
+- *Why does the same change sometimes produce no finding?* Context. Rules get both schemas.
+  A foreign key on a table created in the same migration checks zero rows, so it is quiet; on
+  an existing table it is HIGH. `SET NOT NULL` is quiet when the old schema already has a valid
+  `CHECK (col IS NOT NULL)`, because PostgreSQL then skips the scan (measured).
+- *How is the score computed?* Noisy-OR: `100 x (1 - (1 - s1/100)(1 - s2/100)...)`. Each
+  finding is treated as an independent chance of trouble. Two MEDIUM findings (30 each) give
+  51, not 60 and not 30. It never passes 100 and needs no cap.
+- *Why not just take the worst finding?* Then ten HIGH findings would look the same as one.
+  *Why not a sum?* It has no upper bound, and a cap throws information away.
+- *How do you keep 38 rules honest?* Every rule has at least one schema pair that must fire it
+  and one that must not, and a test fails if a rule lacks either. The rule documentation is
+  generated from the classes and checked by a test.
+- *What can the engine not know?* Table sizes (a rewrite of ten rows scores like one of a
+  billion), the application's queries, and whether a function it has never seen is volatile.
+  The last one is reported at half weight instead of being guessed.
+- *What does ACCESS EXCLUSIVE "held briefly" still risk?* The lock queue. The statement waits
+  behind any running query, and every new query waits behind the statement. That is rule
+  `SG-R111`: set `lock_timeout` and retry.

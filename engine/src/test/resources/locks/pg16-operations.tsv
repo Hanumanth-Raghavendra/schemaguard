@@ -1,0 +1,53 @@
+# What each schema change does on PostgreSQL 16.15. Written by scripts/measure-locks.sh; do not edit.
+# operation | lock on the changed table t | lock on p, which t references | rewrite | scan | statement
+ADD_COLUMN|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t ADD COLUMN x int
+ADD_COLUMN_CONSTANT_DEFAULT|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t ADD COLUMN x int DEFAULT 5
+ADD_COLUMN_NOT_NULL_DEFAULT|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t ADD COLUMN x int NOT NULL DEFAULT 5
+ADD_COLUMN_STABLE_DEFAULT|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t ADD COLUMN x timestamptz DEFAULT now()
+ADD_COLUMN_VOLATILE_DEFAULT|AccessExclusiveLock|none|rewrite|scan|ALTER TABLE t ADD COLUMN x double precision DEFAULT random()
+ADD_COLUMN_SERIAL|AccessExclusiveLock|none|rewrite|scan|ALTER TABLE t ADD COLUMN x serial
+ADD_COLUMN_IDENTITY|AccessExclusiveLock|none|rewrite|scan|ALTER TABLE t ADD COLUMN x int GENERATED ALWAYS AS IDENTITY
+ADD_COLUMN_GENERATED|AccessExclusiveLock|none|rewrite|scan|ALTER TABLE t ADD COLUMN x int GENERATED ALWAYS AS (a * 2) STORED
+ADD_COLUMN_WITH_FOREIGN_KEY|AccessExclusiveLock|ShareRowExclusiveLock|no-rewrite|no-scan|ALTER TABLE t ADD COLUMN x int REFERENCES p
+DROP_COLUMN|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t DROP COLUMN c
+ALTER_TYPE_REWRITE|AccessExclusiveLock|none|rewrite|scan|ALTER TABLE t ALTER COLUMN a TYPE bigint
+ALTER_TYPE_NO_REWRITE|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t ALTER COLUMN b TYPE varchar(20)
+ALTER_COLLATION|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t ALTER COLUMN c TYPE text COLLATE "C"
+ALTER_COLLATION_INDEXED|AccessExclusiveLock|none|no-rewrite|scan|ALTER TABLE t ALTER COLUMN b TYPE varchar(10) COLLATE "C"
+SET_NOT_NULL|AccessExclusiveLock|none|no-rewrite|scan|ALTER TABLE t ALTER COLUMN a SET NOT NULL
+SET_NOT_NULL_WITH_VALID_CHECK|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t ALTER COLUMN g SET NOT NULL
+DROP_NOT_NULL|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t ALTER COLUMN nn DROP NOT NULL
+SET_DEFAULT|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t ALTER COLUMN a SET DEFAULT 1
+DROP_DEFAULT|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t ALTER COLUMN d DROP DEFAULT
+ADD_IDENTITY|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY
+SET_IDENTITY|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t ALTER COLUMN idc SET GENERATED ALWAYS
+DROP_IDENTITY|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t ALTER COLUMN idc DROP IDENTITY
+DROP_EXPRESSION|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t ALTER COLUMN gen DROP EXPRESSION
+ADD_CHECK|AccessExclusiveLock|none|no-rewrite|scan|ALTER TABLE t ADD CONSTRAINT x CHECK (a < 100)
+ADD_CHECK_NOT_VALID|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t ADD CONSTRAINT x CHECK (a < 100) NOT VALID
+VALIDATE_CHECK|ShareUpdateExclusiveLock|none|no-rewrite|scan|ALTER TABLE t VALIDATE CONSTRAINT t_a_check
+ADD_FOREIGN_KEY|ShareRowExclusiveLock|ShareRowExclusiveLock|no-rewrite|scan|ALTER TABLE t ADD CONSTRAINT x FOREIGN KEY (a) REFERENCES p
+ADD_FOREIGN_KEY_NOT_VALID|ShareRowExclusiveLock|ShareRowExclusiveLock|no-rewrite|no-scan|ALTER TABLE t ADD CONSTRAINT x FOREIGN KEY (a) REFERENCES p NOT VALID
+VALIDATE_FOREIGN_KEY|ShareUpdateExclusiveLock|RowShareLock|no-rewrite|scan|ALTER TABLE t VALIDATE CONSTRAINT t_fk
+ALTER_FOREIGN_KEY|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t ALTER CONSTRAINT t_fk DEFERRABLE
+ADD_UNIQUE|AccessExclusiveLock|none|no-rewrite|scan|ALTER TABLE t ADD CONSTRAINT x UNIQUE (a)
+ADD_PRIMARY_KEY|AccessExclusiveLock|none|no-rewrite|scan|ALTER TABLE t ADD PRIMARY KEY (id)
+ADD_PRIMARY_KEY_NULLABLE|AccessExclusiveLock|none|no-rewrite|scan|ALTER TABLE t ADD PRIMARY KEY (a)
+ADD_CONSTRAINT_USING_INDEX|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t ADD CONSTRAINT x UNIQUE USING INDEX t_id_uidx
+ADD_PRIMARY_KEY_USING_INDEX|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t ADD CONSTRAINT x PRIMARY KEY USING INDEX t_id_uidx
+DROP_CONSTRAINT|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t DROP CONSTRAINT t_g_check
+DROP_FOREIGN_KEY|AccessExclusiveLock|AccessExclusiveLock|no-rewrite|no-scan|ALTER TABLE t DROP CONSTRAINT t_fk
+RENAME_CONSTRAINT|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t RENAME CONSTRAINT t_a_check TO y
+CREATE_INDEX|ShareLock|none|no-rewrite|scan|CREATE INDEX x ON t (c)
+DROP_INDEX|AccessExclusiveLock|none|no-rewrite|no-scan|DROP INDEX t_a_idx
+RENAME_INDEX|none|none|no-rewrite|no-scan|ALTER INDEX t_a_idx RENAME TO y
+RENAME_COLUMN|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t RENAME COLUMN a TO z
+RENAME_TABLE|AccessExclusiveLock|none|no-rewrite|no-scan|ALTER TABLE t RENAME TO t2
+SET_SCHEMA|AccessExclusiveLock|none|no-rewrite|no-scan|CREATE SCHEMA other; ALTER TABLE t SET SCHEMA other
+SET_UNLOGGED|AccessExclusiveLock|none|rewrite|scan|ALTER TABLE t SET UNLOGGED
+DROP_TABLE|AccessExclusiveLock|AccessExclusiveLock|dropped|no-scan|DROP TABLE t
+CREATE_TABLE_WITH_FOREIGN_KEY|none|ShareRowExclusiveLock|no-rewrite|no-scan|CREATE TABLE fresh (p_id int REFERENCES p)
+ADD_ENUM_VALUE|none|none|no-rewrite|no-scan|ALTER TYPE mood ADD VALUE 'c'
+RENAME_ENUM_VALUE|none|none|no-rewrite|no-scan|ALTER TYPE mood RENAME VALUE 'a' TO 'z'
+CREATE_INDEX_CONCURRENTLY|ShareUpdateExclusiveLock|none|no-rewrite|scan|CREATE INDEX CONCURRENTLY x ON t (c)
+DROP_INDEX_CONCURRENTLY|ShareUpdateExclusiveLock|none|no-rewrite|no-scan|DROP INDEX CONCURRENTLY t_a_idx

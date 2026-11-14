@@ -45,3 +45,19 @@ $PGBIN/pg_ctl -D $WORK/data -m fast -w stop
 ```
 
 The `\restrict` token in a dump is random and changes on every run; the tests do not depend on it.
+
+## Risk report and lock measurements
+
+`evolution/expected-report.txt` is the reviewed risk report for the evolution fixture
+(`RiskReportTest`); it is rewritten with `-Dgolden.update=true` like `expected-diff.txt`.
+
+`../locks/pg16-*.tsv` are not golden files. They are measurements taken from a running
+PostgreSQL 16 by `scripts/measure-locks.sh` and must never be edited by hand:
+
+| File | Holds |
+| --- | --- |
+| `pg16-operations.tsv` | lock, rewrite and scan for each kind of schema change |
+| `pg16-type-changes.tsv` | whether `ALTER COLUMN ... TYPE` rewrites, per pair of types |
+| `pg16-lock-conflicts.tsv` | which lock modes conflict |
+
+`KnowledgeBaseTest` compares the engine's `Operation`, `TypeChange` and `LockLevel` with them.

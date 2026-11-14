@@ -2,44 +2,38 @@
 
 > **To resume:** read this file, then start at "Next step". Do not re-plan; the plan is fixed below.
 
-- **Current phase:** 3 (rules engine). Phases 1 and 2 are complete.
+- **Current phase:** 4 (migration planner). Phases 1, 2 and 3 are complete.
 - **Last updated:** 2026-11-14
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
-- **State:** build green, 587 tests, engine line coverage 99.6%, branch 95.5% (gate: 85% line)
-- **Size:** 108 files in 28 folders; 7189 lines of main Java, 4331 lines of test Java (Trackly reference: 249 files, 5,888 Java + 11,781 JS lines)
+- **State:** build green, 906 tests, engine line coverage 99.4%, branch 94.4% (gate: 85% line)
+- **Size:** 179 files in 34 folders; 10,519 lines of main Java, 5,219 lines of test Java (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
 
 ## Next step
 
-**Phase 3: rules engine, lock knowledge base, scoring.** New package `engine/.../rules/`.
-Input: a `SchemaDiff` (it carries both catalogs). Output: a `RiskReport`.
+**Phase 4: migration planner.** New package `engine/.../planner/`. Input: a `SchemaDiff` (and
+its `RiskReport`). Output: a `MigrationPlan`, an ordered list of steps, each with the SQL, the
+`Operation` it stands for (so its lock and work are known), whether it may run inside a
+transaction, and a note on what to check before it.
 
-1. **Lock knowledge base first, measured, not remembered.** `LockLevel` enum with PostgreSQL's
-   eight table lock modes (ACCESS SHARE ... ACCESS EXCLUSIVE) and what each blocks (reads,
-   writes, or both). For every `Change` kind, record: the lock taken on each affected table,
-   whether the table is rewritten, whether it is fully scanned, and from which PostgreSQL
-   version that holds. **Measure each one on the local PostgreSQL 16:** run the DDL inside
-   `BEGIN`, read `pg_locks` for the relation before `COMMIT`; detect a rewrite by comparing
-   `pg_class.relfilenode` before and after. Keep the measurement script in `scripts/` and the
-   results as a fixture, so the table can be re-checked for each new PostgreSQL major version.
-2. `Rule`: one class per rule (Strategy pattern), registered in a `RuleRegistry`. Each has a
-   stable id (`SG-R001`...), a category (`LOCKING`, `REWRITE`, `DATA_LOSS`, `COMPATIBILITY`),
-   a severity (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`), a one-line title, a plain-language
-   explanation of *why* it is risky, and a safer alternative. `Finding` = rule + change + message.
-3. About 30 rules. At least: create index without CONCURRENTLY; drop index without
-   CONCURRENTLY; add foreign key without NOT VALID; add CHECK without NOT VALID; SET NOT NULL
-   without a validated CHECK first; add PRIMARY KEY / UNIQUE without USING INDEX; column type
-   change that rewrites the table (and the binary-compatible exceptions: varchar(n) to larger n
-   or text, numeric precision increase); add column with a volatile default; add identity;
-   drop table; drop column; enum value removed or reordered; narrowing type; rename table or
-   column (breaks a running application); add NOT NULL column without default; drop default
-   on a NOT NULL column; persistence change (rewrite); a `RenameCandidate` that, if it was in
-   fact a rename, would lose data. Context matters: a change to a table created in the same
-   diff is harmless (no rows yet), so rules must look at `SchemaDiff.before()`.
-4. Cosmetic changes produce no findings.
-5. `RiskScore`: 0 to 100 per finding and per diff, with the reasons that produced it.
-   Document the formula in `docs/DECISIONS.md`.
-6. Tests: one positive and one negative case per rule; the evolution fixture gets a golden
-   `expected-report.txt`; the lock measurements fixture is checked by a test.
+1. `Step` (sql, operation, transactional, note) and `MigrationPlan` (steps, grouped into
+   phases: expand, backfill, contract). SQL comes from `SqlWriter`; add the ALTER statements it
+   does not write yet (`addColumn`, `dropColumn`, `alterType`, `setNotNull`, `validate`, ...).
+2. **Direct plan first:** one plain statement per change, in dependency order (types, tables,
+   columns, constraints, indexes; drops in reverse). `DirectRoute` already names the statement.
+   Oracle test: apply the direct plan to the real `before` database and `pg_dump` it; the dump
+   must build the same catalog as `after`. Use the evolution fixture and the local PostgreSQL.
+3. **Safe plan:** replace each risky step with the safer recipe its rule describes: index
+   `CONCURRENTLY`; foreign key and CHECK as `NOT VALID` + `VALIDATE`; NOT NULL through a
+   validated CHECK; key through a concurrent unique index + `USING INDEX`; `SET lock_timeout`
+   at the top. The safe plan must reach the same schema (same oracle test), and
+   `RiskAnalyzer` run on what each step does must come out lower than for the direct plan.
+4. Changes with no safe recipe in SQL alone (type rewrite, drops, rename candidates) stay as
+   they are, marked "needs a decision", with the rule's advice attached.
+5. Rename candidates: the plan takes a set of confirmed renames; a confirmed one becomes
+   `RENAME`, an unconfirmed one stays drop + add.
+6. Statement-level lint (smaller, same phase): map the statements of a user's own migration
+   script to `Operation`s (`CREATE INDEX CONCURRENTLY` is in the parser already) so a script
+   that already uses the safe route is not reported.
 
 **Local PostgreSQL.** The Claude build container has PostgreSQL 16 server binaries in
 `/usr/lib/postgresql/16/bin`. Run them as the `postgres` user (`runuser -u postgres -- ...`)
@@ -47,6 +41,7 @@ with a work directory under `/var/lib/postgresql/`. Start one, then use
 `scripts/regenerate-golden.sh` (see `engine/src/test/resources/golden/README.md`).
 **Settle every doubt about PostgreSQL behaviour by asking the server, not from memory.** In
 phase 1 this caught four wrong assumptions before they shipped. Docker is not available there.
+Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usage in its header).
 
 ## Done
 
@@ -62,6 +57,9 @@ phase 1 this caught four wrong assumptions before they shipped. Docker is not av
 - [x] **2.1** `SqlWriter`: model back to PostgreSQL DDL, and a whole catalog to a pg_dump-ordered script. Parser round trip is exact for every fixture, and PostgreSQL 16 accepts every written script and dumps it back to an identical catalog (2026-11-14)
 - [x] **2.2** Diff engine: `SchemaDiff.compare(before, after)`, 34 sealed `Change` kinds, rename detection by definition (constraints, indexes) and scored rename candidates (tables, columns, enum values), cosmetic flag, fixed output order, `ChangeFormatter` (2026-11-14)
 - [x] **2.3** Evolution fixture: version 1 schema + migration, dumped before and after by PostgreSQL 16; golden `expected-diff.txt`. **Phase 2 complete** (2026-11-14)
+- [x] **3.1** Lock knowledge base, measured: `scripts/measure-locks.sh` runs 51 kinds of DDL on PostgreSQL 16 and records lock, rewrite and scan for each; also 56 type changes, the 8x8 lock conflict table and the volatility of 2,633 built-in functions. `Operation`, `LockLevel`, `TypeChange`, `Volatility` hold the knowledge and tests compare them with the measurements (2026-11-14)
+- [x] **3.2** Rules engine: `Rule` / `ChangeRule`, `RuleRegistry`, `RuleContext`, `Finding`, 38 rules in five categories (ids `SG-R101` to `SG-R509`), each with a case that fires and one that stays quiet (2026-11-14)
+- [x] **3.3** Scoring and output: `RiskScore` (noisy-OR), `RiskReport`, `ReportFormatter`, golden `expected-report.txt`, generated `docs/RULES.md`. Catalog fix found by measuring: `NOT VALID` inside `CREATE TABLE` is ignored. **Phase 3 complete** (2026-11-14)
 
 ## Phases
 
@@ -70,8 +68,8 @@ phase 1 this caught four wrong assumptions before they shipped. Docker is not av
 | 0 | Blueprint | Done |
 | 1 | Scaffold, CI, lexer, parser, schema model, catalog | Done (2026-11-13) |
 | 2 | Diff engine with rename detection (plus SQL writer) | Done (2026-11-14) |
-| 3 | Rules engine, lock knowledge base, scoring | Next |
-| 4 | Migration planner, SQL generation, real-database oracle tests (Testcontainers) | Not started |
+| 3 | Rules engine, lock knowledge base, scoring | Done (2026-11-14) |
+| 4 | Migration planner, SQL generation, real-database oracle tests (Testcontainers) | Next |
 | 5 | REST API (Spring Boot), persistence, permalinks, first deploy (v0.1) | Not started |
 | 6 | Web UI: editors, diff, report, ER diagram, example gallery (v0.5) | Not started |
 | 7 | Auth, projects, history, trends, API keys | Not started |
@@ -88,11 +86,24 @@ phase 1 this caught four wrong assumptions before they shipped. Docker is not av
   Use the `rows(...)` helper with `@MethodSource`, or set `quoteCharacter = '"'`.
 - Golden files: `DiffGoldenTest` compares with `golden/evolution/expected-diff.txt`. After an
   intended output change: `./mvnw -B -ntp verify -Dgolden.update=true`, then review the
-  file's `git diff` before committing.
+  file's `git diff` before committing. The same switch rewrites `expected-report.txt` and
+  `docs/RULES.md` (`RiskReportTest`).
+- Rules: one class per rule under `rules/<category>/`, registered in `RuleRegistry`. A rule id
+  is never reused. Every rule needs a `fires` and a `quiet` case in `RulesTest` (a test checks).
+- A fact about locks or rewrites goes into `Operation` / `TypeChange` only after
+  `scripts/measure-locks.sh` has measured it; add the case to the script, not just to the enum.
 
 ## Known issues and open questions
 
 - License not chosen yet (see D-007).
+- **Rules judge the direct route** (one plain statement per change), not a migration script the
+  user wrote: a script that already says `CONCURRENTLY` is still reported. Phase 4, step 6.
+- **Rules:** lock facts are PostgreSQL 16 only. No table sizes, so a rewrite of a 10-row table
+  scores like one of a billion rows. `timestamp` to `timestamptz` is always called a rewrite
+  (it is none when the session is in UTC). `TypeChange.kind()` is a judgement, not a
+  measurement. A type change on an indexed column that needs no rewrite may still rebuild the
+  index; not modelled. `SET NOT NULL` proof needs the exact form `CHECK (col IS NOT NULL)`.
+  Volatility of user-defined and extension functions is unknown (rule SG-R203, half weight).
 - **Not read yet:** views, functions, triggers, policies, `CREATE TABLE ... PARTITION OF` and
   `ATTACH PARTITION`, `EXCLUDE` constraints, typed tables, `LIKE`. Each is reported by name.
 - **Diff:** rename candidates need an identical definition; a column renamed *and* retyped is
