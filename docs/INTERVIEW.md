@@ -308,3 +308,51 @@ things before the rollback: the lock (`pg_locks`), whether the table's file chan
 - *What does ACCESS EXCLUSIVE "held briefly" still risk?* The lock queue. The statement waits
   behind any running query, and every new query waits behind the statement. That is rule
   `SG-R111`: set `lock_timeout` and retry.
+
+## Phase 4.1: the migration planner
+
+**What it is.** `Planner.plan(before, after, options)` writes the SQL that turns one schema
+into the other, on one of two routes. Direct: one plain statement per change. Safe: the same
+result without long blocking locks.
+
+```sql
+-- direct                                   -- safe
+ALTER TABLE posts                           ALTER TABLE posts ADD CONSTRAINT posts_body_not_null
+  ALTER COLUMN body SET NOT NULL;             CHECK (body IS NOT NULL) NOT VALID;
+                                            ALTER TABLE posts VALIDATE CONSTRAINT posts_body_not_null;
+                                            ALTER TABLE posts ALTER COLUMN body SET NOT NULL;
+                                            ALTER TABLE posts DROP CONSTRAINT posts_body_not_null;
+```
+
+**How it works.** Each change becomes one or more statements, each put into a stage. The
+stages run in a fixed order that satisfies every dependency (D-044). On the safe route a
+blocking statement is replaced by its non-blocking recipe, but only for tables that can have
+rows (D-046).
+
+**Likely questions**
+
+- *How do you know the generated SQL is correct?* It is run. For 132 pairs of schemas and both
+  routes, a real PostgreSQL 16 runs the old schema and then the plan; its `pg_dump` must
+  describe the same schema as the dump of the new schema. That is 264 plans on every CI run.
+- *Did that find anything?* Yes, on the first run. (1) A sequence owned by a column of a
+  dropped table disappears with the table, but the new schema still used it: the plan now
+  detaches it first with `OWNED BY NONE`. (2) An identity column owns a hidden sequence named
+  `t_id_seq`; creating a sequence with that name before `DROP IDENTITY` fails, so identities
+  are dropped early. Neither would show up by reading the SQL.
+- *Why fixed stages and not a topological sort?* The kinds of dependency are few and known.
+  A fixed order is deterministic and anyone can read it. The only real cycle is two tables
+  with foreign keys to each other, and PostgreSQL drops those in one statement.
+- *Why can't the whole plan run in one transaction?* `CREATE INDEX CONCURRENTLY` is refused
+  inside a transaction block, and a new enum value cannot be used before it is committed.
+  Each step says whether it is transactional.
+- *What if a concurrent index build fails half way?* It leaves an invalid index behind. The
+  script stops (`ON_ERROR_STOP`); the index has to be dropped before a second try. This is
+  the price of not blocking writes, and the rule text says so.
+- *What does the safe route not solve?* A type change that rewrites the table, a dropped
+  column or table. Those steps stay, marked `CAUTION` with the rule id, because pretending
+  otherwise would be a lie (D-048).
+- *How are renames handled?* The diff only offers candidates. A person confirms one; the
+  planner then runs the `RENAME` through its own catalog builder to get the schema after the
+  rename, and plans the rest from there (D-047).
+- *What is still unproven?* The oracle uses empty tables, so it proves the schema, not that
+  rows survive. A test with rows is on the list.

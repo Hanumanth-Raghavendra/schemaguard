@@ -61,3 +61,10 @@ PostgreSQL 16 by `scripts/measure-locks.sh` and must never be edited by hand:
 | `pg16-lock-conflicts.tsv` | which lock modes conflict |
 
 `KnowledgeBaseTest` compares the engine's `Operation`, `TypeChange` and `LockLevel` with them.
+
+## Migration plans
+
+`evolution/expected-plan-direct.sql` and `evolution/expected-plan-safe.sql` are the reviewed
+plans for the evolution fixture (`PlannerTest`), rewritten with `-Dgolden.update=true`. The
+safe plan has the three rename candidates confirmed. Both are also run on a real PostgreSQL
+by `PlanOracleTest` when `SG_PG_ORACLE=1` is set, as CI does.

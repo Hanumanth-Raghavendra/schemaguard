@@ -150,6 +150,23 @@ public final class SqlWriter {
         return action.name().replace('_', ' ');
     }
 
+    /**
+     * A primary key or unique constraint that takes over an existing unique index:
+     * {@code CONSTRAINT name UNIQUE USING INDEX index}. PostgreSQL renames the index to the
+     * name of the constraint.
+     *
+     * @throws IllegalArgumentException for a constraint that is not a key
+     */
+    public static String constraintUsingIndex(Constraint key, String index) {
+        String name = key.name().map(n -> "CONSTRAINT " + name(n) + " ").orElse("");
+        return switch (key) {
+            case PrimaryKey pk -> name + "PRIMARY KEY USING INDEX " + name(index) + deferrability(pk.deferrability());
+            case Unique unique -> name + "UNIQUE USING INDEX " + name(index) + deferrability(unique.deferrability());
+            case Check check -> throw new IllegalArgumentException("Not a key: " + constraint(check));
+            case ForeignKey fk -> throw new IllegalArgumentException("Not a key: " + constraint(fk));
+        };
+    }
+
     private static String deferrability(Deferrability deferrability) {
         return switch (deferrability) {
             case NOT_DEFERRABLE -> "";

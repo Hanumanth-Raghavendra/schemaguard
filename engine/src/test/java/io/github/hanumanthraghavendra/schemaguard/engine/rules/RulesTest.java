@@ -20,10 +20,10 @@ import org.junit.jupiter.params.provider.MethodSource;
  * <p>The second kind matters as much as the first: a tool that warns about harmless changes
  * is a tool people stop reading.
  */
-class RulesTest {
+public class RulesTest {
 
     /** One rule, an old schema, a new schema, and whether the rule has to report something. */
-    record Case(String rule, boolean fires, String before, String after) {
+    public record Case(String rule, boolean fires, String before, String after) {
         @Override
         public String toString() {
             return rule + (fires ? " fires: " : " is quiet: ") + after.strip().lines().reduce((a, b) -> b).orElse("(empty schema)");
@@ -38,7 +38,7 @@ class RulesTest {
         return new Case(rule, false, before, after);
     }
 
-    static Catalog catalog(String sql) {
+    public static Catalog catalog(String sql) {
         CatalogResult result = CatalogBuilder.fromSql(sql);
         assertThat(result.diagnostics()).as("diagnostics for: %s", sql).isEmpty();
         return result.catalog();
@@ -51,7 +51,7 @@ class RulesTest {
     private static final String T = "CREATE TABLE t (a int, b int);";
     private static final String ENUM = "CREATE TYPE mood AS ENUM ('sad', 'ok');";
 
-    static Stream<Case> cases() {
+    public static Stream<Case> cases() {
         return Stream.of(
                 // ------------------------------------------------------------ locking
                 fires("SG-R101", T, T + "CREATE INDEX t_a_idx ON t (a);"),
