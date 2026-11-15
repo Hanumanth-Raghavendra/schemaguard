@@ -30,12 +30,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-    env:
-      SG_PG_ORACLE: '1'
-      PGHOST: localhost
-      PGPORT: '5432'
-      PGUSER: postgres
-      PGPASSWORD: postgres
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v6
@@ -43,13 +37,9 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - name: PostgreSQL 16 client tools
-        run: |
-          if ! pg_dump --version 2>/dev/null | grep -q ' 16\.'; then
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq postgresql-client-16
-          fi
-          echo "PGBIN=/usr/lib/postgresql/16/bin" >> "$GITHUB_ENV"
-          /usr/lib/postgresql/16/bin/pg_dump --version
       - name: Build, test and check coverage
         run: ./mvnw -B -ntp verify
+        env:
+          SG_PG_ORACLE: '1'
+          # psql and pg_dump of exactly the server's version: the ones in its own container.
+          SG_PG_EXEC: docker exec -i -e PGUSER=postgres ${{ job.services.postgres.id }}

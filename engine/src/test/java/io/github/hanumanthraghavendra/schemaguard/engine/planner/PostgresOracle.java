@@ -22,6 +22,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  * through the usual {@code PGHOST}, {@code PGPORT}, {@code PGUSER} and {@code PGPASSWORD};
  * {@code PGBIN} may name the directory of {@code psql} and {@code pg_dump}. Each call uses a
  * database of its own and drops it afterwards.
+ *
+ * <p>The client tools must be of the server's major version, or the dump may contain syntax
+ * the server's version does not have. Where the machine has no such tools, {@code SG_PG_EXEC}
+ * can hold a command to put in front of them, for example {@code docker exec -i <container>}
+ * to use the ones inside the server's own container. Scripts are passed on standard input, so
+ * they need not be visible from there.
  */
 final class PostgresOracle {
 
@@ -40,41 +46,50 @@ final class PostgresOracle {
      */
     static Catalog schemaAfter(String... scripts) throws IOException, InterruptedException {
         String database = "sg_oracle_" + RUN + "_" + COUNTER.incrementAndGet();
-        run(List.of(tool("psql"), "-X", "-q", "-d", "postgres", "-c", "CREATE DATABASE " + database), null);
+        run(command("psql", "-X", "-q", "-d", "postgres", "-c", "CREATE DATABASE " + database), null);
         try {
             for (String script : scripts) {
-                Path file = Files.createTempFile("sg-oracle", ".sql");
-                try {
-                    Files.writeString(file, script, StandardCharsets.UTF_8);
-                    run(List.of(tool("psql"), "-X", "-q", "-v", "ON_ERROR_STOP=1", "-d", database, "-f", file.toString()), script);
-                } finally {
-                    Files.delete(file);
-                }
+                run(command("psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "-d", database, "-f", "-"), script);
             }
-            String dump = run(List.of(tool("pg_dump"), "--schema-only", "--no-owner", "--no-privileges", "-d", database), null);
+            String dump = run(command("pg_dump", "--schema-only", "--no-owner", "--no-privileges", "-d", database), null);
             CatalogResult result = CatalogBuilder.fromSql(dump);
             assertThat(result.hasErrors()).as("errors reading the dump:\n%s\n%s", result.diagnostics(), dump).isFalse();
             return result.catalog();
         } finally {
-            run(List.of(tool("psql"), "-X", "-q", "-d", "postgres", "-c", "DROP DATABASE " + database), null);
+            run(command("psql", "-X", "-q", "-d", "postgres", "-c", "DROP DATABASE " + database), null);
         }
     }
 
-    private static String tool(String name) {
+    private static List<String> command(String tool, String... arguments) {
+        List<String> command = new ArrayList<>();
+        String prefix = System.getenv("SG_PG_EXEC");
+        if (prefix != null && !prefix.isBlank()) {
+            command.addAll(List.of(prefix.strip().split("\\s+")));
+        }
         String bin = System.getenv("PGBIN");
-        return bin == null || bin.isBlank() ? name : Path.of(bin, name).toString();
+        command.add(bin == null || bin.isBlank() ? tool : Path.of(bin, tool).toString());
+        command.addAll(List.of(arguments));
+        return command;
     }
 
     private static String run(List<String> command, String script) throws IOException, InterruptedException {
         Path output = Files.createTempFile("sg-oracle", ".out");
+        Path input = Files.createTempFile("sg-oracle", ".sql");
         try {
-            Process process = new ProcessBuilder(new ArrayList<>(command)).redirectErrorStream(true).redirectOutput(output.toFile()).start();
+            Files.writeString(input, script == null ? "" : script, StandardCharsets.UTF_8);
+            Process process =
+                    new ProcessBuilder(command)
+                            .redirectErrorStream(true)
+                            .redirectInput(input.toFile())
+                            .redirectOutput(output.toFile())
+                            .start();
             assertThat(process.waitFor(120, TimeUnit.SECONDS)).as("%s finished in time", command.get(0)).isTrue();
             String text = Files.readString(output, StandardCharsets.UTF_8);
             assertThat(process.exitValue()).as("PostgreSQL refused:\n%s\n--- script ---\n%s", text, script).isZero();
             return text;
         } finally {
             Files.delete(output);
+            Files.delete(input);
         }
     }
 }
