@@ -5,7 +5,7 @@
 A PostgreSQL migration-safety platform. Give it two versions of a schema and it tells you
 what changed, what that change will lock or break in production, and how to ship it safely.
 
-> **Status: early development.** The engine reads PostgreSQL schemas, reports every difference between two of them, judges the risk of each change with 38 rules ([rule reference](docs/RULES.md)), and writes the migration: the direct way or a safe way that avoids long locks. Lock facts are measured on a real PostgreSQL 16, and every generated plan is run on one in CI. Next: checking a migration script you wrote yourself, then the REST API.
+> **Status: early development.** The engine reads PostgreSQL schemas, reports every difference between two of them, judges the risk of each change with 38 rules ([rule reference](docs/RULES.md)), and writes the migration: the direct way or a safe way that avoids long locks. Lock facts are measured on a real PostgreSQL 16, and every generated plan is run on one in CI. It also lints a migration script you wrote, statement by statement. Next: the REST API.
 > See [PROGRESS.md](PROGRESS.md) for the current state and roadmap.
 
 ## Why

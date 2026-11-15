@@ -138,6 +138,7 @@ public final class Planner {
         }
         current = null;
         addEnumValues();
+        createTables();
         dropTables();
 
         List<Step> steps = new ArrayList<>();
@@ -234,7 +235,9 @@ public final class Planner {
             case Change.EnumValueRenameCandidate c -> {
                 // Not confirmed, so it stays a removal and an addition.
             }
-            case Change.TableAdded c -> createTable(c.table());
+            case Change.TableAdded c -> {
+                // Planned together, parents before the tables that inherit from them, see createTables().
+            }
             case Change.TableDropped c -> {
                 // Planned together, in an order that respects foreign keys, see dropTables().
             }
@@ -377,6 +380,15 @@ public final class Planner {
 
     // ---------------------------------------------------------------- tables
 
+    private void createTables() {
+        List<Change.TableAdded> added = context.changes(Change.TableAdded.class).toList();
+        for (Table table : SqlWriter.parentsFirst(added.stream().map(Change.TableAdded::table).toList())) {
+            current = added.stream().filter(change -> change.table() == table).findFirst().orElseThrow();
+            createTable(table);
+        }
+        current = null;
+    }
+
     private void createTable(Table table) {
         List<Constraint> inline = table.constraints().stream().filter(c -> !(c instanceof ForeignKey)).toList();
         add(Stage.CREATE_TABLES, SqlWriter.createTable(table, inline), null, null);
@@ -386,7 +398,7 @@ public final class Planner {
     }
 
     /**
-     * Dropped tables, each after the tables that point to it with a foreign key. Tables that
+     * Dropped tables, each after the tables that point to it with a foreign key or inherit from it. Tables that
      * point to each other in a circle are dropped in one statement, which PostgreSQL allows.
      */
     private void dropTables() {
@@ -417,7 +429,8 @@ public final class Planner {
     }
 
     private static boolean references(Table table, QualifiedName target) {
-        return table.constraints().stream().anyMatch(c -> c instanceof ForeignKey key && key.referencedTable().equals(target));
+        return table.inherits().contains(target)
+                || table.constraints().stream().anyMatch(c -> c instanceof ForeignKey key && key.referencedTable().equals(target));
     }
 
     // ---------------------------------------------------------------- columns
@@ -664,7 +677,19 @@ public final class Planner {
                     "Sets the sequence free, so it is not dropped with the column that owns it now");
         }
         if (!c.before().withOwnedBy(after.ownedBy()).equals(after)) {
-            add(Stage.SEQUENCE_OPTIONS, "ALTER SEQUENCE " + after.name().toSql() + SqlWriter.sequenceOptions(after), null, null);
+            // CREATE SEQUENCE needs no NO CYCLE; ALTER SEQUENCE does, to switch cycling off.
+            String cycle = after.cycle() ? "" : " NO CYCLE";
+            boolean limitsMoved =
+                    !c.before().minValue().equals(after.minValue()) || !c.before().maxValue().equals(after.maxValue());
+            add(
+                    Stage.SEQUENCE_OPTIONS,
+                    "ALTER SEQUENCE " + after.name().toSql() + SqlWriter.sequenceOptions(after) + cycle,
+                    null,
+                    null,
+                    true,
+                    limitsMoved
+                            ? "Fails if the sequence now stands outside the new limits; if so, add RESTART WITH a value inside them"
+                            : "");
         }
         if (ownerChanged) {
             add(

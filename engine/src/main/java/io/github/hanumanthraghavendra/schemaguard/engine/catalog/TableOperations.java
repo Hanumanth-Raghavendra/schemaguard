@@ -6,6 +6,7 @@ import io.github.hanumanthraghavendra.schemaguard.engine.lexer.Token;
 import io.github.hanumanthraghavendra.schemaguard.engine.lexer.TokenType;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Check;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Column;
+import io.github.hanumanthraghavendra.schemaguard.engine.model.Persistence;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.ColumnRef;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Constraint;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.DataType;
@@ -61,12 +62,73 @@ final class TableOperations {
                 new Table(
                         name, List.of(), List.of(), parsed.persistence(), parsed.inherits(),
                         parsed.partitionBy()));
+        Set<String> inheritedChecks = inherit(name, parsed.inherits());
         for (Column column : parsed.columns()) {
-            addColumn(name, column);
+            Optional<Column> inherited = state.table(name).column(column.name());
+            if (inherited.isPresent()) {
+                replaceColumn(name, merge(inherited.get(), normalise(column)));
+            } else {
+                addColumn(name, column);
+            }
         }
         for (Constraint constraint : withoutRedundantKeys(parsed.constraints())) {
-            addConstraint(name, validated(constraint));
+            boolean restatesInherited =
+                    constraint instanceof Check check
+                            && check.name().filter(inheritedChecks::contains).isPresent()
+                            && state.table(name).constraint(check.name().get()).filter(c -> sameCheck(c, check)).isPresent();
+            if (!restatesInherited) {
+                addConstraint(name, validated(constraint));
+            }
         }
+    }
+
+    /**
+     * What {@code INHERITS} gives a new table before its own definition is read: the columns of
+     * its parents, in order, and their CHECK constraints. Keys, foreign keys and identity are
+     * not inherited. A column that several parents have, or that the table lists again, is
+     * merged into one, which is why {@code pg_dump} can leave inherited columns out.
+     *
+     * @return the names of the CHECK constraints that came from a parent
+     */
+    private Set<String> inherit(QualifiedName name, List<QualifiedName> parents) {
+        Set<String> checks = new HashSet<>();
+        for (QualifiedName parentName : parents) {
+            Table parent = state.table(parentName);
+            for (Column column : parent.columns()) {
+                Column plain = column.withIdentity(Identity.NONE);
+                Optional<Column> seen = state.table(name).column(column.name());
+                if (seen.isPresent()) {
+                    replaceColumn(name, merge(seen.get(), plain));
+                } else {
+                    Table table = state.table(name);
+                    state.tables.put(name, table.withColumns(append(table.columns(), plain)));
+                }
+            }
+            for (Constraint constraint : parent.constraints()) {
+                if (constraint instanceof Check check && checks.add(check.name().orElseThrow())) {
+                    addConstraint(name, check);
+                }
+            }
+        }
+        return checks;
+    }
+
+    /** One column from two definitions of it: NOT NULL if either says so, the later default. */
+    private static Column merge(Column inherited, Column later) {
+        if (!inherited.type().equals(later.type())) {
+            throw CatalogError.invalid("column \"" + later.name() + "\" has a type conflict");
+        }
+        return inherited
+                .withNotNull(inherited.notNull() || later.notNull())
+                .withDefaultValue(later.defaultValue().or(inherited::defaultValue))
+                .withGenerated(later.generated().or(inherited::generated))
+                .withIdentity(later.identity())
+                .withCollation(later.collation().or(inherited::collation));
+    }
+
+    private static boolean sameCheck(Constraint existing, Check check) {
+        return existing instanceof Check other
+                && Expressions.fingerprint(other.expression()).equals(Expressions.fingerprint(check.expression()));
     }
 
     /**
@@ -173,8 +235,135 @@ final class TableOperations {
             case AlterAction.SetSchema set -> {
                 return moveTable(table, new QualifiedName(set.schema(), table.name()));
             }
+            case AlterAction.SetIdentity set -> {
+                Column column = column(table, set.column());
+                if (column.identity() == Identity.NONE) {
+                    throw CatalogError.invalid(columnOf(set.column(), table) + " is not an identity column");
+                }
+                replaceColumn(table, column.withIdentity(set.identity()));
+            }
+            case AlterAction.DropExpression drop -> {
+                Column column = column(table, drop.column());
+                if (column.generated().isPresent()) {
+                    replaceColumn(table, column.withGenerated(Optional.empty()));
+                } else if (!drop.ifExists()) {
+                    throw CatalogError.invalid(columnOf(drop.column(), table) + " is not a stored generated column");
+                }
+            }
+            case AlterAction.SetPersistence set -> setPersistence(table, set.persistence());
+            case AlterAction.Inherit inherit -> inherit(table, inherit.parent());
+            case AlterAction.NoInherit inherit -> {
+                Table child = state.table(table);
+                state.table(inherit.parent());
+                if (!child.inherits().contains(inherit.parent())) {
+                    throw CatalogError.invalid(
+                            "relation \"" + inherit.parent().name() + "\" is not a parent of relation \"" + table.name() + "\"");
+                }
+                List<QualifiedName> parents = child.inherits().stream().filter(p -> !p.equals(inherit.parent())).toList();
+                state.tables.put(table, withInherits(child, parents));
+            }
         }
         return table;
+    }
+
+    // ---------------------------------------------------------------- SET LOGGED, INHERIT
+
+    /**
+     * {@code SET LOGGED} and {@code SET UNLOGGED}. A logged table must not depend on an
+     * unlogged one through a foreign key, because the unlogged one is emptied after a crash.
+     * Sequences owned by the table's columns change with it. The error messages are
+     * PostgreSQL's, including the one that names the two tables the unexpected way round.
+     */
+    private void setPersistence(QualifiedName name, Persistence wanted) {
+        Table table = state.table(name);
+        if (table.persistence() == Persistence.TEMPORARY) {
+            throw CatalogError.invalid("cannot change logged status of table \"" + name.name() + "\" because it is temporary");
+        }
+        if (table.persistence() == wanted) {
+            return;
+        }
+        if (wanted == Persistence.UNLOGGED) {
+            for (Table other : state.tables.values()) {
+                boolean pointsHere = other.constraints().stream().anyMatch(c -> c instanceof ForeignKey fk && fk.referencedTable().equals(name));
+                if (pointsHere && !other.name().equals(name) && other.persistence() == Persistence.PERMANENT) {
+                    throw CatalogError.invalid(
+                            "could not change table \"" + name.name() + "\" to unlogged because it references logged table \""
+                                    + other.name().name() + "\"");
+                }
+            }
+        } else {
+            for (Constraint constraint : table.constraints()) {
+                if (constraint instanceof ForeignKey fk && !fk.referencedTable().equals(name)) {
+                    Table target = state.table(fk.referencedTable());
+                    if (target.persistence() == Persistence.UNLOGGED) {
+                        throw CatalogError.invalid(
+                                "could not change table \"" + name.name() + "\" to logged because it references unlogged table \""
+                                        + target.name().name() + "\"");
+                    }
+                }
+            }
+        }
+        state.tables.put(
+                name, new Table(name, table.columns(), table.constraints(), wanted, table.inherits(), table.partitionBy()));
+        state.sequences.replaceAll(
+                (sequenceName, sequence) ->
+                        sequence.ownedBy().map(ColumnRef::table).equals(Optional.of(name))
+                                ? new Sequence(
+                                        sequence.name(), wanted, sequence.dataType(), sequence.start(), sequence.increment(),
+                                        sequence.minValue(), sequence.maxValue(), sequence.cache(), sequence.cycle(),
+                                        sequence.ownedBy())
+                                : sequence);
+    }
+
+    /**
+     * {@code INHERIT parent}. The child must already have every column of the parent, of the
+     * same type and at least as strict about NULL, and every CHECK constraint of the parent
+     * under the same name with the same definition.
+     */
+    private void inherit(QualifiedName name, QualifiedName parentName) {
+        Table child = state.table(name);
+        Table parent = state.table(parentName);
+        if (inheritsFrom(parent, name)) {
+            throw CatalogError.invalid("circular inheritance not allowed");
+        }
+        if (child.inherits().contains(parentName)) {
+            throw CatalogError.duplicateObject("relation \"" + parentName.name() + "\" would be inherited from more than once");
+        }
+        for (Column wanted : parent.columns()) {
+            Column own =
+                    child.column(wanted.name())
+                            .orElseThrow(() -> CatalogError.invalid("child table is missing column \"" + wanted.name() + "\""));
+            if (!own.type().equals(wanted.type())) {
+                throw CatalogError.invalid(
+                        "child table \"" + name.name() + "\" has different type for column \"" + wanted.name() + "\"");
+            }
+            if (wanted.notNull() && !own.notNull()) {
+                throw CatalogError.invalid("column \"" + wanted.name() + "\" in child table must be marked NOT NULL");
+            }
+        }
+        for (Constraint constraint : parent.constraints()) {
+            if (constraint instanceof Check wanted) {
+                String checkName = wanted.name().orElseThrow();
+                Constraint own =
+                        child.constraint(checkName)
+                                .orElseThrow(() -> CatalogError.invalid("child table is missing constraint \"" + checkName + "\""));
+                if (!sameCheck(own, wanted)) {
+                    throw CatalogError.invalid(
+                            "child table \"" + name.name() + "\" has different definition for check constraint \"" + checkName + "\"");
+                }
+            }
+        }
+        state.tables.put(name, withInherits(child, append(child.inherits(), parentName)));
+    }
+
+    /** True if the table is the ancestor itself or inherits from it, directly or not. */
+    private boolean inheritsFrom(Table table, QualifiedName ancestor) {
+        return table.name().equals(ancestor)
+                || table.inherits().stream().anyMatch(parent -> inheritsFrom(state.table(parent), ancestor));
+    }
+
+    private static Table withInherits(Table table, List<QualifiedName> parents) {
+        return new Table(table.name(), table.columns(), table.constraints(), table.persistence(), parents, table.partitionBy());
     }
 
     // ---------------------------------------------------------------- columns

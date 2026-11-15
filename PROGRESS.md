@@ -2,35 +2,31 @@
 
 > **To resume:** read this file, then start at "Next step". Do not re-plan; the plan is fixed below.
 
-- **Current phase:** 4 (migration planner): 4.1 done, 4.2 next. Phases 1, 2 and 3 are complete.
+- **Current phase:** 5 (REST API). Phases 1 to 4 are complete.
 - **Last updated:** 2026-11-15
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
-- **State:** build green, 1,460 tests (264 of them run a plan on a real PostgreSQL 16, also in CI), engine line coverage 99.4%, branch 94.5% (gate: 85% line)
-- **Size:** 190 files in 36 folders; 11,519 lines of main Java, 5,963 lines of test Java (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
+- **State:** build green, 1,701 tests, none skipped (276 plans run on a real PostgreSQL 16, also in CI), engine line coverage 98.9%, branch 93.8% (gate: 85% line)
+- **Size:** 202 files in 39 folders; 12,751 lines of main Java, 6,529 lines of test Java (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
 
 ## Next step
 
-**Phase 4.2: read the user's own migration script.** Today the report and the plan start from
-two schemas. A user who pastes `before.sql` plus a `migration.sql` gets judged on the direct
-route even if the script already says `CONCURRENTLY`. Fix that, then Phase 4 is complete.
+**Phase 5: REST API + first deploy (v0.1).** New Maven module `api` (Spring Boot 3.x, Java 21),
+depending on `engine`. Check the latest Spring Boot version on Maven Central before pinning.
 
-1. Parser: read the statements the planner writes and the parser still calls unsupported:
-   `ALTER INDEX ... RENAME TO`, `ALTER COLUMN ... SET GENERATED`, `ALTER COLUMN ... DROP
-   EXPRESSION`, `SET LOGGED` / `SET UNLOGGED`, `INHERIT` / `NO INHERIT`, `ALTER SEQUENCE` with
-   options. Apply each in `CatalogBuilder`. Done when `PlanOracleTest` has no skipped case in
-   `theEngineAgreesThatThePlanReachesTheNewSchema` (21 are skipped now).
-2. New `engine/.../lint/`: `MigrationLinter.lint(Catalog before, List<Statement>)`. Map each
-   statement (and each `AlterAction`) to its `Operation`, with the catalog as it is *at that
-   statement* for context (table created earlier in the script = no rows; valid CHECK present =
-   `SET_NOT_NULL_WITH_VALID_CHECK`). Reuse `RuleInfo` texts: a finding per statement whose
-   operation blocks writes while its work grows with the table, plus the data-loss statements
-   (`DROP TABLE`, `DROP COLUMN`). Output: findings with the statement's `SourceSpan` (line
-   numbers for the UI and the GitHub Action).
-3. Tests: the evolution `migration.sql` gets a golden lint report; every safe plan from
-   `PlanOracleTest`, fed back into the linter, must produce no blocking finding without a
-   caution (this ties planner and linter together).
-4. Then **Phase 5** (REST API): Spring Boot module `api`, endpoints `POST /api/v1/diff`,
-   `/report`, `/plan`, `/lint`; DTOs; OpenAPI; deploy to Render.
+1. Endpoints, all `POST`, JSON in and out, no state yet:
+   `/api/v1/diff` (before, after) -> changes; `/api/v1/report` (before, after) -> findings +
+   score; `/api/v1/plan` (before, after, route, confirmed renames, lock timeout) -> steps +
+   unplanned; `/api/v1/lint` (schema, migration) -> per-statement findings with line numbers.
+   Each response also carries the text form (`ChangeFormatter`, `ReportFormatter`, plan
+   `toSql()`, `LintFormatter`) so a client can show it without rendering.
+2. DTOs as records in `api/.../dto`, mapped from engine records; never expose engine types.
+   Parse diagnostics come back as 422 with line/column; size limit on input (e.g. 1 MB).
+3. springdoc-openapi for `/v3/api-docs` + Swagger UI. Validation with Bean Validation.
+   `GET /api/v1/rules` lists the rules (ids, titles, why, fix) incl. `ScriptRules.ALL`.
+4. Tests: `@WebMvcTest` per controller + one `@SpringBootTest` end-to-end on the evolution
+   fixture. Keep the engine's coverage gate; give `api` its own (80% line).
+5. Dockerfile (multi-stage, JRE 21, non-root) and `render.yaml`; deploy to Render free tier;
+   CORS for the future Vercel web app; health endpoint `/actuator/health`.
 
 **Local PostgreSQL.** The Claude build container has PostgreSQL 16 server binaries in
 `/usr/lib/postgresql/16/bin`. Run them as the `postgres` user (`runuser -u postgres -- ...`)
@@ -61,6 +57,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 - [x] **3.2** Rules engine: `Rule` / `ChangeRule`, `RuleRegistry`, `RuleContext`, `Finding`, 38 rules in five categories (ids `SG-R101` to `SG-R509`), each with a case that fires and one that stays quiet (2026-11-14)
 - [x] **3.3** Scoring and output: `RiskScore` (noisy-OR), `RiskReport`, `ReportFormatter`, golden `expected-report.txt`, generated `docs/RULES.md`. Catalog fix found by measuring: `NOT VALID` inside `CREATE TABLE` is ignored. **Phase 3 complete** (2026-11-14)
 - [x] **4.1** Migration planner: `Planner.plan(before, after, options)` writes the direct route and the safe route (concurrent indexes, `NOT VALID` + `VALIDATE`, NOT NULL through a validated CHECK, keys through `USING INDEX`, swap of changed constraints and indexes, `lock_timeout`), confirmed renames, cautions for risks it cannot remove, and a list of changes PostgreSQL has no statement for. `PlanOracleTest` runs 264 plans on a real PostgreSQL 16 and compares `pg_dump` with the wanted schema; CI does the same with a postgres:16 service (2026-11-15)
+- [x] **4.2** Parser and catalog read every statement the planner writes (`ALTER INDEX ... RENAME`, `SET GENERATED`, `DROP EXPRESSION`, `SET LOGGED/UNLOGGED`, `INHERIT/NO INHERIT`, `ALTER SEQUENCE` options, `CREATE TABLE ... INHERITS` with merged columns), checked against PostgreSQL by a new `alterations` fixture. `MigrationLinter` judges a hand-written script statement by statement against the schema it runs on: a script that already says `CONCURRENTLY` is not blamed, a table the script created is empty, gaps the script closes itself are not reported; two script-only rules (`SG-R403` CONCURRENTLY in a transaction, `SG-R510` rename in one step). Tests prove linter, rules and planner agree. **Phase 4 complete** (2026-11-15)
 
 ## Phases
 
@@ -70,7 +67,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 | 1 | Scaffold, CI, lexer, parser, schema model, catalog | Done (2026-11-13) |
 | 2 | Diff engine with rename detection (plus SQL writer) | Done (2026-11-14) |
 | 3 | Rules engine, lock knowledge base, scoring | Done (2026-11-14) |
-| 4 | Migration planner, SQL generation, real-database oracle tests | 4.1 done (2026-11-15), 4.2 next |
+| 4 | Migration planner, SQL generation, real-database oracle tests, script linter | Done (2026-11-15) |
 | 5 | REST API (Spring Boot), persistence, permalinks, first deploy (v0.1) | Not started |
 | 6 | Web UI: editors, diff, report, ER diagram, example gallery (v0.5) | Not started |
 | 7 | Auth, projects, history, trends, API keys | Not started |
@@ -101,11 +98,12 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
   survive (renames, the safe NOT NULL route). Not planned: enum value removal or reorder,
   partitioning changes, a new generation expression, temporary tables. A rename candidate
   needs an identical column definition, so "renamed and made NOT NULL" cannot be confirmed.
-  New tables are created in name order (a child with `INHERITS` before its parent would fail).
   An identity column's hidden sequence is not modelled.
 - The parser accepts a reserved word as a constraint name (`CONSTRAINT both`); PostgreSQL does not.
-- **Rules judge the direct route** (one plain statement per change), not a migration script the
-  user wrote: a script that already says `CONCURRENTLY` is still reported. Phase 4, step 6.
+- **Linter:** a statement the parser does not model (functions, views, triggers, `DO` blocks)
+  is listed as not analysed, never guessed. It does not know which helper constraint is a
+  helper beyond "added and dropped in the same script". `ALTER TABLE ... ALTER COLUMN ... SET
+  GENERATED ... RESTART` (identity sequence options) is still unsupported.
 - **Rules:** lock facts are PostgreSQL 16 only. No table sizes, so a rewrite of a 10-row table
   scores like one of a billion rows. `timestamp` to `timestamptz` is always called a rewrite
   (it is none when the session is in UTC). `TypeChange.kind()` is a judgement, not a

@@ -71,6 +71,8 @@ final class ParserAssertions {
                                     case Statement.RenameEnumValue r -> "enum-rename:" + r.type().name();
                                     case Statement.CreateSequence c -> "sequence:" + c.sequence().name().name();
                                     case Statement.AlterSequenceOwner a -> "sequence-owner:" + a.sequence().name();
+                                    case Statement.AlterSequence a -> "sequence-alter:" + a.sequence().name();
+                                    case Statement.RenameIndex r -> "index-rename:" + r.index().name();
                                     case Statement.Drop d -> "drop:" + d.kind();
                                     case Statement.Ignored i -> "ignored:" + i.kind();
                                     case Statement.Unsupported u -> "unsupported:" + u.kind();

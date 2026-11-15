@@ -1,6 +1,7 @@
 package io.github.hanumanthraghavendra.schemaguard.engine.parser;
 
 import io.github.hanumanthraghavendra.schemaguard.engine.model.ColumnRef;
+import io.github.hanumanthraghavendra.schemaguard.engine.model.DataType;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.EnumType;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Index;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.ObjectKind;
@@ -76,6 +77,29 @@ public sealed interface Statement {
             implements Statement {}
 
     /** @param concurrently only ever true for {@code DROP INDEX CONCURRENTLY} */
+    /**
+     * {@code ALTER SEQUENCE} with options. Each field is empty when the statement leaves that
+     * setting alone. For the two limits and the owner there are three cases: left alone
+     * (empty), taken off ({@code NO MINVALUE}, {@code OWNED BY NONE}: an empty value inside),
+     * or set.
+     */
+    record AlterSequence(
+            QualifiedName sequence,
+            boolean ifExists,
+            Optional<DataType> dataType,
+            Optional<Long> increment,
+            Optional<Optional<Long>> minValue,
+            Optional<Optional<Long>> maxValue,
+            Optional<Long> start,
+            Optional<Long> cache,
+            Optional<Boolean> cycle,
+            Optional<Optional<ColumnRef>> ownedBy,
+            SourceSpan span)
+            implements Statement {}
+
+    /** {@code ALTER INDEX ... RENAME TO}. */
+    record RenameIndex(QualifiedName index, String to, boolean ifExists, SourceSpan span) implements Statement {}
+
     record Drop(
             ObjectKind kind,
             List<QualifiedName> names,

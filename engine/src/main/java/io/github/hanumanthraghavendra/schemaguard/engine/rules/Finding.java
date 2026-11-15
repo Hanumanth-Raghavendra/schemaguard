@@ -23,7 +23,8 @@ public record Finding(
         Optional<QualifiedName> table,
         String message,
         Optional<Operation> operation,
-        double certainty) {
+        double certainty)
+        implements Scored {
 
     public Finding {
         Objects.requireNonNull(rule, "rule");
@@ -41,6 +42,7 @@ public record Finding(
     }
 
     /** From 1 to 100: the weight of the rule's severity, scaled by the certainty. */
+    @Override
     public int score() {
         return Math.max(1, (int) Math.round(rule.severity().weight() * certainty));
     }

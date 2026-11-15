@@ -26,7 +26,12 @@ public final class RiskAnalyzer {
     }
 
     public static RiskReport analyze(SchemaDiff diff, RuleRegistry rules) {
-        RuleContext context = new RuleContext(diff);
+        return analyze(new RuleContext(diff), rules);
+    }
+
+    /** Judges the diff of the given context, which may know more than the diff alone. */
+    public static RiskReport analyze(RuleContext context, RuleRegistry rules) {
+        SchemaDiff diff = context.diff();
         List<Finding> findings = new ArrayList<>();
         for (Rule rule : rules.rules()) {
             findings.addAll(rule.check(context));

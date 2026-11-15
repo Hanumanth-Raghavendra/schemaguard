@@ -28,7 +28,7 @@ final class StatementParser extends ParserBase {
             Set.of(
                     "set", "reset", "show", "select", "comment", "grant", "revoke", "begin",
                     "start", "commit", "end", "rollback", "savepoint", "release", "analyze",
-                    "vacuum", "copy", "insert");
+                    "vacuum", "copy", "insert", "update", "delete", "truncate", "lock", "abort");
 
     /** Words that may sit between the verb and the object type, as in CREATE UNIQUE INDEX. */
     private static final Set<String> OBJECT_MODIFIERS =
@@ -131,6 +131,9 @@ final class StatementParser extends ParserBase {
         }
         if (cursor.isWordAt(1, "type")) {
             return parseAlterType();
+        }
+        if (cursor.isWordAt(1, "index")) {
+            return parseAlterIndex();
         }
         return null;
     }
@@ -318,6 +321,19 @@ final class StatementParser extends ParserBase {
         }
         throw ParseError.unsupported(
                 "ALTER TYPE forms other than ADD VALUE and RENAME VALUE", cursor.peek());
+    }
+
+    private Statement parseAlterIndex() {
+        cursor.expectWord("alter");
+        cursor.expectWord("index");
+        boolean ifExists = ifExists();
+        QualifiedName name = qualifiedName("an index name");
+        if (!cursor.acceptWords("rename", "to")) {
+            throw ParseError.unsupported("ALTER INDEX forms other than RENAME TO", cursor.peek());
+        }
+        String to = cursor.identifier("an index name");
+        expectEndOfStatement();
+        return new Statement.RenameIndex(name, to, ifExists, span);
     }
 
     // ---------------------------------------------------------------- DROP

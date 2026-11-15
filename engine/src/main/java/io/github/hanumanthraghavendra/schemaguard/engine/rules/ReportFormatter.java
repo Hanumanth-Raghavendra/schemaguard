@@ -64,7 +64,7 @@ public final class ReportFormatter {
     }
 
     /** One line saying what the statement locks and for how long, or empty if it locks nothing. */
-    static Optional<String> effect(Operation operation, Optional<QualifiedName> table) {
+    public static Optional<String> effect(Operation operation, Optional<QualifiedName> table) {
         List<String> locks = new ArrayList<>();
         operation.lock().ifPresent(lock -> locks.add(describe(lock, table.map(QualifiedName::toString).orElse("the table"))));
         operation.referencedLock().ifPresent(lock -> locks.add(describe(lock, "each table it references")));

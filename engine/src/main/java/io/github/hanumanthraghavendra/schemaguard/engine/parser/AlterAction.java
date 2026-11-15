@@ -6,6 +6,8 @@ import io.github.hanumanthraghavendra.schemaguard.engine.model.DataType;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Deferrability;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Expression;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Identity;
+import io.github.hanumanthraghavendra.schemaguard.engine.model.Persistence;
+import io.github.hanumanthraghavendra.schemaguard.engine.model.QualifiedName;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -50,6 +52,12 @@ public sealed interface AlterAction {
 
     record DropIdentity(String column, boolean ifExists) implements AlterAction {}
 
+    /** {@code ALTER COLUMN ... SET GENERATED ALWAYS | BY DEFAULT} on an identity column. */
+    record SetIdentity(String column, Identity identity) implements AlterAction {}
+
+    /** {@code ALTER COLUMN ... DROP EXPRESSION}: a generated column becomes a plain one. */
+    record DropExpression(String column, boolean ifExists) implements AlterAction {}
+
     record AddConstraint(Constraint constraint) implements AlterAction {
         public AddConstraint {
             Objects.requireNonNull(constraint, "constraint");
@@ -75,4 +83,13 @@ public sealed interface AlterAction {
     record RenameTable(String to) implements AlterAction {}
 
     record SetSchema(String schema) implements AlterAction {}
+
+    /** {@code SET LOGGED} or {@code SET UNLOGGED}. */
+    record SetPersistence(Persistence persistence) implements AlterAction {}
+
+    /** {@code INHERIT parent}. */
+    record Inherit(QualifiedName parent) implements AlterAction {}
+
+    /** {@code NO INHERIT parent}. */
+    record NoInherit(QualifiedName parent) implements AlterAction {}
 }

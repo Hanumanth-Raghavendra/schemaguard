@@ -71,7 +71,8 @@ public final class DirectRoute {
                 });
     }
 
-    private static Operation addColumn(Column column) {
+    /** The statement that adds this column, judged by what the column needs for existing rows. */
+    public static Operation addColumn(Column column) {
         if (column.identity() != Identity.NONE) {
             return Operation.ADD_COLUMN_IDENTITY;
         }
@@ -87,7 +88,7 @@ public final class DirectRoute {
         return column.notNull() ? Operation.ADD_COLUMN_NOT_NULL_DEFAULT : Operation.ADD_COLUMN_CONSTANT_DEFAULT;
     }
 
-    private static Operation addConstraint(Constraint constraint) {
+    public static Operation addConstraint(Constraint constraint) {
         return switch (constraint) {
             case Check check -> check.notValid() ? Operation.ADD_CHECK_NOT_VALID : Operation.ADD_CHECK;
             case ForeignKey key -> key.notValid() ? Operation.ADD_FOREIGN_KEY_NOT_VALID : Operation.ADD_FOREIGN_KEY;

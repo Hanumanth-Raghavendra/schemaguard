@@ -7,6 +7,7 @@ import io.github.hanumanthraghavendra.schemaguard.engine.model.DataType;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Deferrability;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Expression;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Identity;
+import io.github.hanumanthraghavendra.schemaguard.engine.model.Persistence;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.PrimaryKey;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.QualifiedName;
 import java.util.ArrayList;
@@ -60,6 +61,18 @@ final class AlterTableParser extends ParserBase {
         }
         if (cursor.acceptWords("set", "schema")) {
             return new AlterAction.SetSchema(cursor.identifier("a schema name"));
+        }
+        if (cursor.acceptWords("set", "logged")) {
+            return new AlterAction.SetPersistence(Persistence.PERMANENT);
+        }
+        if (cursor.acceptWords("set", "unlogged")) {
+            return new AlterAction.SetPersistence(Persistence.UNLOGGED);
+        }
+        if (cursor.acceptWord("inherit")) {
+            return new AlterAction.Inherit(qualifiedName("a table name"));
+        }
+        if (cursor.acceptWords("no", "inherit")) {
+            return new AlterAction.NoInherit(qualifiedName("a table name"));
         }
         if (start.type() == TokenType.WORD) {
             throw ParseError.unsupported("ALTER TABLE ... " + leadingWords(), start);
@@ -214,6 +227,19 @@ final class AlterTableParser extends ParserBase {
         }
         if (cursor.acceptWords("drop", "identity")) {
             return new AlterAction.DropIdentity(column, ifExists());
+        }
+        if (cursor.acceptWords("set", "generated")) {
+            boolean always = cursor.acceptWord("always");
+            if (!always && !cursor.acceptWords("by", "default")) {
+                throw cursor.expected("ALWAYS or BY DEFAULT");
+            }
+            if (cursor.isWord("set") || cursor.isWord("restart")) {
+                throw ParseError.unsupported("ALTER TABLE ... ALTER COLUMN with identity sequence options", cursor.peek());
+            }
+            return new AlterAction.SetIdentity(column, always ? Identity.ALWAYS : Identity.BY_DEFAULT);
+        }
+        if (cursor.acceptWords("drop", "expression")) {
+            return new AlterAction.DropExpression(column, ifExists());
         }
         if (start.type() == TokenType.WORD) {
             throw ParseError.unsupported("ALTER TABLE ... ALTER COLUMN " + leadingWords(), start);

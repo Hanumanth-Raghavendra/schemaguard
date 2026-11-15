@@ -28,15 +28,15 @@ public record RiskScore(int value, RiskLevel level, List<String> reasons) {
         reasons = List.copyOf(reasons);
     }
 
-    public static RiskScore of(List<Finding> findings) {
+    public static RiskScore of(List<? extends Scored> findings) {
         double nothingWentWrong = 1.0;
-        for (Finding finding : findings) {
+        for (Scored finding : findings) {
             nothingWentWrong *= 1.0 - finding.score() / 100.0;
         }
         int value = (int) Math.round(100 * (1 - nothingWentWrong));
         List<String> reasons =
                 findings.stream()
-                        .sorted(Comparator.comparingInt(Finding::score).reversed())
+                        .sorted(Comparator.comparingInt((Scored finding) -> finding.score()).reversed())
                         .limit(MAX_REASONS)
                         .map(finding -> finding.score() + " " + finding.rule().id() + " " + finding.rule().title())
                         .toList();

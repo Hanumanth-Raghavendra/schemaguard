@@ -151,12 +151,57 @@ class SequenceParserTest {
         assertThat(kinds(result)).containsExactly("ignored:ALTER SEQUENCE", "sequence-owner:s");
     }
 
+    @Test
+    void alterWithOptionsKeepsApartWhatIsSetWhatIsTakenOffAndWhatIsLeftAlone() {
+        ParseResult result =
+                Parser.parse(
+                        "ALTER SEQUENCE IF EXISTS app.s AS smallint INCREMENT BY -2 MINVALUE -50 NO MAXVALUE START WITH -4"
+                                + " RESTART WITH -6 CACHE 3 NO CYCLE OWNED BY NONE;");
+        assertThat(result.diagnostics()).isEmpty();
+        assertThat(result.statements().get(0))
+                .isInstanceOfSatisfying(
+                        Statement.AlterSequence.class,
+                        alter -> {
+                            assertThat(alter.sequence()).isEqualTo(new QualifiedName("app", "s"));
+                            assertThat(alter.ifExists()).isTrue();
+                            assertThat(alter.dataType()).contains(DataType.of("smallint"));
+                            assertThat(alter.increment()).contains(-2L);
+                            assertThat(alter.minValue()).contains(Optional.of(-50L));
+                            assertThat(alter.maxValue()).contains(Optional.empty());
+                            assertThat(alter.start()).contains(-4L);
+                            assertThat(alter.cache()).contains(3L);
+                            assertThat(alter.cycle()).contains(false);
+                            assertThat(alter.ownedBy()).contains(Optional.empty());
+                        });
+        assertThat(Parser.parse("ALTER SEQUENCE s CYCLE NO MINVALUE MAXVALUE 9 RESTART;").statements().get(0))
+                .isInstanceOfSatisfying(
+                        Statement.AlterSequence.class,
+                        alter -> {
+                            assertThat(alter.cycle()).contains(true);
+                            assertThat(alter.minValue()).contains(Optional.empty());
+                            assertThat(alter.maxValue()).contains(Optional.of(9L));
+                            assertThat(alter.dataType()).isEmpty();
+                            assertThat(alter.increment()).isEmpty();
+                            assertThat(alter.start()).isEmpty();
+                            assertThat(alter.cache()).isEmpty();
+                            assertThat(alter.ownedBy()).isEmpty();
+                        });
+        assertThat(kinds(Parser.parse("ALTER SEQUENCE s OWNED BY t.c INCREMENT 2; ALTER SEQUENCE s RESTART 5; ALTER SEQUENCE s RESTART WITH -5;")))
+                .containsExactly("sequence-alter:s", "sequence-alter:s", "sequence-alter:s");
+    }
+
+    @Test
+    void alterNeedsAtLeastOneOptionAndANonZeroIncrement() {
+        assertThat(Parser.parse("ALTER SEQUENCE s;").diagnostics()).extracting(d -> d.message()).containsExactly("Expected a sequence option but found end of statement");
+        assertThat(Parser.parse("ALTER SEQUENCE s INCREMENT BY 0;").diagnostics()).extracting(d -> d.message()).containsExactly("INCREMENT must not be zero");
+    }
+
     static Stream<Arguments> unsupportedCases() {
         return rows(
                 """
-                ALTER SEQUENCE s RESTART WITH 5                 | ALTER SEQUENCE options other than OWNED BY
-                ALTER SEQUENCE s OWNED BY t.c INCREMENT BY 2    | ALTER SEQUENCE options other than OWNED BY
-                ALTER SEQUENCE s                                | ALTER SEQUENCE options other than OWNED BY
+                ALTER SEQUENCE s SET LOGGED                     | this form of ALTER SEQUENCE
+                ALTER SEQUENCE s RENAME TO other                | this form of ALTER SEQUENCE
+                ALTER SEQUENCE s INCREMENT BY 2 SET SCHEMA app  | this form of ALTER SEQUENCE
                 """);
     }
 

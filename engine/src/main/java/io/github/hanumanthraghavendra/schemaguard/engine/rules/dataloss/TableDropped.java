@@ -34,6 +34,9 @@ public final class TableDropped extends ChangeRule<Change.TableDropped> {
 
     @Override
     protected Optional<Finding> evaluate(Change.TableDropped change, RuleContext context) {
+        if (!context.mayHoldRows(change.table().name())) {
+            return Optional.empty();
+        }
         String message = "Dropping " + change.table().name() + " deletes all its rows for good.";
         return found(change, message, Operation.DROP_TABLE);
     }

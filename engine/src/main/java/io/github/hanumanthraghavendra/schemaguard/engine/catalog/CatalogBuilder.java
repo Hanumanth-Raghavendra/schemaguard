@@ -2,6 +2,7 @@ package io.github.hanumanthraghavendra.schemaguard.engine.catalog;
 
 import io.github.hanumanthraghavendra.schemaguard.engine.diagnostics.Diagnostic;
 import io.github.hanumanthraghavendra.schemaguard.engine.diagnostics.Severity;
+import io.github.hanumanthraghavendra.schemaguard.engine.model.Catalog;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Column;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.ColumnRef;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.DataType;
@@ -57,6 +58,26 @@ public final class CatalogBuilder {
         return new CatalogResult(built.catalog(), all);
     }
 
+    /**
+     * Applies statements to a schema that already exists, the way a migration runs against a
+     * database that is in use. The result carries the new catalog and the diagnostics of these
+     * statements only.
+     */
+    public static CatalogResult apply(Catalog start, List<Statement> statements, ParserOptions options) {
+        Objects.requireNonNull(start, "start");
+        Objects.requireNonNull(statements, "statements");
+        Objects.requireNonNull(options, "options");
+        CatalogBuilder builder = new CatalogBuilder(options);
+        builder.state.tables.putAll(start.tables());
+        builder.state.enums.putAll(start.enums());
+        builder.state.sequences.putAll(start.sequences());
+        builder.state.indexes.putAll(start.indexes());
+        for (Statement statement : statements) {
+            builder.applyAtomically(statement);
+        }
+        return new CatalogResult(builder.state.toCatalog(), builder.diagnostics);
+    }
+
     public static CatalogResult build(List<Statement> statements, ParserOptions options) {
         Objects.requireNonNull(statements, "statements");
         Objects.requireNonNull(options, "options");
@@ -87,6 +108,8 @@ public final class CatalogBuilder {
             case Statement.RenameEnumValue rename -> renameEnumValue(rename);
             case Statement.CreateSequence create -> createSequence(create);
             case Statement.AlterSequenceOwner alter -> alterSequenceOwner(alter);
+            case Statement.AlterSequence alter -> alterSequence(alter);
+            case Statement.RenameIndex rename -> renameIndex(rename);
             case Statement.Drop drop -> drop(drop);
             case Statement.Ignored ignored -> {
                 // Does not change the schema's structure.
@@ -261,6 +284,44 @@ public final class CatalogBuilder {
         }
         requireColumn(alter.ownedBy());
         state.sequences.put(sequence.name(), sequence.withOwnedBy(alter.ownedBy()));
+    }
+
+    private void alterSequence(Statement.AlterSequence alter) {
+        Sequence sequence = state.sequences.get(alter.sequence());
+        if (sequence == null) {
+            if (alter.ifExists()) {
+                return;
+            }
+            throw CatalogError.undefinedObject("relation \"" + alter.sequence().name() + "\" does not exist");
+        }
+        alter.ownedBy().ifPresent(this::requireColumn);
+        state.sequences.put(sequence.name(), SequenceDefaults.alter(sequence, alter));
+    }
+
+    /**
+     * {@code ALTER INDEX ... RENAME TO}. The index behind a primary key or unique constraint
+     * takes its constraint along, and PostgreSQL accepts the statement for a table too.
+     */
+    private void renameIndex(Statement.RenameIndex rename) {
+        QualifiedName name = rename.index();
+        QualifiedName target = new QualifiedName(name.schema(), rename.to());
+        Index index = state.indexes.get(name);
+        if (index != null) {
+            if (state.relationExists(target)) {
+                throw relationExists(target);
+            }
+            state.indexes.remove(name);
+            state.indexes.put(target, index.withName(Optional.of(rename.to())));
+            return;
+        }
+        Optional<Table> owner = state.constraintIndexOwner(name);
+        if (owner.isPresent()) {
+            tables.apply(owner.get().name(), new AlterAction.RenameConstraint(name.name(), rename.to()));
+        } else if (state.tables.containsKey(name)) {
+            tables.apply(name, new AlterAction.RenameTable(rename.to()));
+        } else if (!rename.ifExists()) {
+            throw CatalogError.undefinedObject("relation \"" + name.name() + "\" does not exist");
+        }
     }
 
     private void requireColumn(Optional<ColumnRef> owner) {

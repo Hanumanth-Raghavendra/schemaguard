@@ -110,6 +110,9 @@ class SchemaDiffTest {
             assertThat(diff("CREATE TABLE t (a int)", "CREATE TABLE t (a int) PARTITION BY RANGE (a)"))
                     .containsExactly("~ table public.t: partitioning none -> range (a)");
             assertThat(diff("CREATE TABLE p (x int); CREATE TABLE t (a int)", "CREATE TABLE p (x int); CREATE TABLE t (a int) INHERITS (p)"))
+                    .as("a child has the columns of its parent")
+                    .containsExactly("~ table public.t: inherits none -> (public.p)", "+ column public.t.x integer");
+            assertThat(diff("CREATE TABLE p (a int); CREATE TABLE t (a int)", "CREATE TABLE p (a int); CREATE TABLE t () INHERITS (p)"))
                     .containsExactly("~ table public.t: inherits none -> (public.p)");
         }
 

@@ -2,8 +2,10 @@
 
 <!-- Generated from the rule classes. Do not edit; run the build with -Dgolden.update=true. -->
 
-38 rules. Each one looks at the changes between two schemas and
+40 rules. Each one looks at the changes between two schemas and
 reports what the direct way of applying a change would do to a running database.
+Rules marked *script* need the statements of a migration script to judge, and are only
+reported when a script is checked.
 
 | Id | Severity | Category | Rule |
 |---|---|---|---|
@@ -36,6 +38,7 @@ reports what the direct way of applying a change would do to a running database.
 | [SG-R306](#sg-r306-possible-enum-value-rename) | MEDIUM | data loss | Possible enum value rename would be applied as remove and add |
 | [SG-R401](#sg-r401-not-null-column-without-default) | HIGH | can fail | New NOT NULL column has no default |
 | [SG-R402](#sg-r402-column-type-conversion) | MEDIUM | can fail | Column changes to a different kind of type |
+| [SG-R403](#sg-r403-concurrently-in-transaction) | HIGH | can fail | CONCURRENTLY is used inside a transaction block *(script)* |
 | [SG-R501](#sg-r501-default-dropped-on-required-column) | HIGH | compatibility | Default is removed from a NOT NULL column |
 | [SG-R502](#sg-r502-not-null-dropped) | LOW | compatibility | Column starts to accept NULL |
 | [SG-R503](#sg-r503-constraint-dropped) | MEDIUM | compatibility | Constraint is dropped |
@@ -45,6 +48,7 @@ reports what the direct way of applying a change would do to a running database.
 | [SG-R507](#sg-r507-identity-made-always) | LOW | compatibility | Identity changes to GENERATED ALWAYS |
 | [SG-R508](#sg-r508-enum-value-added) | LOW | compatibility | New enum value needs care in two places |
 | [SG-R509](#sg-r509-inheritance-changed) | MEDIUM | compatibility | Table changes its parent tables |
+| [SG-R510](#sg-r510-renamed-in-place) | HIGH | compatibility | Table, column or enum value is renamed in one step *(script)* |
 
 ## Locking
 
@@ -294,6 +298,14 @@ Why: PostgreSQL has to convert every value, and usually needs a USING expression
 
 Safer: Test the conversion on a copy of the production data. To find the bad values first, run the USING expression in a SELECT. For large tables, add a new column, convert in batches and swap.
 
+### SG-R403 concurrently-in-transaction
+
+**CONCURRENTLY is used inside a transaction block** (HIGH)
+
+Why: CREATE INDEX CONCURRENTLY and DROP INDEX CONCURRENTLY work in several transactions of their own, so PostgreSQL refuses them inside BEGIN ... COMMIT. The script stops at that statement. Migration tools that wrap every file in a transaction cause the same failure.
+
+Safer: Move the statement out of the transaction block, into a migration of its own, and switch off the tool's automatic transaction for that file.
+
 ## Compatibility
 
 The change can break an application that still expects the old schema.
@@ -369,3 +381,11 @@ Safer: Add the value in a migration of its own. Release the code that can read t
 Why: A query on a parent table also returns the rows of its children. Attaching or detaching a parent therefore changes the result of every query on that parent, without any change to the query. Attaching also needs an ACCESS EXCLUSIVE lock on the child and requires it to have all the columns and CHECK constraints of the parent already.
 
 Safer: Check every query that reads the parent tables, and use ONLY where the children must not be included.
+
+### SG-R510 renamed-in-place
+
+**Table, column or enum value is renamed in one step** (HIGH)
+
+Why: The rename itself is quick and keeps the data. But the old name is gone the moment it commits, and every query of the running application that still uses it fails. Application and database cannot be deployed at the same instant, so there is always a window where one of them is wrong.
+
+Safer: Add the new name next to the old one: a new column kept in step by a trigger, or a view under the new table name. Move the application over, then remove the old name in a later migration.

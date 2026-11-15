@@ -68,3 +68,7 @@ PostgreSQL 16 by `scripts/measure-locks.sh` and must never be edited by hand:
 plans for the evolution fixture (`PlannerTest`), rewritten with `-Dgolden.update=true`. The
 safe plan has the three rename candidates confirmed. Both are also run on a real PostgreSQL
 by `PlanOracleTest` when `SG_PG_ORACLE=1` is set, as CI does.
+
+`evolution/expected-lint.txt` is the reviewed lint report for the hand-written
+`evolution/migration.sql` (`MigrationLinterTest`). `alterations/` checks the in-place
+ALTER statements against PostgreSQL like the other catalog fixtures.

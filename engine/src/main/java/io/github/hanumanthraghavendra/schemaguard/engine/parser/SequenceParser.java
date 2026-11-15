@@ -14,7 +14,7 @@ import java.util.Optional;
 /** Parses {@code CREATE SEQUENCE} and {@code ALTER SEQUENCE ... OWNED BY}. */
 final class SequenceParser extends ParserBase {
 
-    private static final String OTHER_ALTER_FORMS = "ALTER SEQUENCE options other than OWNED BY";
+    private static final String OTHER_ALTER_FORMS = "this form of ALTER SEQUENCE";
 
     SequenceParser(ParserBase shared) {
         super(shared);
@@ -90,14 +90,63 @@ final class SequenceParser extends ParserBase {
         cursor.expectWord("sequence");
         boolean ifExists = ifExists();
         QualifiedName name = qualifiedName("a sequence name");
-        if (!cursor.acceptWords("owned", "by")) {
-            throw ParseError.unsupported(OTHER_ALTER_FORMS, cursor.peek());
+        Optional<DataType> dataType = Optional.empty();
+        Optional<Long> increment = Optional.empty();
+        Optional<Optional<Long>> minValue = Optional.empty();
+        Optional<Optional<Long>> maxValue = Optional.empty();
+        Optional<Long> start = Optional.empty();
+        Optional<Long> cache = Optional.empty();
+        Optional<Boolean> cycle = Optional.empty();
+        Optional<Optional<ColumnRef>> ownedBy = Optional.empty();
+        boolean options = false;
+        if (cursor.atEnd()) {
+            throw cursor.expected("a sequence option");
         }
-        Optional<ColumnRef> owner = ownedBy();
-        if (!cursor.atEnd()) {
-            throw ParseError.unsupported(OTHER_ALTER_FORMS, cursor.peek());
+        while (!cursor.atEnd()) {
+            boolean owner = cursor.acceptWords("owned", "by");
+            options |= !owner;
+            if (owner) {
+                ownedBy = Optional.of(ownedBy());
+            } else if (cursor.acceptWord("as")) {
+                dataType = Optional.of(TypeParser.parse(cursor));
+            } else if (cursor.acceptWord("increment")) {
+                cursor.acceptWord("by");
+                Token at = cursor.peek();
+                increment = Optional.of(signedInteger());
+                if (increment.get() == 0) {
+                    throw ParseError.syntax("INCREMENT must not be zero", at);
+                }
+            } else if (cursor.acceptWord("minvalue")) {
+                minValue = Optional.of(Optional.of(signedInteger()));
+            } else if (cursor.acceptWord("maxvalue")) {
+                maxValue = Optional.of(Optional.of(signedInteger()));
+            } else if (cursor.acceptWords("no", "minvalue")) {
+                minValue = Optional.of(Optional.empty());
+            } else if (cursor.acceptWords("no", "maxvalue")) {
+                maxValue = Optional.of(Optional.empty());
+            } else if (cursor.acceptWord("start")) {
+                cursor.acceptWord("with");
+                start = Optional.of(signedInteger());
+            } else if (cursor.acceptWord("restart")) {
+                // Moves the sequence's position, which is data, not schema.
+                if (cursor.acceptWord("with") || cursor.is(TokenType.NUMBER) || cursor.peek().isOperator("-")) {
+                    signedInteger();
+                }
+            } else if (cursor.acceptWord("cache")) {
+                cache = Optional.of(signedInteger());
+            } else if (cursor.acceptWord("cycle")) {
+                cycle = Optional.of(true);
+            } else if (cursor.acceptWords("no", "cycle")) {
+                cycle = Optional.of(false);
+            } else {
+                throw ParseError.unsupported(OTHER_ALTER_FORMS, cursor.peek());
+            }
         }
-        return new Statement.AlterSequenceOwner(name, ifExists, owner, span);
+        if (!options) {
+            return new Statement.AlterSequenceOwner(name, ifExists, ownedBy.orElseThrow(), span);
+        }
+        return new Statement.AlterSequence(
+                name, ifExists, dataType, increment, minValue, maxValue, start, cache, cycle, ownedBy, span);
     }
 
     /** Parses what follows OWNED BY: {@code NONE}, or a column as {@code [schema.]table.column}. */

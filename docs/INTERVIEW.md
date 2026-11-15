@@ -356,3 +356,24 @@ rows (D-046).
   rename, and plans the rest from there (D-047).
 - *What is still unproven?* The oracle uses empty tables, so it proves the schema, not that
   rows survive. A test with rows is on the list.
+
+## Phase 4.2: the migration linter
+
+**What it is.** `MigrationLinter.lint(schema, migrationSql)` judges a script you wrote, line by
+line, against the schema it will run on. `CREATE INDEX` gets a HIGH finding;
+`CREATE INDEX CONCURRENTLY` gets none. Output carries line numbers, ready for a GitHub Action.
+
+**Likely questions**
+
+- *How is that different from the risk report?* The report only sees two schemas and must
+  assume the plain statement. The linter sees the statements, so the exact variant decides.
+- *How does it reuse the 38 rules?* Each statement is applied to the catalog, the one-step
+  diff goes through the same rules, and a lock finding survives only if the statement is the
+  kind that takes that lock (D-050).
+- *How do you know linter, rules and planner agree?* Tests bind them: lint the direct plan and
+  you must get what the rules found in the diff; lint the safe plan and none of the risks the
+  safe route removes may appear (D-054). The first run found a real inconsistency: the safe
+  NOT NULL route drops a helper CHECK, which the linter reported as a lost constraint. Fixed by
+  judging "what the application meets" findings at the end of the script (D-052).
+- *What does it refuse to guess?* Statements it cannot model (functions, views, DO blocks) are
+  listed as "not analysed", never silently passed.

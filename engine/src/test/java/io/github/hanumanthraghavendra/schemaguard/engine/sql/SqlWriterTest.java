@@ -161,6 +161,7 @@ class SqlWriterTest {
         assertThat(SqlWriter.createTable(catalog.table(new QualifiedName("public", "p")).orElseThrow(), List.of()))
                 .isEqualTo("CREATE TABLE public.p (\n    x integer\n) PARTITION BY range (x)");
         assertThat(SqlWriter.createTable(catalog.table(new QualifiedName("public", "c")).orElseThrow(), List.of()))
-                .isEqualTo("CREATE TABLE public.c () INHERITS (public.p)");
+                .as("the inherited column is written out; PostgreSQL merges it with the parent's")
+                .isEqualTo("CREATE TABLE public.c (\n    x integer\n) INHERITS (public.p)");
     }
 }

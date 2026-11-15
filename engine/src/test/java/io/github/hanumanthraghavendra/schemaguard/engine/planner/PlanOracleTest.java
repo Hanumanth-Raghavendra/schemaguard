@@ -166,6 +166,38 @@ class PlanOracleTest {
                     + " ALTER TABLE a ADD FOREIGN KEY (b_id) REFERENCES b (id);"
         },
         {
+            "a sequence stops cycling, counts down faster and gets a smaller type",
+            "CREATE SEQUENCE s CYCLE; CREATE SEQUENCE down INCREMENT BY -1; CREATE SEQUENCE small MAXVALUE 100;",
+            "CREATE SEQUENCE s; CREATE SEQUENCE down INCREMENT BY -5 MINVALUE -1000; CREATE SEQUENCE small AS smallint MAXVALUE 100;"
+        },
+        {
+            "a family of inherited tables is created",
+            "",
+            "CREATE TABLE zebra (id int NOT NULL, name text DEFAULT 'z', CONSTRAINT named CHECK (name <> ''));"
+                    + " CREATE TABLE animal_child (legs int) INHERITS (zebra); CREATE TABLE a_grandchild () INHERITS (animal_child);"
+        },
+        {
+            "a family of inherited tables is dropped",
+            "CREATE TABLE zebra (id int); CREATE TABLE animal_child (legs int) INHERITS (zebra);"
+                    + " CREATE TABLE a_grandchild () INHERITS (animal_child); CREATE TABLE keep (x int);",
+            "CREATE TABLE keep (x int);"
+        },
+        {
+            "a table joins a parent and gets the columns it lacks",
+            "CREATE TABLE parent (id int NOT NULL, kind text); CREATE TABLE child (id int);",
+            "CREATE TABLE parent (id int NOT NULL, kind text); CREATE TABLE child (extra int) INHERITS (parent);"
+        },
+        {
+            "a table leaves its parent",
+            "CREATE TABLE parent (id int NOT NULL); CREATE TABLE child (extra int) INHERITS (parent);",
+            "CREATE TABLE parent (id int NOT NULL); CREATE TABLE child (id int NOT NULL, extra int);"
+        },
+        {
+            "a logged table becomes unlogged with its serial sequence",
+            "CREATE TABLE t (id serial PRIMARY KEY, a int);",
+            "CREATE UNLOGGED TABLE t (id serial PRIMARY KEY, a int);"
+        },
+        {
             "long names",
             "CREATE TABLE t (a_column_with_a_name_that_is_about_as_long_as_postgres_allows int,"
                     + " CONSTRAINT a_constraint_with_a_name_that_is_about_as_long_as_postgres_allow CHECK (a_column_with_a_name_that_is_about_as_long_as_postgres_allows > 0));",

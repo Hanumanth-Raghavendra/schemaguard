@@ -7,6 +7,7 @@ import io.github.hanumanthraghavendra.schemaguard.engine.catalog.CatalogBuilder;
 import io.github.hanumanthraghavendra.schemaguard.engine.catalog.CatalogResult;
 import io.github.hanumanthraghavendra.schemaguard.engine.diff.Change;
 import io.github.hanumanthraghavendra.schemaguard.engine.diff.SchemaDiff;
+import io.github.hanumanthraghavendra.schemaguard.engine.lint.ScriptRules;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Catalog;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.EnumType;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.QualifiedName;
@@ -260,7 +261,8 @@ class RiskReportTest {
 
     @Test
     void theRuleReferenceInTheDocsIsUpToDate() throws IOException {
-        String actual = RuleReference.markdown(RuleRegistry.standard());
+        String actual = RuleReference.markdown(RuleRegistry.standard(), ScriptRules.ALL);
+        assertThat(RuleReference.markdown(RuleRegistry.standard())).doesNotContain("script").contains("38 rules.");
         if (Boolean.getBoolean("golden.update")) {
             Files.writeString(RULE_REFERENCE, actual, StandardCharsets.UTF_8);
         }

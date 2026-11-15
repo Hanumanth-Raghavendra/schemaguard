@@ -242,6 +242,27 @@ class PlannerTest {
                 .containsExactly(Operation.ALTER_TYPE_NO_REWRITE, Operation.ALTER_TYPE_REWRITE);
     }
 
+    @Test
+    void aSequenceWithNewLimitsWarnsThatItsPositionMayNotFit() {
+        MigrationPlan plan = direct("CREATE SEQUENCE s CYCLE; CREATE SEQUENCE d;", "CREATE SEQUENCE s; CREATE SEQUENCE d INCREMENT BY -1;");
+        assertThat(sql(plan))
+                .containsExactly(
+                        "ALTER SEQUENCE public.d AS bigint START WITH -1 INCREMENT BY -1 MINVALUE -9223372036854775808 MAXVALUE -1 CACHE 1 NO CYCLE",
+                        "ALTER SEQUENCE public.s AS bigint START WITH 1 INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 CACHE 1 NO CYCLE");
+        assertThat(plan.steps().get(0).note()).startsWith("Fails if the sequence now stands outside the new limits");
+        assertThat(plan.steps().get(1).note()).isEmpty();
+    }
+
+    @Test
+    void inheritedTablesAreCreatedAfterAndDroppedBeforeTheirParents() {
+        String family = "CREATE TABLE zebra (id int); CREATE TABLE child (legs int) INHERITS (zebra); CREATE TABLE a_grandchild () INHERITS (child);";
+        assertThat(sql(direct("", family)))
+                .extracting(statement -> statement.substring(0, statement.indexOf(" (")))
+                .containsExactly("CREATE TABLE public.zebra", "CREATE TABLE public.child", "CREATE TABLE public.a_grandchild");
+        assertThat(sql(direct(family, "")))
+                .containsExactly("DROP TABLE public.a_grandchild", "DROP TABLE public.child", "DROP TABLE public.zebra");
+    }
+
     // ---------------------------------------------------------------- what the plan cannot do
 
     @Test

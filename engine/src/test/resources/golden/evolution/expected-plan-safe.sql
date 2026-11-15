@@ -79,12 +79,12 @@ ALTER TABLE app.posts ADD CONSTRAINT posts_slug_key UNIQUE USING INDEX posts_slu
 
 ALTER TABLE app.users ADD CONSTRAINT users_email_lower CHECK (email = lower(email)) NOT VALID;
 
+-- The new definition, next to the old one
+ALTER TABLE app.posts ADD CONSTRAINT posts_author_id_fkey_new FOREIGN KEY (author_id) REFERENCES app.users (id) ON DELETE CASCADE NOT VALID;
+
 ALTER TABLE app.comments ADD CONSTRAINT comments_author_id_fkey FOREIGN KEY (author_id) REFERENCES app.users (id) ON DELETE SET NULL;
 
 ALTER TABLE app.comments ADD CONSTRAINT comments_post_id_fkey FOREIGN KEY (post_id) REFERENCES app.posts (id) ON DELETE CASCADE;
-
--- The new definition, next to the old one
-ALTER TABLE app.posts ADD CONSTRAINT posts_author_id_fkey_new FOREIGN KEY (author_id) REFERENCES app.users (id) ON DELETE CASCADE NOT VALID;
 
 CREATE INDEX comments_post_idx ON app.comments USING btree (post_id, created_at DESC);
 

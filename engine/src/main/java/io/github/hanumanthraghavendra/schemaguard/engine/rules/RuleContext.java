@@ -28,9 +28,19 @@ public final class RuleContext {
 
     private final SchemaDiff diff;
     private final Set<QualifiedName> renameTargets = new HashSet<>();
+    private final Set<QualifiedName> emptyTables;
 
     public RuleContext(SchemaDiff diff) {
+        this(diff, Set.of());
+    }
+
+    /**
+     * @param emptyTables tables of the old schema that are known to have no rows, because an
+     *     earlier statement of the same migration created them
+     */
+    public RuleContext(SchemaDiff diff, Set<QualifiedName> emptyTables) {
         this.diff = diff;
+        this.emptyTables = Set.copyOf(emptyTables);
         for (Change change : diff.changes()) {
             if (change instanceof Change.TableRenameCandidate rename) {
                 renameTargets.add(rename.to());
@@ -61,12 +71,12 @@ public final class RuleContext {
      * and nothing done to an empty table takes long or loses data.
      */
     public boolean mayHoldRows(QualifiedName table) {
-        return before().table(table).isPresent() || renameTargets.contains(table);
+        return (before().table(table).isPresent() || renameTargets.contains(table)) && !emptyTables.contains(table);
     }
 
-    /** True if the table is in the new schema as well as in the old one. */
+    /** True if the table is in the new schema as well as in the old one, and can have rows. */
     public boolean kept(QualifiedName table) {
-        return before().table(table).isPresent() && after().table(table).isPresent();
+        return before().table(table).isPresent() && after().table(table).isPresent() && !emptyTables.contains(table);
     }
 
     public Optional<Table> tableBefore(QualifiedName table) {

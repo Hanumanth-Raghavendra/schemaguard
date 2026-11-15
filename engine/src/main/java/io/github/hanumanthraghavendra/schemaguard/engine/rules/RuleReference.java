@@ -1,5 +1,8 @@
 package io.github.hanumanthraghavendra.schemaguard.engine.rules;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -12,23 +15,37 @@ public final class RuleReference {
     private RuleReference() {}
 
     public static String markdown(RuleRegistry registry) {
+        return markdown(registry, List.of());
+    }
+
+    /**
+     * @param scriptRules rules that are not in the registry because they judge the statements
+     *     of a migration script, not the difference between two schemas
+     */
+    public static String markdown(RuleRegistry registry, List<RuleInfo> scriptRules) {
+        List<RuleInfo> all = new ArrayList<>(registry.rules().stream().map(Rule::info).toList());
+        all.addAll(scriptRules);
+        all.sort(Comparator.comparing(RuleInfo::id));
         StringBuilder out = new StringBuilder();
         out.append("# SchemaGuard rules\n\n");
         out.append("<!-- Generated from the rule classes. Do not edit; run the build with -Dgolden.update=true. -->\n\n");
-        out.append(registry.rules().size()).append(" rules. Each one looks at the changes between two schemas and\n");
-        out.append("reports what the direct way of applying a change would do to a running database.\n\n");
+        out.append(all.size()).append(" rules. Each one looks at the changes between two schemas and\n");
+        out.append("reports what the direct way of applying a change would do to a running database.\n");
+        if (!scriptRules.isEmpty()) {
+            out.append("Rules marked *script* need the statements of a migration script to judge, and are only\n");
+            out.append("reported when a script is checked.\n");
+        }
+        out.append('\n');
         out.append("| Id | Severity | Category | Rule |\n|---|---|---|---|\n");
-        for (Rule rule : registry.rules()) {
-            RuleInfo info = rule.info();
+        for (RuleInfo info : all) {
             out.append("| [").append(info.id()).append("](#").append(anchor(info)).append(") | ");
             out.append(info.severity()).append(" | ").append(info.category().label()).append(" | ");
-            out.append(info.title()).append(" |\n");
+            out.append(info.title()).append(scriptRules.contains(info) ? " *(script)*" : "").append(" |\n");
         }
         for (Category category : Category.values()) {
             out.append("\n## ").append(capitalised(category.label())).append("\n\n");
             out.append(category.description()).append('\n');
-            for (Rule rule : registry.rules()) {
-                RuleInfo info = rule.info();
+            for (RuleInfo info : all) {
                 if (info.category() == category) {
                     out.append("\n### ").append(info.id()).append(' ').append(info.name()).append("\n\n");
                     out.append("**").append(info.title()).append("** (").append(info.severity()).append(")\n\n");

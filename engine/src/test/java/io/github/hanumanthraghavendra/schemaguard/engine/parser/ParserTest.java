@@ -528,9 +528,9 @@ class ParserTest {
                             "unsupported:CREATE MATERIALIZED VIEW",
                             "alter:t",
                             "drop:TABLE",
-                            "unsupported:UPDATE",
+                            "ignored:UPDATE",
                             "unsupported:DO");
-            assertThat(result.diagnostics()).hasSize(4);
+            assertThat(result.diagnostics()).hasSize(3);
             assertThat(result.diagnostics()).extracting(Diagnostic::code).containsOnly(ParseErrors.UNSUPPORTED_STATEMENT);
             assertThat(result.diagnostics()).extracting(Diagnostic::severity).containsOnly(Severity.WARNING);
             assertThat(result.diagnostics().get(0).message())

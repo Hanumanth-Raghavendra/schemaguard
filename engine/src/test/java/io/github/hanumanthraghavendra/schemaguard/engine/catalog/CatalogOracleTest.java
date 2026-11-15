@@ -43,7 +43,7 @@ class CatalogOracleTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"names", "migrations"})
+    @ValueSource(strings = {"names", "migrations", "alterations"})
     void scriptAndDumpBuildTheSameCatalog(String fixture) throws IOException {
         CatalogResult fromScript = CatalogBuilder.fromSql(resource(fixture, "source.sql"));
         CatalogResult fromDump = CatalogBuilder.fromSql(resource(fixture, "pg_dump_16.sql"));

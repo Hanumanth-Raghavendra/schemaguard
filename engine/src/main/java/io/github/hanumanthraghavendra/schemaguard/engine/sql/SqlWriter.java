@@ -17,13 +17,17 @@ import io.github.hanumanthraghavendra.schemaguard.engine.model.NullsOrder;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Persistence;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.PrimaryKey;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.ReferentialAction;
+import io.github.hanumanthraghavendra.schemaguard.engine.model.QualifiedName;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Sequence;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.SortOrder;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Table;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Unique;
 import io.github.hanumanthraghavendra.schemaguard.engine.parser.Expressions;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -298,6 +302,26 @@ public final class SqlWriter {
     }
 
     /**
+     * The tables in an order in which each can be created: a table that inherits from another
+     * of the given tables comes after it. Otherwise the given order is kept.
+     */
+    public static List<Table> parentsFirst(Collection<Table> tables) {
+        Map<QualifiedName, Table> waiting = new LinkedHashMap<>();
+        tables.forEach(table -> waiting.put(table.name(), table));
+        List<Table> ordered = new ArrayList<>();
+        while (!waiting.isEmpty()) {
+            Table next =
+                    waiting.values().stream()
+                            .filter(table -> table.inherits().stream().noneMatch(waiting::containsKey))
+                            .findFirst()
+                            .orElseThrow(() -> new IllegalArgumentException("Tables inherit from each other in a circle"));
+            ordered.add(next);
+            waiting.remove(next.name());
+        }
+        return ordered;
+    }
+
+    /**
      * The whole catalog as a script that rebuilds it on an empty database, in an order that
      * satisfies every dependency: types, sequences, tables with their valid CHECK constraints,
      * NOT VALID checks, primary and unique keys, indexes, foreign keys, sequence ownership.
@@ -306,7 +330,7 @@ public final class SqlWriter {
         List<String> statements = new ArrayList<>();
         catalog.enums().values().forEach(type -> statements.add(createEnum(type)));
         catalog.sequences().values().forEach(sequence -> statements.add(createSequence(sequence)));
-        for (Table table : catalog.tables().values()) {
+        for (Table table : parentsFirst(catalog.tables().values())) {
             List<Constraint> inline =
                     table.constraints().stream().filter(c -> c instanceof Check check && !check.notValid()).toList();
             statements.add(createTable(table, inline));
