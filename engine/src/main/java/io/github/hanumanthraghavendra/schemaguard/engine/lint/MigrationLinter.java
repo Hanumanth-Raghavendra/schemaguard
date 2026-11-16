@@ -29,7 +29,6 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -186,7 +185,9 @@ public final class MigrationLinter {
                 for (Finding finding : RiskAnalyzer.analyze(context, rules).findings()) {
                     // A finding about a lock holds only if the statement is the one that takes it.
                     if (finding.operation().isEmpty() || done.contains(finding.operation().get())) {
-                        findings.add(new LintFinding(finding.rule(), finding.message(), finding.operation(), finding.certainty()));
+                        findings.add(new LintFinding(
+                                finding.rule(), finding.message(), finding.operation(), finding.certainty(),
+                                DirectRoute.referencedTables(finding.change())));
                     }
                 }
             }
@@ -196,7 +197,8 @@ public final class MigrationLinter {
                                 ScriptRules.CONCURRENTLY_IN_TRANSACTION,
                                 "This statement is inside a transaction block, where PostgreSQL refuses CONCURRENTLY.",
                                 Optional.empty(),
-                                1.0));
+                                1.0,
+                                List.of()));
             }
             noteFullLock(unit, done);
             track(unit);
@@ -314,8 +316,12 @@ public final class MigrationLinter {
         return operation == Operation.CREATE_INDEX_CONCURRENTLY || operation == Operation.DROP_INDEX_CONCURRENTLY;
     }
 
-    private static Optional<QualifiedName> tableOf(Statement statement) {
+    /** The table the statement works on, looked up in the schema as it is before the statement. */
+    private Optional<QualifiedName> tableOf(Statement statement) {
         return switch (statement) {
+            case Statement.Drop drop when drop.kind() == ObjectKind.INDEX && drop.names().size() == 1 ->
+                    Optional.ofNullable(catalog.indexes().get(drop.names().get(0))).map(index -> index.table());
+            case Statement.RenameIndex rename -> Optional.ofNullable(catalog.indexes().get(rename.index())).map(index -> index.table());
             case Statement.AlterTable alter -> Optional.of(alter.table());
             case Statement.CreateIndex create -> Optional.of(create.index().table());
             case Statement.CreateTable create -> Optional.of(create.table().name());
@@ -374,7 +380,7 @@ public final class MigrationLinter {
         if (message == null) {
             return Optional.empty();
         }
-        return Optional.of(new LintFinding(ScriptRules.RENAMED_IN_PLACE, message, Optional.of(operation), 1.0));
+        return Optional.of(new LintFinding(ScriptRules.RENAMED_IN_PLACE, message, Optional.of(operation), 1.0, List.of()));
     }
 
     /** Keeps the set of tables this script created correct when one of them is renamed or dropped. */
@@ -418,19 +424,9 @@ public final class MigrationLinter {
                         + " against reads and writes; each such statement first waits for the queries already running"
                         + " there, and blocks all new ones while it waits.";
         List<LintFinding> findings = new ArrayList<>(statement.findings());
-        findings.add(new LintFinding(lockTimeoutRule, message, Optional.empty(), 1.0));
+        findings.add(new LintFinding(lockTimeoutRule, message, Optional.empty(), 1.0, List.of()));
         statements.set(
                 firstLockedWithoutTimeout,
                 new StatementLint(statement.span(), statement.sql(), statement.status(), statement.table(), statement.operations(), findings));
-    }
-
-    /** The first line of a statement, for reports. */
-    static String firstLine(String sql) {
-        String line = sql.strip().lines().findFirst().orElse("").strip();
-        return line.length() > 100 ? line.substring(0, 97) + "..." : line;
-    }
-
-    static String lower(Enum<?> value) {
-        return value.name().toLowerCase(Locale.ROOT);
     }
 }

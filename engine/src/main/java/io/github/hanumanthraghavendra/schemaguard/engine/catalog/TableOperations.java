@@ -13,7 +13,6 @@ import io.github.hanumanthraghavendra.schemaguard.engine.model.DataType;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Expression;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.ForeignKey;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.GeneratedColumn;
-import io.github.hanumanthraghavendra.schemaguard.engine.model.Identifiers;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Identity;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Index;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.IndexColumn;

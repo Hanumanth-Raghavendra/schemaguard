@@ -16,7 +16,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -339,8 +338,6 @@ class PlannerTest {
                         before,
                         after,
                         PlanOptions.safe()
-                                .withRenames(
-                                        Set.of(new Rename.OfTable(new QualifiedName("public", "logs"), new QualifiedName("audit", "events"))))
                                 .withRenames(
                                         List.of(
                                                 new Rename.OfTable(new QualifiedName("public", "logs"), new QualifiedName("audit", "events")),

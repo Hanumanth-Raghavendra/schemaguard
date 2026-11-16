@@ -339,8 +339,8 @@ class MigrationLinterTest {
 
     @Test
     void longStatementsAreCutInTheReport() {
-        assertThat(MigrationLinter.firstLine("CREATE TABLE t (" + "a".repeat(200) + " int)")).hasSize(100).endsWith("...");
-        assertThat(MigrationLinter.firstLine("\n  DROP TABLE t\n")).isEqualTo("DROP TABLE t");
+        assertThat(LintFormatter.firstLine("CREATE TABLE t (" + "a".repeat(200) + " int)")).hasSize(100).endsWith("...");
+        assertThat(LintFormatter.firstLine("\n  DROP TABLE t\n")).isEqualTo("DROP TABLE t");
     }
 
     @Test

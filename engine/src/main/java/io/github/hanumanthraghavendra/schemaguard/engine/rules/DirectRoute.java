@@ -8,6 +8,8 @@ import io.github.hanumanthraghavendra.schemaguard.engine.model.ForeignKey;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Identity;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.PrimaryKey;
 import io.github.hanumanthraghavendra.schemaguard.engine.model.Unique;
+import io.github.hanumanthraghavendra.schemaguard.engine.model.QualifiedName;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -69,6 +71,31 @@ public final class DirectRoute {
                     case Change.EnumValueAdded c -> Operation.ADD_ENUM_VALUE;
                     default -> null;
                 });
+    }
+
+    /**
+     * The other tables the direct statement for this change also locks, because a foreign key
+     * connects them: the table a new or dropped foreign key points to, or every table a dropped
+     * or created table points to. A table that points to itself is not listed again.
+     */
+    public static List<QualifiedName> referencedTables(Change change) {
+        List<Constraint> keys =
+                switch (change) {
+                    case Change.ConstraintAdded c -> List.of(c.constraint());
+                    case Change.ConstraintChanged c -> List.of(c.after());
+                    case Change.ConstraintDropped c -> List.of(c.constraint());
+                    case Change.TableAdded c -> c.table().constraints();
+                    case Change.TableDropped c -> c.table().constraints();
+                    default -> List.of();
+                };
+        Optional<QualifiedName> self = RuleContext.tableOf(change);
+        return keys.stream()
+                .filter(ForeignKey.class::isInstance)
+                .map(key -> ((ForeignKey) key).referencedTable())
+                .filter(target -> !self.equals(Optional.of(target)))
+                .distinct()
+                .sorted()
+                .toList();
     }
 
     /** The statement that adds this column, judged by what the column needs for existing rows. */

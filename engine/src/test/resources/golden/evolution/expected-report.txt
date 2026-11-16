@@ -29,7 +29,7 @@ Findings: 20 (5 critical, 9 high, 2 medium, 4 low)
 - table app.audit_log
   CRITICAL SG-R301  Table is dropped with all its rows  [data loss, score 85]
       Dropping app.audit_log deletes all its rows for good.
-      Direct route: DROP TABLE takes ACCESS EXCLUSIVE on app.audit_log (blocks reads and writes) and ACCESS EXCLUSIVE on each table it references (blocks reads and writes), held briefly
+      Direct route: DROP TABLE takes ACCESS EXCLUSIVE on app.audit_log (blocks reads and writes), held briefly
       Safer: First release application code that no longer uses the table. Then rename the table instead of dropping it, wait a release or two to be sure nothing misses it, take a backup, and drop it last.
   LOW      SG-R111  Statements that need a full lock should run with a lock timeout  [locking, score 10]
       This migration locks 5 tables app.audit_log, app.post_tags, app.posts, app.tags, app.users against reads and writes. Each statement first waits for the queries already running there, and blocks all new ones while it waits.
@@ -38,7 +38,7 @@ Findings: 20 (5 critical, 9 high, 2 medium, 4 low)
 - table app.post_tags
   CRITICAL SG-R301  Table is dropped with all its rows  [data loss, score 85]
       Dropping app.post_tags deletes all its rows for good.
-      Direct route: DROP TABLE takes ACCESS EXCLUSIVE on app.post_tags (blocks reads and writes) and ACCESS EXCLUSIVE on each table it references (blocks reads and writes), held briefly
+      Direct route: DROP TABLE takes ACCESS EXCLUSIVE on app.post_tags (blocks reads and writes) and ACCESS EXCLUSIVE on app.posts, app.tags (blocks reads and writes), held briefly
       Safer: First release application code that no longer uses the table. Then rename the table instead of dropping it, wait a release or two to be sure nothing misses it, take a backup, and drop it last.
 
 ~ column app.posts.body: NOT NULL added
@@ -56,7 +56,7 @@ Findings: 20 (5 critical, 9 high, 2 medium, 4 low)
 ~ constraint app.posts.posts_author_id_fkey: FOREIGN KEY (author_id) REFERENCES app.users (id) -> FOREIGN KEY (author_id) REFERENCES app.users (id) ON DELETE CASCADE
   HIGH     SG-R109  Constraint definition changes, so the constraint is dropped and added again  [locking, score 60]
       Constraint posts_author_id_fkey on app.posts has a new definition. Dropping it and adding it again checks every row under a lock.
-      Direct route: ADD CONSTRAINT ... FOREIGN KEY takes SHARE ROW EXCLUSIVE on app.posts (blocks writes, reads continue) and SHARE ROW EXCLUSIVE on each table it references (blocks writes, reads continue), held while every row is read
+      Direct route: ADD CONSTRAINT ... FOREIGN KEY takes SHARE ROW EXCLUSIVE on app.posts (blocks writes, reads continue) and SHARE ROW EXCLUSIVE on app.users (blocks writes, reads continue), held while every row is read
       Safer: Add the new definition under a new name with NOT VALID, run VALIDATE CONSTRAINT, and only then drop the old constraint. The table is never without the rule and never locked for long. For a key, build the new unique index concurrently first.
 
 + constraint app.posts.posts_published_check CHECK ((status <> 'published'::app.status) or (published_at is not null))
@@ -80,7 +80,7 @@ Findings: 20 (5 critical, 9 high, 2 medium, 4 low)
 - table app.tags
   CRITICAL SG-R301  Table is dropped with all its rows  [data loss, score 85]
       Dropping app.tags deletes all its rows for good.
-      Direct route: DROP TABLE takes ACCESS EXCLUSIVE on app.tags (blocks reads and writes) and ACCESS EXCLUSIVE on each table it references (blocks reads and writes), held briefly
+      Direct route: DROP TABLE takes ACCESS EXCLUSIVE on app.tags (blocks reads and writes), held briefly
       Safer: First release application code that no longer uses the table. Then rename the table instead of dropping it, wait a release or two to be sure nothing misses it, take a backup, and drop it last.
 
 - column app.users.display_name text

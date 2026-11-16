@@ -11,7 +11,6 @@ import static io.github.hanumanthraghavendra.schemaguard.engine.lexer.TokenType.
 import static io.github.hanumanthraghavendra.schemaguard.engine.lexer.TokenType.LPAREN;
 import static io.github.hanumanthraghavendra.schemaguard.engine.lexer.TokenType.META_COMMAND;
 import static io.github.hanumanthraghavendra.schemaguard.engine.lexer.TokenType.NUMBER;
-import static io.github.hanumanthraghavendra.schemaguard.engine.lexer.TokenType.OPERATOR;
 import static io.github.hanumanthraghavendra.schemaguard.engine.lexer.TokenType.PARAMETER;
 import static io.github.hanumanthraghavendra.schemaguard.engine.lexer.TokenType.QUOTED_IDENTIFIER;
 import static io.github.hanumanthraghavendra.schemaguard.engine.lexer.TokenType.RBRACKET;

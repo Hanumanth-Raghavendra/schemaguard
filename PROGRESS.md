@@ -3,10 +3,10 @@
 > **To resume:** read this file, then start at "Next step". Do not re-plan; the plan is fixed below.
 
 - **Current phase:** 5 (REST API). Phases 1 to 4 are complete.
-- **Last updated:** 2026-11-15
+- **Last updated:** 2026-11-16
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
-- **State:** build green, 1,701 tests, none skipped (276 plans run on a real PostgreSQL 16, also in CI), engine line coverage 98.9%, branch 93.8% (gate: 85% line)
-- **Size:** 202 files in 39 folders; 12,751 lines of main Java, 6,529 lines of test Java (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
+- **State:** build green, 1,703 tests, none skipped (276 plans run on a real PostgreSQL 16, also in CI), engine line coverage 99.3%, branch 95.4% (gate: 85% line)
+- **Size:** 203 files in 40 folders; 12,796 lines of main Java, 6,648 lines of test Java (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
 
 ## Next step
 
@@ -27,6 +27,8 @@ depending on `engine`. Check the latest Spring Boot version on Maven Central bef
    fixture. Keep the engine's coverage gate; give `api` its own (80% line).
 5. Dockerfile (multi-stage, JRE 21, non-root) and `render.yaml`; deploy to Render free tier;
    CORS for the future Vercel web app; health endpoint `/actuator/health`.
+6. **Input limits are required, not optional** (see Known issues, performance): cap the body
+   size (1 MB) and the number of statements per script (2,000), and answer 413/422 beyond.
 
 **Local PostgreSQL.** The Claude build container has PostgreSQL 16 server binaries in
 `/usr/lib/postgresql/16/bin`. Run them as the `postgres` user (`runuser -u postgres -- ...`)
@@ -58,6 +60,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 - [x] **3.3** Scoring and output: `RiskScore` (noisy-OR), `RiskReport`, `ReportFormatter`, golden `expected-report.txt`, generated `docs/RULES.md`. Catalog fix found by measuring: `NOT VALID` inside `CREATE TABLE` is ignored. **Phase 3 complete** (2026-11-14)
 - [x] **4.1** Migration planner: `Planner.plan(before, after, options)` writes the direct route and the safe route (concurrent indexes, `NOT VALID` + `VALIDATE`, NOT NULL through a validated CHECK, keys through `USING INDEX`, swap of changed constraints and indexes, `lock_timeout`), confirmed renames, cautions for risks it cannot remove, and a list of changes PostgreSQL has no statement for. `PlanOracleTest` runs 264 plans on a real PostgreSQL 16 and compares `pg_dump` with the wanted schema; CI does the same with a postgres:16 service (2026-11-15)
 - [x] **4.2** Parser and catalog read every statement the planner writes (`ALTER INDEX ... RENAME`, `SET GENERATED`, `DROP EXPRESSION`, `SET LOGGED/UNLOGGED`, `INHERIT/NO INHERIT`, `ALTER SEQUENCE` options, `CREATE TABLE ... INHERITS` with merged columns), checked against PostgreSQL by a new `alterations` fixture. `MigrationLinter` judges a hand-written script statement by statement against the schema it runs on: a script that already says `CONCURRENTLY` is not blamed, a table the script created is empty, gaps the script closes itself are not reported; two script-only rules (`SG-R403` CONCURRENTLY in a transaction, `SG-R510` rename in one step). Tests prove linter, rules and planner agree. **Phase 4 complete** (2026-11-15)
+- [x] **Audit** before Phase 5: engine fuzzed with 60,000 broken scripts (no crash; a seeded 1,500-case version is now a test); linter made 4x faster (equal tables skipped in the diff, unchanged tables kept as the same objects, guarded by a test); report lines name the real tables (no more "each table it references" for a table that references none, `DROP INDEX` names its table); order-unsafe `withRenames(Set)` removed; unused imports removed; Javadoc clean under `-Xdoclint`; README rewritten with a real example (2026-11-16)
 
 ## Phases
 
@@ -100,6 +103,9 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
   needs an identical column definition, so "renamed and made NOT NULL" cannot be confirmed.
   An identity column's hidden sequence is not modelled.
 - The parser accepts a reserved word as a constraint name (`CONSTRAINT both`); PostgreSQL does not.
+- **Performance:** linting costs about 1.6 ms per statement at 400 tables (whole-schema diff per
+  statement, linear in schema size). Fine for real migrations; a script of thousands of
+  statements against a large schema takes seconds, hence the API limits in Phase 5.
 - **Linter:** a statement the parser does not model (functions, views, triggers, `DO` blocks)
   is listed as not analysed, never guessed. It does not know which helper constraint is a
   helper beyond "added and dropped in the same script". `ALTER TABLE ... ALTER COLUMN ... SET

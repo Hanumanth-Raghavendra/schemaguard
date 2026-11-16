@@ -3,7 +3,6 @@ package io.github.hanumanthraghavendra.schemaguard.engine.planner;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * How a plan is to be made.
@@ -45,10 +44,6 @@ public record PlanOptions(Route route, List<Rename> renames, String lockTimeout)
 
     public PlanOptions withRenames(List<Rename> confirmed) {
         return new PlanOptions(route, confirmed, lockTimeout);
-    }
-
-    public PlanOptions withRenames(Set<Rename> confirmed) {
-        return new PlanOptions(route, List.copyOf(confirmed), lockTimeout);
     }
 
     public PlanOptions withLockTimeout(String value) {

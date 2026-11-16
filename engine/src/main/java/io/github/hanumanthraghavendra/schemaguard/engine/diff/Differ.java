@@ -153,7 +153,9 @@ final class Differ {
                 changes.add(new Change.TableAdded(now));
             } else if (now == null) {
                 changes.add(new Change.TableDropped(old));
-            } else {
+            } else if (!old.equals(now)) {
+                // Equal tables have nothing to report; skipping them keeps a diff of two large,
+                // mostly equal schemas fast, which the linter relies on once per statement.
                 tableProperties(name, old, now);
                 columns(name, old, now);
                 constraints(name, old, now);

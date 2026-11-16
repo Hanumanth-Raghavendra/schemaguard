@@ -77,13 +77,12 @@ final class CatalogState {
     /** Freezes the state. Constraints are put in name order: the order they were added in is not part of a schema. */
     Catalog toCatalog() {
         TreeMap<QualifiedName, Table> ordered = new TreeMap<>();
+        Comparator<Constraint> byName = Comparator.comparing(c -> c.name().orElse(""));
         tables.forEach(
                 (name, table) -> {
-                    List<Constraint> constraints =
-                            table.constraints().stream()
-                                    .sorted(Comparator.comparing(c -> c.name().orElse("")))
-                                    .toList();
-                    ordered.put(name, table.withConstraints(constraints));
+                    List<Constraint> constraints = table.constraints().stream().sorted(byName).toList();
+                    // Keep the same object when nothing moves, so unchanged tables stay identical.
+                    ordered.put(name, constraints.equals(table.constraints()) ? table : table.withConstraints(constraints));
                 });
         return new Catalog(ordered, enums, sequences, indexes);
     }

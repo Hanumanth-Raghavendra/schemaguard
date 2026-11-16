@@ -52,13 +52,13 @@ line 21: ALTER TABLE app.posts ADD CONSTRAINT posts_slug_key UNIQUE (slug)
 line 27: ALTER TABLE app.posts ADD CONSTRAINT posts_author_id_fkey
   HIGH     SG-R104  Foreign key is added without NOT VALID  [locking, score 60]
       Adding foreign key posts_author_id_fkey checks every row of app.posts against app.users. Writes to both tables wait until the check ends.
-      Lock: ADD CONSTRAINT ... FOREIGN KEY takes SHARE ROW EXCLUSIVE on app.posts (blocks writes, reads continue) and SHARE ROW EXCLUSIVE on each table it references (blocks writes, reads continue), held while every row is read
+      Lock: ADD CONSTRAINT ... FOREIGN KEY takes SHARE ROW EXCLUSIVE on app.posts (blocks writes, reads continue) and SHARE ROW EXCLUSIVE on app.users (blocks writes, reads continue), held while every row is read
       Safer: Add the constraint with NOT VALID: it then applies to new rows only and is quick. Run ALTER TABLE ... VALIDATE CONSTRAINT as a second statement; it checks the existing rows without blocking reads or writes.
 
 line 29: DROP INDEX app.posts_status_idx
   MEDIUM   SG-R102  Index is dropped without CONCURRENTLY  [locking, score 30]
       Dropping index posts_status_idx locks app.posts against reads and writes while it waits for running queries.
-      Lock: DROP INDEX takes ACCESS EXCLUSIVE on the table (blocks reads and writes), held briefly
+      Lock: DROP INDEX takes ACCESS EXCLUSIVE on app.posts (blocks reads and writes), held briefly
       Safer: Use DROP INDEX CONCURRENTLY, which waits without blocking anyone. First check that the index is no longer used: pg_stat_user_indexes shows how often it is scanned.
 
 line 30: CREATE INDEX posts_status_idx ON app.posts (status) WHERE status <> 'archived'
@@ -70,7 +70,7 @@ line 30: CREATE INDEX posts_status_idx ON app.posts (status) WHERE status <> 'ar
 line 31: DROP INDEX app.posts_title_idx
   MEDIUM   SG-R102  Index is dropped without CONCURRENTLY  [locking, score 30]
       Dropping index posts_title_idx locks app.posts against reads and writes while it waits for running queries.
-      Lock: DROP INDEX takes ACCESS EXCLUSIVE on the table (blocks reads and writes), held briefly
+      Lock: DROP INDEX takes ACCESS EXCLUSIVE on app.posts (blocks reads and writes), held briefly
       Safer: Use DROP INDEX CONCURRENTLY, which waits without blocking anyone. First check that the index is no longer used: pg_stat_user_indexes shows how often it is scanned.
 
 line 32: CREATE INDEX posts_lower_title_idx ON app.posts (lower(title))
@@ -88,13 +88,13 @@ line 35: ALTER TABLE app.audit_log RENAME TO activity_log
 line 44: DROP TABLE app.post_tags
   CRITICAL SG-R301  Table is dropped with all its rows  [data loss, score 85]
       Dropping app.post_tags deletes all its rows for good.
-      Lock: DROP TABLE takes ACCESS EXCLUSIVE on app.post_tags (blocks reads and writes) and ACCESS EXCLUSIVE on each table it references (blocks reads and writes), held briefly
+      Lock: DROP TABLE takes ACCESS EXCLUSIVE on app.post_tags (blocks reads and writes) and ACCESS EXCLUSIVE on app.posts, app.tags (blocks reads and writes), held briefly
       Safer: First release application code that no longer uses the table. Then rename the table instead of dropping it, wait a release or two to be sure nothing misses it, take a backup, and drop it last.
 
 line 45: DROP TABLE app.tags
   CRITICAL SG-R301  Table is dropped with all its rows  [data loss, score 85]
       Dropping app.tags deletes all its rows for good.
-      Lock: DROP TABLE takes ACCESS EXCLUSIVE on app.tags (blocks reads and writes) and ACCESS EXCLUSIVE on each table it references (blocks reads and writes), held briefly
+      Lock: DROP TABLE takes ACCESS EXCLUSIVE on app.tags (blocks reads and writes), held briefly
       Safer: First release application code that no longer uses the table. Then rename the table instead of dropping it, wait a release or two to be sure nothing misses it, take a backup, and drop it last.
 
 line 48: DROP SEQUENCE app.invoice_number

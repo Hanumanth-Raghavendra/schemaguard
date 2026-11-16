@@ -58,16 +58,26 @@ public final class ReportFormatter {
         out.append("  ").append(rule.title());
         out.append("  [").append(rule.category().label()).append(", score ").append(finding.score()).append("]\n");
         out.append(INDENT).append(finding.message()).append('\n');
-        finding.operation().flatMap(operation -> effect(operation, finding.table()))
+        finding.operation()
+                .flatMap(operation -> effect(operation, finding.table(), DirectRoute.referencedTables(finding.change())))
                 .ifPresent(effect -> out.append(INDENT).append("Direct route: ").append(effect).append('\n'));
         out.append(INDENT).append("Safer: ").append(rule.fix()).append('\n');
     }
 
-    /** One line saying what the statement locks and for how long, or empty if it locks nothing. */
-    public static Optional<String> effect(Operation operation, Optional<QualifiedName> table) {
+    /**
+     * One line saying what the statement locks and for how long, or empty if it locks nothing.
+     *
+     * @param table      the table the statement works on, if known
+     * @param referenced the other tables it locks through a foreign key; the lock on them is
+     *                   only mentioned when there are some
+     */
+    public static Optional<String> effect(Operation operation, Optional<QualifiedName> table, List<QualifiedName> referenced) {
         List<String> locks = new ArrayList<>();
         operation.lock().ifPresent(lock -> locks.add(describe(lock, table.map(QualifiedName::toString).orElse("the table"))));
-        operation.referencedLock().ifPresent(lock -> locks.add(describe(lock, "each table it references")));
+        if (!referenced.isEmpty()) {
+            String names = String.join(", ", referenced.stream().map(QualifiedName::toString).toList());
+            operation.referencedLock().ifPresent(lock -> locks.add(describe(lock, names)));
+        }
         if (locks.isEmpty()) {
             return Optional.empty();
         }

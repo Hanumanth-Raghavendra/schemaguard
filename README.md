@@ -5,26 +5,62 @@
 A PostgreSQL migration-safety platform. Give it two versions of a schema and it tells you
 what changed, what that change will lock or break in production, and how to ship it safely.
 
-> **Status: early development.** The engine reads PostgreSQL schemas, reports every difference between two of them, judges the risk of each change with 38 rules ([rule reference](docs/RULES.md)), and writes the migration: the direct way or a safe way that avoids long locks. Lock facts are measured on a real PostgreSQL 16, and every generated plan is run on one in CI. It also lints a migration script you wrote, statement by statement. Next: the REST API.
-> See [PROGRESS.md](PROGRESS.md) for the current state and roadmap.
+> **Status: engine complete for v0.1; REST API next.** See [PROGRESS.md](PROGRESS.md) for the
+> current state and roadmap.
 
 ## Why
 
 A single `ALTER TABLE` can take a lock that blocks every write to a busy table. Most teams find
 out in production. SchemaGuard checks the migration before it runs:
 
-1. **Diff**: a structured comparison of two schemas, including renames.
-2. **Risk**: each change is checked against rules for locks, table rewrites, data loss and
-   application compatibility, then scored.
-3. **Plan**: an ordered, safe migration, using `CREATE INDEX CONCURRENTLY`,
-   `NOT VALID` followed by `VALIDATE CONSTRAINT`, and `lock_timeout` guards.
+1. **Diff**: a structured comparison of two schemas, including likely renames.
+2. **Risk**: every change is judged by 40 rules for locks, table rewrites, data loss, failures
+   and application compatibility, then scored from 0 to 100 ([rule reference](docs/RULES.md)).
+3. **Plan**: the migration written for you, either the plain way or a safe way that avoids long
+   locks (`CREATE INDEX CONCURRENTLY`, `NOT VALID` + `VALIDATE`, `lock_timeout`, ...).
+4. **Lint**: a migration script you wrote yourself, checked statement by statement, with line
+   numbers.
+
+## What it looks like
+
+A hand-written migration, linted against the schema it will run on:
+
+```text
+line 17: ALTER TABLE app.posts ALTER COLUMN body SET NOT NULL
+  HIGH     SG-R106  SET NOT NULL scans the table under a full lock  [locking, score 60]
+      Making app.posts.body NOT NULL reads every row to look for NULLs while reads and writes wait.
+      It fails if a NULL is found.
+      Lock: ALTER COLUMN ... SET NOT NULL takes ACCESS EXCLUSIVE on app.posts (blocks reads and writes),
+            held while every row is read
+      Safer: Add CHECK (column IS NOT NULL) NOT VALID, run VALIDATE CONSTRAINT, then SET NOT NULL ...
+```
+
+And the same change on the safe route of the generated plan:
+
+```sql
+ALTER TABLE app.posts ADD CONSTRAINT posts_body_not_null CHECK (body IS NOT NULL) NOT VALID;
+ALTER TABLE app.posts VALIDATE CONSTRAINT posts_body_not_null;   -- reads and writes continue
+ALTER TABLE app.posts ALTER COLUMN body SET NOT NULL;            -- no scan: the check is the proof
+ALTER TABLE app.posts DROP CONSTRAINT posts_body_not_null;
+```
+
+## How it is kept honest
+
+- **Lock facts are measured, not remembered.** `scripts/measure-locks.sh` runs 51 kinds of DDL on
+  a real PostgreSQL 16 and records the lock, rewrite and table scan of each. The engine's
+  knowledge is tested against those measurements.
+- **Every generated plan is run.** In CI, a PostgreSQL 16 container applies 276 plans; the
+  `pg_dump` afterwards must match the target schema.
+- **Planner, rules and linter are tested against each other**, and the engine is fuzzed with
+  broken SQL: any input gives an answer, never a crash.
+- About 1,700 tests; the engine has no runtime dependencies.
 
 ## Planned shape
 
 | Module | Role | Status |
 | --- | --- | --- |
-| `engine` | Lexer, parser, schema model, diff, rules, planner. Pure Java, no dependencies | In progress |
-| `api` | Spring Boot REST service | Planned |
+| `engine` | Lexer, parser, schema model, diff, rules, planner, linter. Pure Java, no dependencies | Done for v0.1 |
+| `api` | Spring Boot REST service | Next |
 | `cli` | Command-line tool built on the engine | Planned |
 | `web` | React + TypeScript front end | Planned |
 | `action` | GitHub Action that reviews migrations on pull requests | Planned |
@@ -44,4 +80,5 @@ This compiles the code, runs the tests and enforces the coverage gate.
 
 - [PROGRESS.md](PROGRESS.md): current state and next step
 - [docs/DECISIONS.md](docs/DECISIONS.md): architecture decisions and their reasons
+- [docs/RULES.md](docs/RULES.md): every rule, why it matters and the safer alternative
 - [docs/INTERVIEW.md](docs/INTERVIEW.md): how each part works and why

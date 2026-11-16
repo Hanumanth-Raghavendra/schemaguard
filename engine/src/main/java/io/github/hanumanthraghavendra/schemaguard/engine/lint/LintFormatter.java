@@ -6,6 +6,7 @@ import io.github.hanumanthraghavendra.schemaguard.engine.rules.RiskLevel;
 import io.github.hanumanthraghavendra.schemaguard.engine.rules.RuleInfo;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * A lint report as plain text: the score, then each statement that has findings with the
@@ -26,7 +27,7 @@ public final class LintFormatter {
             if (statement.findings().isEmpty()) {
                 continue;
             }
-            out.append("\nline ").append(statement.span().line()).append(": ").append(MigrationLinter.firstLine(statement.sql())).append('\n');
+            out.append("\nline ").append(statement.span().line()).append(": ").append(firstLine(statement.sql())).append('\n');
             for (LintFinding finding : statement.findings()) {
                 RuleInfo rule = finding.rule();
                 out.append("  ").append(String.format("%-8s", finding.severity())).append(' ').append(rule.id());
@@ -34,7 +35,7 @@ public final class LintFormatter {
                 out.append("  [").append(rule.category().label()).append(", score ").append(finding.score()).append("]\n");
                 out.append(INDENT).append(finding.message()).append('\n');
                 finding.operation()
-                        .flatMap(operation -> ReportFormatter.effect(operation, statement.table()))
+                        .flatMap(operation -> ReportFormatter.effect(operation, statement.table(), finding.referenced()))
                         .ifPresent(effect -> out.append(INDENT).append("Lock: ").append(effect).append('\n'));
                 out.append(INDENT).append("Safer: ").append(rule.fix()).append('\n');
             }
@@ -46,11 +47,11 @@ public final class LintFormatter {
             if (statement.status() == StatementLint.Status.NOT_ANALYSED || statement.status() == StatementLint.Status.WOULD_FAIL) {
                 String why = statement.status() == StatementLint.Status.WOULD_FAIL ? "would fail" : "not analysed";
                 out.append("line ").append(statement.span().line()).append(' ').append(why).append(": ");
-                out.append(MigrationLinter.firstLine(statement.sql())).append('\n');
+                out.append(firstLine(statement.sql())).append('\n');
             }
         }
         for (Diagnostic diagnostic : report.diagnostics()) {
-            out.append("  ").append(MigrationLinter.lower(diagnostic.severity())).append(" at line ").append(diagnostic.span().line());
+            out.append("  ").append(lower(diagnostic.severity())).append(" at line ").append(diagnostic.span().line());
             out.append(": ").append(diagnostic.message()).append('\n');
         }
         return out.toString();
@@ -61,9 +62,19 @@ public final class LintFormatter {
         for (RiskLevel level : List.of(RiskLevel.CRITICAL, RiskLevel.HIGH, RiskLevel.MEDIUM, RiskLevel.LOW)) {
             long count = report.findings().stream().filter(finding -> finding.severity() == level).count();
             if (count > 0) {
-                parts.add(count + " " + MigrationLinter.lower(level));
+                parts.add(count + " " + lower(level));
             }
         }
         return parts.isEmpty() ? "" : " (" + String.join(", ", parts) + ")";
+    }
+
+    /** The first line of a statement, cut to 100 characters. */
+    static String firstLine(String sql) {
+        String line = sql.strip().lines().findFirst().orElse("").strip();
+        return line.length() > 100 ? line.substring(0, 97) + "..." : line;
+    }
+
+    private static String lower(Enum<?> value) {
+        return value.name().toLowerCase(Locale.ROOT);
     }
 }

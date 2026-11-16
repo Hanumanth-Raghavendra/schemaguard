@@ -231,17 +231,21 @@ class RiskReportTest {
     @Test
     void theEffectLineNamesBothTablesOfAForeignKeyAndIsLeftOutWithoutALock() {
         Optional<QualifiedName> table = Optional.of(new QualifiedName("app", "posts"));
-        assertThat(ReportFormatter.effect(Operation.ADD_FOREIGN_KEY, table))
+        List<QualifiedName> users = List.of(new QualifiedName("app", "users"));
+        assertThat(ReportFormatter.effect(Operation.ADD_FOREIGN_KEY, table, users))
                 .contains(
                         "ADD CONSTRAINT ... FOREIGN KEY takes SHARE ROW EXCLUSIVE on app.posts (blocks writes, reads continue)"
-                                + " and SHARE ROW EXCLUSIVE on each table it references (blocks writes, reads continue),"
+                                + " and SHARE ROW EXCLUSIVE on app.users (blocks writes, reads continue),"
                                 + " held while every row is read");
-        assertThat(ReportFormatter.effect(Operation.ALTER_TYPE_REWRITE, Optional.empty()))
+        assertThat(ReportFormatter.effect(Operation.DROP_TABLE, table, List.of()))
+                .as("a dropped table that references nothing locks nothing else")
+                .contains("DROP TABLE takes ACCESS EXCLUSIVE on app.posts (blocks reads and writes), held briefly");
+        assertThat(ReportFormatter.effect(Operation.ALTER_TYPE_REWRITE, Optional.empty(), List.of()))
                 .contains(
                         "ALTER COLUMN ... TYPE takes ACCESS EXCLUSIVE on the table (blocks reads and writes),"
                                 + " held while the whole table is written again");
-        assertThat(ReportFormatter.effect(Operation.DROP_COLUMN, table).orElseThrow()).endsWith("held briefly");
-        assertThat(ReportFormatter.effect(Operation.ADD_ENUM_VALUE, Optional.empty())).isEmpty();
+        assertThat(ReportFormatter.effect(Operation.DROP_COLUMN, table, List.of()).orElseThrow()).endsWith("held briefly");
+        assertThat(ReportFormatter.effect(Operation.ADD_ENUM_VALUE, Optional.empty(), List.of())).isEmpty();
     }
 
     // ---------------------------------------------------------------- golden files
