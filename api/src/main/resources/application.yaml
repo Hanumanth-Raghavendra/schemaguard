@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: schemaguard-api
+  mvc:
+    problemdetails:
+      enabled: true
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  port: ${PORT:8080}
+  shutdown: graceful
+  compression:
+    enabled: true
+    mime-types: application/json,application/problem+json,text/plain
+  error:
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+# The API description is public on purpose: it is the API's documentation.
+springdoc:
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+
+schemaguard:
+  limits:
+    max-body-bytes: 3000000
+    max-input-chars: 1000000
+    max-statements: 2000
+  cors:
+    allowed-origins: ${SCHEMAGUARD_CORS_ALLOWED_ORIGINS:http://localhost:5173}

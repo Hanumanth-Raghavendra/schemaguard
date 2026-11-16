@@ -15,6 +15,7 @@
 
   <modules>
     <module>engine</module>
+    <module>api</module>
   </modules>
 
   <properties>
@@ -29,6 +30,9 @@
     <maven-surefire-plugin.version>3.6.1</maven-surefire-plugin.version>
     <maven-enforcer-plugin.version>3.7.0</maven-enforcer-plugin.version>
     <jacoco-maven-plugin.version>0.8.16</jacoco-maven-plugin.version>
+    <!-- Versions verified against Maven Central on 2026-11-17. -->
+    <spring-boot.version>4.1.2</spring-boot.version>
+    <springdoc.version>3.2.0</springdoc.version>
   </properties>
 
   <dependencyManagement>

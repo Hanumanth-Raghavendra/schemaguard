@@ -5,7 +5,7 @@
 A PostgreSQL migration-safety platform. Give it two versions of a schema and it tells you
 what changed, what that change will lock or break in production, and how to ship it safely.
 
-> **Status: engine complete for v0.1; REST API next.** See [PROGRESS.md](PROGRESS.md) for the
+> **Status: engine and REST API complete for v0.1; first deploy and the web UI next.** See [PROGRESS.md](PROGRESS.md) for the
 > current state and roadmap.
 
 ## Why
@@ -60,7 +60,7 @@ ALTER TABLE app.posts DROP CONSTRAINT posts_body_not_null;
 | Module | Role | Status |
 | --- | --- | --- |
 | `engine` | Lexer, parser, schema model, diff, rules, planner, linter. Pure Java, no dependencies | Done for v0.1 |
-| `api` | Spring Boot REST service | Next |
+| `api` | Spring Boot REST service with OpenAPI docs and a Docker image | Done for v0.1 |
 | `cli` | Command-line tool built on the engine | Planned |
 | `web` | React + TypeScript front end | Planned |
 | `action` | GitHub Action that reviews migrations on pull requests | Planned |
@@ -74,7 +74,29 @@ Requires JDK 21 or newer. Maven is downloaded by the wrapper.
 mvnw.cmd -B -ntp verify      # Windows Command Prompt or PowerShell
 ```
 
-This compiles the code, runs the tests and enforces the coverage gate.
+This compiles the code, runs the tests and enforces the coverage gates.
+
+## Run the API
+
+```bash
+./mvnw -B -ntp package -DskipTests
+java -jar api/target/schemaguard-api-0.1.0-SNAPSHOT.jar   # then open http://localhost:8080/swagger-ui.html
+```
+
+Or with Docker: `docker build -t schemaguard-api .` and `docker run -p 8080:8080 schemaguard-api`.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/report -H 'Content-Type: application/json' \
+  -d '{"before":"CREATE TABLE t (a int);","after":"CREATE TABLE t (a int); CREATE INDEX t_a ON t (a);"}'
+```
+
+| Endpoint | Does |
+| --- | --- |
+| `POST /api/v1/diff` | Every difference between two schemas, with rename candidates |
+| `POST /api/v1/report` | Risk of each change on the direct route, scored 0 to 100 |
+| `POST /api/v1/plan` | The migration, direct or safe route, with confirmed renames |
+| `POST /api/v1/lint` | A hand-written migration, judged statement by statement |
+| `GET /api/v1/rules` | Every rule, why it matters and the safer alternative |
 
 ## Documentation
 

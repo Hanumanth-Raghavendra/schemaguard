@@ -377,3 +377,32 @@ line, against the schema it will run on. `CREATE INDEX` gets a HIGH finding;
   judging "what the application meets" findings at the end of the script (D-052).
 - *What does it refuse to guess?* Statements it cannot model (functions, views, DO blocks) are
   listed as "not analysed", never silently passed.
+
+## Phase 5: the REST API
+
+**What it is.** A Spring Boot 4 service over the engine: `POST /api/v1/diff`, `/report`,
+`/plan`, `/lint` and `GET /api/v1/rules`, documented by OpenAPI at `/swagger-ui.html`.
+Stateless: nothing is stored, nothing of the input is logged.
+
+**Likely questions**
+
+- *Why a separate module?* The engine has no dependencies and must stay that way (D-057). The
+  API is a thin layer: read inputs, call the engine, map to DTOs.
+- *Why not return the engine's records as JSON?* Every internal rename would then break
+  clients (D-058). One mapper class is the price.
+- *How are errors reported?* RFC 9457 problem documents with a stable `code`. A schema that
+  does not parse is a 422 listing each diagnostic's input, line and column, so a UI can
+  underline it. A 500 never includes the exception message (D-061).
+- *What stops one request from hogging the service?* A body limit checked before parsing,
+  including chunked bodies (a filter reads at most the limit), plus limits on input length and
+  on statements per script (D-060). Linting cost is schema size times statements, so both are
+  bounded.
+- *How do you know the Docker image works without Docker locally?* CI builds it, starts it,
+  waits for health, calls `/report`, and checks it runs as the non-root user.
+- *What was new in Spring Boot 4?* Jackson 3 (`tools.jackson` packages, `JsonNode.asString()`),
+  modular test starters (`spring-boot-starter-webmvc-test`; `@AutoConfigureMockMvc` now in
+  `org.springframework.boot.webmvc.test.autoconfigure`), RFC 9110 status names
+  (`UNPROCESSABLE_CONTENT`, `CONTENT_TOO_LARGE`), and `MockMvcTester` for AssertJ-style tests.
+- *A bug you found?* Declaring the 400/413/422 responses at class level made springdoc drop
+  every 200 response schema from the OpenAPI document. A test now checks each endpoint's
+  response schema is present.

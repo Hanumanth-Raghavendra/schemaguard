@@ -2,33 +2,40 @@
 
 > **To resume:** read this file, then start at "Next step". Do not re-plan; the plan is fixed below.
 
-- **Current phase:** 5 (REST API). Phases 1 to 4 are complete.
-- **Last updated:** 2026-11-16
+- **Current phase:** 5: 5.1 (REST API, Docker image, Render Blueprint) done; 5.2 (persistence and permalinks) and the first deploy next. Phases 1 to 4 are complete.
+- **Last updated:** 2026-11-17
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
-- **State:** build green, 1,703 tests, none skipped (276 plans run on a real PostgreSQL 16, also in CI), engine line coverage 99.3%, branch 95.4% (gate: 85% line)
-- **Size:** 203 files in 40 folders; 12,796 lines of main Java, 6,648 lines of test Java (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
+- **State:** build green; engine 1,703 tests (276 plans run on a real PostgreSQL 16 in CI), API 22 tests; engine line coverage 99.3% (gate 85%), API gate 80%; CI also builds the Docker image, starts it and calls it
+- **Size:** 226 files in 49 folders; 13,721 lines of main Java, 7,113 lines of test Java (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
 
 ## Next step
 
-**Phase 5: REST API + first deploy (v0.1).** New Maven module `api` (Spring Boot 3.x, Java 21),
-depending on `engine`. Check the latest Spring Boot version on Maven Central before pinning.
+**A. First deploy (needs the owner, about 5 minutes, once).** The code is ready; Render needs a
+person to connect the GitHub repo.
+1. Sign in at https://dashboard.render.com with GitHub (free tier).
+2. **New** > **Blueprint** > pick `Hanumanth-Raghavendra/schemaguard` > **Apply**. Render reads
+   `render.yaml`, builds the `Dockerfile` and starts `schemaguard-api` (first build ~5 min).
+3. Check `https://<service>.onrender.com/actuator/health` shows `UP` and `/swagger-ui.html`
+   opens. Free services sleep after 15 idle minutes; the first call then takes ~30-60 s.
+4. Put the URL in README (a "Live API" line) and here.
 
-1. Endpoints, all `POST`, JSON in and out, no state yet:
-   `/api/v1/diff` (before, after) -> changes; `/api/v1/report` (before, after) -> findings +
-   score; `/api/v1/plan` (before, after, route, confirmed renames, lock timeout) -> steps +
-   unplanned; `/api/v1/lint` (schema, migration) -> per-statement findings with line numbers.
-   Each response also carries the text form (`ChangeFormatter`, `ReportFormatter`, plan
-   `toSql()`, `LintFormatter`) so a client can show it without rendering.
-2. DTOs as records in `api/.../dto`, mapped from engine records; never expose engine types.
-   Parse diagnostics come back as 422 with line/column; size limit on input (e.g. 1 MB).
-3. springdoc-openapi for `/v3/api-docs` + Swagger UI. Validation with Bean Validation.
-   `GET /api/v1/rules` lists the rules (ids, titles, why, fix) incl. `ScriptRules.ALL`.
-4. Tests: `@WebMvcTest` per controller + one `@SpringBootTest` end-to-end on the evolution
-   fixture. Keep the engine's coverage gate; give `api` its own (80% line).
-5. Dockerfile (multi-stage, JRE 21, non-root) and `render.yaml`; deploy to Render free tier;
-   CORS for the future Vercel web app; health endpoint `/actuator/health`.
-6. **Input limits are required, not optional** (see Known issues, performance): cap the body
-   size (1 MB) and the number of statements per script (2,000), and answer 413/422 beyond.
+**B. Phase 5.2: persistence and permalinks.** Save an analysis and share it by URL.
+`POST /api/v1/analyses` stores the request kind, inputs and result, returns an unguessable id
+(UUID v7 or 128-bit random, base62); `GET /api/v1/analyses/{id}` returns it. PostgreSQL via
+Spring Data JDBC + Flyway (Neon free tier in production, needs the owner to create a Neon
+project and set `SPRING_DATASOURCE_*` on Render). Persistence must be optional: without a
+datasource the stateless endpoints keep working and the permalink endpoints answer 503.
+Tests against the local PostgreSQL 16 (same oracle switch as the planner), not H2. Retention:
+delete analyses older than 30 days. Inputs may be confidential: say so in the API docs, store
+nothing unless the client asks.
+
+**C. Phase 6: web UI (v0.5).** New folder `web/` (not a Maven module): Vite + React +
+TypeScript + Tailwind, Monaco editor for the two schemas / the migration, result tabs Diff,
+Risk, Plan, Lint, rename confirmation that feeds `/plan`. Check npm for current versions
+before pinning. Generate TypeScript types from `/v3/api-docs` (openapi-typescript) so the UI
+cannot drift from the API. Deploy to Vercel, then set `SCHEMAGUARD_CORS_ALLOWED_ORIGINS` on
+Render to the Vercel URL. Vitest + Testing Library for components; one Playwright test
+against a locally started API. CI job for `web/` (lint, type check, test, build).
 
 **Local PostgreSQL.** The Claude build container has PostgreSQL 16 server binaries in
 `/usr/lib/postgresql/16/bin`. Run them as the `postgres` user (`runuser -u postgres -- ...`)
@@ -61,6 +68,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 - [x] **4.1** Migration planner: `Planner.plan(before, after, options)` writes the direct route and the safe route (concurrent indexes, `NOT VALID` + `VALIDATE`, NOT NULL through a validated CHECK, keys through `USING INDEX`, swap of changed constraints and indexes, `lock_timeout`), confirmed renames, cautions for risks it cannot remove, and a list of changes PostgreSQL has no statement for. `PlanOracleTest` runs 264 plans on a real PostgreSQL 16 and compares `pg_dump` with the wanted schema; CI does the same with a postgres:16 service (2026-11-15)
 - [x] **4.2** Parser and catalog read every statement the planner writes (`ALTER INDEX ... RENAME`, `SET GENERATED`, `DROP EXPRESSION`, `SET LOGGED/UNLOGGED`, `INHERIT/NO INHERIT`, `ALTER SEQUENCE` options, `CREATE TABLE ... INHERITS` with merged columns), checked against PostgreSQL by a new `alterations` fixture. `MigrationLinter` judges a hand-written script statement by statement against the schema it runs on: a script that already says `CONCURRENTLY` is not blamed, a table the script created is empty, gaps the script closes itself are not reported; two script-only rules (`SG-R403` CONCURRENTLY in a transaction, `SG-R510` rename in one step). Tests prove linter, rules and planner agree. **Phase 4 complete** (2026-11-15)
 - [x] **Audit** before Phase 5: engine fuzzed with 60,000 broken scripts (no crash; a seeded 1,500-case version is now a test); linter made 4x faster (equal tables skipped in the diff, unchanged tables kept as the same objects, guarded by a test); report lines name the real tables (no more "each table it references" for a table that references none, `DROP INDEX` names its table); order-unsafe `withRenames(Set)` removed; unused imports removed; Javadoc clean under `-Xdoclint`; README rewritten with a real example (2026-11-16)
+- [x] **5.1** REST API module `api` (Spring Boot 4.1.2, Java 21, Jackson 3, springdoc 3.2.0): `POST /api/v1/diff|report|plan|lint`, `GET /api/v1/rules`; own DTOs (engine types never leave the service); rename candidates from the diff go back to `/plan` as typed JSON; RFC 9457 problem documents (400, 413, 422 with line and column diagnostics, 500 without details); limits (body 3 MB incl. chunked, 1 M characters per input, 2,000 statements per script); CORS from config; Swagger UI; actuator health; virtual threads; gzip. Multi-stage Dockerfile (JRE, non-root, health check) and `render.yaml`; a CI job builds the image, starts it and calls it. Jar smoke test: starts in 3 s, ~235 MB resident, lint of the evolution fixture ~30 ms (2026-11-17)
 
 ## Phases
 
@@ -71,7 +79,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 | 2 | Diff engine with rename detection (plus SQL writer) | Done (2026-11-14) |
 | 3 | Rules engine, lock knowledge base, scoring | Done (2026-11-14) |
 | 4 | Migration planner, SQL generation, real-database oracle tests, script linter | Done (2026-11-15) |
-| 5 | REST API (Spring Boot), persistence, permalinks, first deploy (v0.1) | Not started |
+| 5 | REST API (Spring Boot), persistence, permalinks, first deploy (v0.1) | 5.1 API done (2026-11-17); 5.2 permalinks and deploy next |
 | 6 | Web UI: editors, diff, report, ER diagram, example gallery (v0.5) | Not started |
 | 7 | Auth, projects, history, trends, API keys | Not started |
 | 8 | CLI, GitHub Action, dogfooding | Not started |
@@ -103,6 +111,9 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
   needs an identical column definition, so "renamed and made NOT NULL" cannot be confirmed.
   An identity column's hidden sequence is not modelled.
 - The parser accepts a reserved word as a constraint name (`CONSTRAINT both`); PostgreSQL does not.
+- **API:** no rate limiting yet (one free instance); add per-IP limits before sharing the URL
+  widely. No auth until Phase 7. The Docker image is verified in CI only (no Docker on the
+  development machine).
 - **Performance:** linting costs about 1.6 ms per statement at 400 tables (whole-schema diff per
   statement, linear in schema size). Fine for real migrations; a script of thousands of
   statements against a large schema takes seconds, hence the API limits in Phase 5.
