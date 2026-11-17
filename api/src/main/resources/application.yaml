@@ -43,3 +43,11 @@ schemaguard:
     max-statements: 2000
   cors:
     allowed-origins: ${SCHEMAGUARD_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  # Saved analyses (permalinks) are off unless SCHEMAGUARD_PERSISTENCE_URL is set, either to a
+  # JDBC URL or to a connection string such as postgresql://user:password@host/db?sslmode=require.
+  persistence:
+    retention: 30d
+    max-analysis-bytes: 1000000
+    max-total-bytes: 200000000
+    pool-size: 3
+    connect-timeout: 10s

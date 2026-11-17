@@ -406,3 +406,31 @@ Stateless: nothing is stored, nothing of the input is logged.
 - *A bug you found?* Declaring the 400/413/422 responses at class level made springdoc drop
   every 200 response schema from the OpenAPI document. A test now checks each endpoint's
   response schema is present.
+
+## Phase 5.2: saved analyses (permalinks)
+
+**What it is.** `POST /api/v1/analyses/report` (or diff, plan, lint) runs the analysis, stores
+request and result, and returns an id; `GET /api/v1/analyses/{id}` shows it again exactly as
+computed; `DELETE` needs the token returned at save time. Kept for 30 days.
+
+**Likely questions**
+
+- *Why can the service run without a database?* Persistence is wired by hand and only when a
+  URL is set (D-064). Nothing connects at startup; the schema is migrated on first use (D-065).
+  A database that is asleep or down turns the permalink endpoints into 503s and nothing else.
+  A test points the service at a closed port and checks exactly that.
+- *How do you keep a shared link private enough?* 128 random bits per id, so ids cannot be
+  guessed or enumerated; malformed ids are rejected without a query. Deleting needs a separate
+  256-bit token, stored only as a hash (D-067). The docs say plainly that saving stores the SQL.
+- *Why `json` and not `jsonb`?* The content is never queried, and `json` keeps the exact text,
+  so the permalink returns byte for byte what was computed, with the engine version (D-066).
+- *Why Spring's `JdbcClient` and not JPA?* One table, four queries. An ORM would add a mapping
+  layer and startup cost for nothing.
+- *How do you stop storage from filling up?* Limits per analysis and in total, a 507 beyond,
+  and an hourly retention job; expired rows are filtered out of every query anyway (D-068).
+- *Bugs the tests found?* Three, all of the kind that only shows up at runtime: no
+  `-parameters` flag, so `@PathVariable` failed with a 500; the JVM's `Asia/Calcutta` zone,
+  which PostgreSQL refused at login; and springdoc describing raw JSON fields as strings
+  (OpenAPI 3.1 needs `types`, not `type`) (D-070).
+- *What does "dogfooding" mean here?* SchemaGuard lints its own Flyway migrations in a test
+  (D-071). The first migration passes with no findings.

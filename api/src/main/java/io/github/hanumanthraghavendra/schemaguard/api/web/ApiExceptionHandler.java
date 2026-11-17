@@ -1,7 +1,11 @@
 package io.github.hanumanthraghavendra.schemaguard.api.web;
 
+import io.github.hanumanthraghavendra.schemaguard.api.persistence.PersistenceUnavailableException;
+import io.github.hanumanthraghavendra.schemaguard.api.persistence.StorageFullException;
+import io.github.hanumanthraghavendra.schemaguard.api.service.AnalysisNotFoundException;
 import io.github.hanumanthraghavendra.schemaguard.api.service.InputRejectedException;
 import io.github.hanumanthraghavendra.schemaguard.api.service.LimitExceededException;
+import io.github.hanumanthraghavendra.schemaguard.api.service.WrongTokenException;
 import java.net.URI;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +35,26 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(LimitExceededException.class)
     ProblemDetail tooLarge(LimitExceededException e) {
         return problem(HttpStatus.CONTENT_TOO_LARGE, "Content Too Large", e.getMessage(), "SG-API-413");
+    }
+
+    @ExceptionHandler(AnalysisNotFoundException.class)
+    ProblemDetail notFound(AnalysisNotFoundException e) {
+        return problem(HttpStatus.NOT_FOUND, "Not Found", e.getMessage(), "SG-API-404");
+    }
+
+    @ExceptionHandler(WrongTokenException.class)
+    ProblemDetail wrongToken(WrongTokenException e) {
+        return problem(HttpStatus.FORBIDDEN, "Forbidden", e.getMessage(), "SG-API-403");
+    }
+
+    @ExceptionHandler(PersistenceUnavailableException.class)
+    ProblemDetail unavailable(PersistenceUnavailableException e) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "Service Unavailable", e.getMessage(), "SG-API-503");
+    }
+
+    @ExceptionHandler(StorageFullException.class)
+    ProblemDetail full(StorageFullException e) {
+        return problem(HttpStatus.INSUFFICIENT_STORAGE, "Insufficient Storage", e.getMessage(), "SG-API-507");
     }
 
     @ExceptionHandler(Exception.class)

@@ -33,6 +33,8 @@
     <!-- Versions verified against Maven Central on 2026-11-17. -->
     <spring-boot.version>4.1.2</spring-boot.version>
     <springdoc.version>3.2.0</springdoc.version>
+    <!-- Filled by JaCoCo's prepare-agent; empty when JaCoCo is skipped. -->
+    <argLine></argLine>
   </properties>
 
   <dependencyManagement>
@@ -63,6 +65,8 @@
             <compilerArgs>
               <arg>-Xlint:all,-processing</arg>
             </compilerArgs>
+            <!-- Keeps parameter names, which Spring needs to bind @PathVariable and friends. -->
+            <parameters>true</parameters>
             <failOnWarning>true</failOnWarning>
           </configuration>
         </plugin>

@@ -315,6 +315,13 @@ class AnalysisApiTest {
         JsonNode rules = reply.body().at("/paths/~1api~1v1~1rules/get/responses/200/content/application~1json/schema");
         assertThat(rules.get("items").get("$ref").asString()).isEqualTo("#/components/schemas/Rule");
         assertThat(reply.body().at("/components/schemas/Finding/properties/effect").isMissingNode()).isFalse();
+        assertThat(reply.body().get("paths").propertyNames())
+                .contains("/api/v1/analyses/report", "/api/v1/analyses/lint", "/api/v1/analyses/{id}");
+        JsonNode saved = reply.body().at("/paths/~1api~1v1~1analyses~1report/post/responses/201/content/application~1json/schema");
+        assertThat(saved.get("$ref").asString()).isEqualTo("#/components/schemas/SavedAnalysis");
+        assertThat(reply.body().at("/components/schemas/StoredAnalysis/properties/result/type").asString()).isEqualTo("object");
+        assertThat(reply.body().at("/components/schemas/SavedAnalysis/properties/result/type").asString()).isEqualTo("object");
+        assertThat(reply.body().at("/paths/~1api~1v1~1analyses~1{id}/delete/responses/403").isMissingNode()).isFalse();
     }
 
     @Test

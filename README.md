@@ -5,7 +5,7 @@
 A PostgreSQL migration-safety platform. Give it two versions of a schema and it tells you
 what changed, what that change will lock or break in production, and how to ship it safely.
 
-> **Status: engine and REST API complete for v0.1; first deploy and the web UI next.** See [PROGRESS.md](PROGRESS.md) for the
+> **Status: engine and REST API (with shareable saved analyses) complete for v0.1; first deploy and the web UI next.** See [PROGRESS.md](PROGRESS.md) for the
 > current state and roadmap.
 
 ## Why
@@ -97,6 +97,13 @@ curl -X POST http://localhost:8080/api/v1/report -H 'Content-Type: application/j
 | `POST /api/v1/plan` | The migration, direct or safe route, with confirmed renames |
 | `POST /api/v1/lint` | A hand-written migration, judged statement by statement |
 | `GET /api/v1/rules` | Every rule, why it matters and the safer alternative |
+| `POST /api/v1/analyses/{diff,report,plan,lint}` | Run an analysis and save it for 30 days; returns a shareable id and a delete token |
+| `GET /api/v1/analyses/{id}` | Open a saved analysis exactly as it was computed |
+| `DELETE /api/v1/analyses/{id}` | Delete it early (header `X-Delete-Token`) |
+
+Saving needs PostgreSQL: set `SCHEMAGUARD_PERSISTENCE_URL` to a JDBC URL or a connection string
+such as `postgresql://user:password@host/db?sslmode=require`. Without it everything else works
+and the save endpoints answer 503. SchemaGuard lints its own database migrations in its tests.
 
 ## Documentation
 
