@@ -53,6 +53,11 @@ app lives in `web/` (Vite 8, React 19, TypeScript 5.9, Tailwind 4, Monaco; see D
   and push. Change it in `render.yaml`, not only in the Render dashboard: the Blueprint sync
   writes the file's value back over a dashboard edit. Give `live-smoke.yml` an `origin` input and
   check the Vercel origin with it. Put the web address in the README and the Blueprint.
+  Phase 6 is done when paste, analyse and share work on the live site and `v0.5.0` is tagged
+  (Blueprint). The Claude container cannot push tags (the session's git proxy and the API both
+  refuse), so the owner tags: in the repository folder, `git pull`, then
+  `git tag -a v0.5.0 -m "SchemaGuard 0.5.0"` and `git push origin v0.5.0` (or GitHub > Releases >
+  Draft a new release > tag `v0.5.0` on `main`).
 
 **Local PostgreSQL.** The Claude build container has PostgreSQL 16 server binaries in
 `/usr/lib/postgresql/16/bin`. Run them as the `postgres` user (`runuser -u postgres -- ...`)
