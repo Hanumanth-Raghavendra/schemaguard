@@ -1,0 +1,85 @@
+name: Live smoke test
+
+# Calls a deployed SchemaGuard API the way a client would. Run it by hand after a deploy:
+#   gh workflow run live-smoke.yml -f url=https://schemaguard-api-c00y.onrender.com
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Base URL of the deployed API, without a trailing slash
+        required: true
+        default: https://schemaguard-api-c00y.onrender.com
+      persistence:
+        description: Whether saved analyses must work (required) or may be switched off (optional)
+        required: true
+        default: optional
+        type: choice
+        options: [optional, required]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Call the live API
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      URL: ${{ inputs.url }}
+      PERSISTENCE: ${{ inputs.persistence }}
+    steps:
+      - name: Wake the service
+        run: |
+          # A free Render service sleeps after 15 idle minutes and needs up to a minute to start.
+          for i in $(seq 1 30); do
+            if curl -fs -m 20 "$URL/actuator/health/liveness" | grep -q UP; then echo "awake after try $i"; exit 0; fi
+            sleep 6
+          done
+          echo "::error::The service did not answer within 3 minutes"; exit 1
+
+      - name: Health, docs and rules
+        run: |
+          curl -fs "$URL/actuator/health" | jq -e '.status == "UP"'
+          curl -fs "$URL/v3/api-docs" | jq -e '.paths | has("/api/v1/report") and has("/api/v1/analyses/{id}")'
+          test "$(curl -s -o /dev/null -w '%{http_code}' "$URL/swagger-ui/index.html")" = 200
+          test "$(curl -fs "$URL/api/v1/rules" | jq length)" -ge 40
+          curl -fs "$URL/actuator/info" | jq -r '"Running build " + .build.version + " from " + .build.time' | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Analyses
+        run: |
+          post() { curl -s -m 30 -o body.json -w '%{http_code}' -X POST "$URL$1" -H 'Content-Type: application/json' -d "$2"; }
+          BEFORE='CREATE TABLE users (id int PRIMARY KEY, email text);'
+          AFTER='CREATE TABLE users (id int PRIMARY KEY, email text NOT NULL); CREATE INDEX users_email_idx ON users (email);'
+          COMPARE=$(jq -n --arg b "$BEFORE" --arg a "$AFTER" '{before: $b, after: $a}')
+
+          test "$(post /api/v1/diff "$COMPARE")" = 200 && jq -e '.significant == 2' body.json
+          test "$(post /api/v1/report "$COMPARE")" = 200 && jq -e '[.findings[].ruleId] | index("SG-R101") and index("SG-R106")' body.json
+          echo "Report: $(jq -r '.score.value|tostring + "/100 " ' body.json)$(jq -r .score.level body.json)" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$(post /api/v1/plan "$COMPARE")" = 200 && jq -e '.sql | contains("CREATE INDEX CONCURRENTLY")' body.json
+          LINT=$(jq -n --arg s "$BEFORE" '{schema: $s, migration: "CREATE INDEX CONCURRENTLY i ON users (email);"}')
+          test "$(post /api/v1/lint "$LINT")" = 200 && jq -e '.statements[0].findings | length == 0' body.json
+          test "$(post /api/v1/report '{"before":"CREATE TABLE (;","after":""}')" = 422 && jq -e '.code == "SG-API-422"' body.json
+
+      - name: Saved analyses
+        run: |
+          COMPARE='{"before":"CREATE TABLE t (a int);","after":"CREATE TABLE t (a int, b int);"}'
+          STATUS=$(curl -s -m 60 -o saved.json -w '%{http_code}' -X POST "$URL/api/v1/analyses/diff" -H 'Content-Type: application/json' -d "$COMPARE")
+          if [ "$STATUS" = 201 ]; then
+            ID=$(jq -r .id saved.json); TOKEN=$(jq -r .deleteToken saved.json)
+            test "$(curl -s -o opened.json -w '%{http_code}' "$URL/api/v1/analyses/$ID")" = 200
+            jq -e '.kind == "diff" and .result.significant == 1' opened.json
+            test "$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$URL/api/v1/analyses/$ID" -H 'X-Delete-Token: wrong')" = 403
+            test "$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$URL/api/v1/analyses/$ID" -H "X-Delete-Token: $TOKEN")" = 204
+            test "$(curl -s -o /dev/null -w '%{http_code}' "$URL/api/v1/analyses/$ID")" = 404
+            echo "Saved analyses: ON (save, open, delete all work)" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            DETAIL=$(jq -r '.detail // empty' saved.json 2>/dev/null)
+            echo "Saved analyses: HTTP $STATUS - $DETAIL" | tee -a "$GITHUB_STEP_SUMMARY"
+            if [ "$PERSISTENCE" = required ]; then echo "::error::Saved analyses do not work"; exit 1; fi
+          fi
+
+      - name: CORS
+        run: |
+          ORIGINS=$(curl -s -o /dev/null -D - -X OPTIONS "$URL/api/v1/diff" -H 'Origin: http://localhost:5173' \
+            -H 'Access-Control-Request-Method: POST' | grep -i '^access-control-allow-origin' || true)
+          echo "CORS for http://localhost:5173: ${ORIGINS:-not allowed}" | tee -a "$GITHUB_STEP_SUMMARY"
