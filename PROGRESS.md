@@ -6,7 +6,7 @@
 - **Last updated:** 2026-11-18
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
 - **State:** build green; engine 1,703 tests (276 plans run on a real PostgreSQL 16 in CI), API 45 tests (permalinks tested on real PostgreSQL); line coverage engine 99.3% (gate 85%), API 96.7% (gate 80%); CI builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
-- **Size:** 247 files in 52 folders; 14,576 lines of main Java, 7,683 lines of test Java (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
+- **Size:** 248 files in 52 folders; 14,576 lines of main Java, 7,683 lines of test Java (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
 
 ## Next step
 
@@ -90,6 +90,10 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 ## Working rules
 
 - One slice = one feature + its tests + one commit + one push. Update this file in the same commit.
+- Commits are authored by the owner: run `git config user.name "Hanumanth Raghavendra"` and
+  `git config user.email raghavendra.boienpally@gmail.com` in a fresh clone before the first
+  commit (Claude goes in the `Co-Authored-By` trailer only). All earlier commits were rewritten
+  to this author on 2026-11-18. License: MIT (`LICENSE`).
 - Never commit on a red build. `./mvnw -B -ntp verify` must pass first.
 - Pin dependency versions only after checking the registry, never from memory.
 - Decisions go in `docs/DECISIONS.md`; explanations for interviews go in `docs/INTERVIEW.md`.

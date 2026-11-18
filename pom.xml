@@ -13,6 +13,21 @@
   <description>PostgreSQL migration-safety platform: schema diff, risk analysis and safe migration plans.</description>
   <url>https://github.com/Hanumanth-Raghavendra/schemaguard</url>
 
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/license/mit</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <name>Hanumanth Raghavendra</name>
+      <url>https://github.com/Hanumanth-Raghavendra</url>
+    </developer>
+  </developers>
+
   <modules>
     <module>engine</module>
     <module>api</module>

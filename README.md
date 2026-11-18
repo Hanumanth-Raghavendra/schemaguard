@@ -117,3 +117,7 @@ and the save endpoints answer 503. SchemaGuard lints its own database migrations
 - [docs/DECISIONS.md](docs/DECISIONS.md): architecture decisions and their reasons
 - [docs/RULES.md](docs/RULES.md): every rule, why it matters and the safer alternative
 - [docs/INTERVIEW.md](docs/INTERVIEW.md): how each part works and why
+
+## License
+
+[MIT](LICENSE) © 2026 Hanumanth Raghavendra
