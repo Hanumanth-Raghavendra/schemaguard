@@ -1,5 +1,6 @@
 # Render Blueprint: https://render.com/docs/blueprint-spec
-# Creates the SchemaGuard API as a free Docker web service, rebuilt on every push to main.
+# Creates the SchemaGuard API as a free Docker web service. A push to main is deployed only
+# after its CI checks pass, and only when it changes something that goes into the image.
 services:
   - type: web
     name: schemaguard-api
@@ -10,7 +11,22 @@ services:
     dockerfilePath: ./Dockerfile
     # Liveness only: the service is alive whether or not the optional database is reachable.
     healthCheckPath: /actuator/health/liveness
-    autoDeploy: true
+    # Wait for the GitHub checks (tests, coverage gates, Docker smoke test): the image build
+    # itself skips the tests, so without this a red commit would still go live.
+    autoDeployTrigger: checksPass
+    # What the Dockerfile copies into the image. Docs, tests, scripts and the future web/
+    # folder do not change it, so pushing them does not rebuild or restart the service.
+    buildFilter:
+      paths:
+        - Dockerfile
+        - .dockerignore
+        - pom.xml
+        - mvnw
+        - .mvn/**
+        - engine/pom.xml
+        - engine/src/main/**
+        - api/pom.xml
+        - api/src/main/**
     envVars:
       # Origins allowed to call the API from a browser, comma separated.
       # Set it to the address of the web front end once it is deployed.

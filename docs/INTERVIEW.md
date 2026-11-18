@@ -434,3 +434,23 @@ computed; `DELETE` needs the token returned at save time. Kept for 30 days.
   (OpenAPI 3.1 needs `types`, not `type`) (D-070).
 - *What does "dogfooding" mean here?* SchemaGuard lints its own Flyway migrations in a test
   (D-071). The first migration passes with no findings.
+
+## Phase 5.3: first deploy
+
+**What it is.** The Docker image runs on Render's free tier (Singapore), saved analyses live in
+Neon PostgreSQL, and a manual workflow checks the live service end to end.
+
+**Likely questions**
+
+- *How do you know the deployed service works, not just the image?* CI starts the image on a
+  runner, which proves the code. `live-smoke.yml` calls the real URL: every endpoint, a refused
+  schema, save/open/delete with a wrong token first, and a CORS preflight (D-072). The first run
+  confirmed the Neon secret and the CORS setting, which no test in the repository can see.
+- *What stops a broken commit from going live?* Render waits for the GitHub checks
+  (`autoDeployTrigger: checksPass`). Before that, a commit with failing tests would still have
+  deployed, because the image build skips the tests to stay fast (D-073).
+- *Why is the database secret not in `render.yaml`?* The file is public. The connection string
+  is set once in the Render dashboard; the code never logs it with its password (D-069).
+- *What does the free tier cost you?* The service sleeps after 15 idle minutes and the first
+  call takes about a minute. Health checks never touch the database, so they do not keep Neon
+  awake (D-065).

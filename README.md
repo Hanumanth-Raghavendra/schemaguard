@@ -5,7 +5,9 @@
 A PostgreSQL migration-safety platform. Give it two versions of a schema and it tells you
 what changed, what that change will lock or break in production, and how to ship it safely.
 
-> **Status: engine and REST API (with shareable saved analyses) complete for v0.1; first deploy and the web UI next.** See [PROGRESS.md](PROGRESS.md) for the
+> **Status: v0.1 is live: engine and REST API, with shareable saved analyses. The web UI is next.**
+> Try it: [Swagger UI](https://schemaguard-api-c00y.onrender.com/swagger-ui.html) (free tier: the
+> first call after 15 idle minutes takes about a minute). See [PROGRESS.md](PROGRESS.md) for the
 > current state and roadmap.
 
 ## Why
@@ -84,6 +86,10 @@ java -jar api/target/schemaguard-api-0.1.0-SNAPSHOT.jar   # then open http://loc
 ```
 
 Or with Docker: `docker build -t schemaguard-api .` and `docker run -p 8080:8080 schemaguard-api`.
+
+The same image runs at https://schemaguard-api-c00y.onrender.com (Render, Singapore; saved
+analyses in Neon PostgreSQL). Replace `http://localhost:8080` with that address to call it.
+The [live smoke test](.github/workflows/live-smoke.yml) checks the deployed service end to end.
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/report -H 'Content-Type: application/json' \

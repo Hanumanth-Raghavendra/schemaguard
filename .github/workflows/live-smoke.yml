@@ -1,7 +1,7 @@
 name: Live smoke test
 
 # Calls a deployed SchemaGuard API the way a client would. Run it by hand after a deploy:
-#   gh workflow run live-smoke.yml -f url=https://schemaguard-api-c00y.onrender.com
+#   gh workflow run live-smoke.yml -f url=https://schemaguard-api-c00y.onrender.com -f persistence=required
 on:
   workflow_dispatch:
     inputs:
@@ -12,7 +12,7 @@ on:
       persistence:
         description: Whether saved analyses must work (required) or may be switched off (optional)
         required: true
-        default: optional
+        default: required
         type: choice
         options: [optional, required]
 

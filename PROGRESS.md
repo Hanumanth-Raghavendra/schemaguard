@@ -2,36 +2,39 @@
 
 > **To resume:** read this file, then start at "Next step". Do not re-plan; the plan is fixed below.
 
-- **Current phase:** 6 (web UI). Phase 5 code is complete; the first deploy waits for the owner (Render + Neon, steps below). Phases 1 to 5 are complete.
-- **Last updated:** 2026-11-17
+- **Current phase:** 6 (web UI). Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
+- **Last updated:** 2026-11-18
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
-- **State:** build green; engine 1,703 tests (276 plans run on a real PostgreSQL 16 in CI), API 45 tests (permalinks tested on real PostgreSQL); line coverage engine 99.3% (gate 85%), API 96.7% (gate 80%); CI builds the Docker image, starts it and calls it
-- **Size:** 246 files in 52 folders; 14,576 lines of main Java, 7,683 lines of test Java (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
+- **State:** build green; engine 1,703 tests (276 plans run on a real PostgreSQL 16 in CI), API 45 tests (permalinks tested on real PostgreSQL); line coverage engine 99.3% (gate 85%), API 96.7% (gate 80%); CI builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
+- **Size:** 247 files in 52 folders; 14,576 lines of main Java, 7,683 lines of test Java (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
 
 ## Next step
 
-**A. First deploy (needs the owner, about 10 minutes, once).** Code and config are ready.
-1. Render: https://dashboard.render.com, sign in with GitHub, **New** > **Blueprint**, pick
-   `Hanumanth-Raghavendra/schemaguard`, **Apply**. Render reads `render.yaml` and builds the
-   `Dockerfile` (first build ~5 min). Check `https://<service>.onrender.com/actuator/health`
-   and `/swagger-ui.html`. Permalinks answer 503 until step 2.
-2. Neon (optional, for permalinks): https://console.neon.tech, sign in with GitHub, create a
-   project (region Singapore, next to Render's), copy the connection string
-   (`postgresql://...?sslmode=require`). In Render: service > **Environment** > add
-   `SCHEMAGUARD_PERSISTENCE_URL` = that string > **Save** (redeploys). The table is created on
-   the first save. Free services sleep after 15 idle minutes (first call ~30-60 s); Neon
-   suspends after 5 and wakes in about a second.
-3. Put the URL in README (a "Live API" line) and here.
+**Live service.** https://schemaguard-api-c00y.onrender.com (Swagger UI at `/swagger-ui.html`).
+Render builds the `Dockerfile` from `main` after the CI checks pass, and only when a push changes
+what goes into the image (`render.yaml`: `autoDeployTrigger: checksPass`, `buildFilter`). Neon's
+connection string is the dashboard secret `SCHEMAGUARD_PERSISTENCE_URL` (never in the repository).
+After any deploy, run the live smoke test (manual workflow `live-smoke.yml`; checks health, docs,
+all analyses, save/open/delete, CORS). From the Claude container (`gh workflow run` is blocked
+there, the REST call works):
+`gh api -X POST repos/Hanumanth-Raghavendra/schemaguard/actions/workflows/live-smoke.yml/dispatches -f ref=main -f 'inputs[persistence]=required'`
+(or GitHub > Actions > Live smoke test > Run workflow). It prints the build version and time, so
+it also shows whether the latest image is the one running. The first push that changes
+`api/src/main` or `engine/src/main` after 2026-11-18 must be followed by this check, to confirm
+the build filter triggers a deploy.
 
-**B. Phase 6: web UI (v0.5).** New folder `web/` (not a Maven module): Vite + React +
+**Phase 6: web UI (v0.5), the next slice.** New folder `web/` (not a Maven module): Vite + React +
 TypeScript + Tailwind, Monaco editor for the two schemas / the migration, result tabs Diff,
 Risk, Plan, Lint, rename confirmation that feeds `/plan`, a "Share" button that saves through
 `/api/v1/analyses/{kind}` and opens `/a/{id}` (needs a client route that reads
 `GET /api/v1/analyses/{id}`; keep the delete token in localStorage so the sharer can delete).
 Check npm for current versions before pinning. Generate TypeScript types from `/v3/api-docs`
-(openapi-typescript) so the UI cannot drift from the API. Deploy to Vercel, then set
-`SCHEMAGUARD_CORS_ALLOWED_ORIGINS` on Render to the Vercel URL. Vitest + Testing Library for
-components; one Playwright test against a locally started API. CI job for `web/` (lint, type
+(openapi-typescript) so the UI cannot drift from the API. Deploy to Vercel, then change
+`SCHEMAGUARD_CORS_ALLOWED_ORIGINS` in `render.yaml` to `https://<vercel-host>,http://localhost:5173`
+(local development keeps working) and push. Change it in `render.yaml`, not only in the Render
+dashboard: the Blueprint sync writes the file's value back over a dashboard edit. Give
+`live-smoke.yml` an `origin` input and check the Vercel origin with it. Vitest + Testing Library
+for components; one Playwright test against a locally started API. CI job for `web/` (lint, type
 check, test, build).
 
 **Local PostgreSQL.** The Claude build container has PostgreSQL 16 server binaries in
@@ -67,6 +70,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 - [x] **Audit** before Phase 5: engine fuzzed with 60,000 broken scripts (no crash; a seeded 1,500-case version is now a test); linter made 4x faster (equal tables skipped in the diff, unchanged tables kept as the same objects, guarded by a test); report lines name the real tables (no more "each table it references" for a table that references none, `DROP INDEX` names its table); order-unsafe `withRenames(Set)` removed; unused imports removed; Javadoc clean under `-Xdoclint`; README rewritten with a real example (2026-11-16)
 - [x] **5.1** REST API module `api` (Spring Boot 4.1.2, Java 21, Jackson 3, springdoc 3.2.0): `POST /api/v1/diff|report|plan|lint`, `GET /api/v1/rules`; own DTOs (engine types never leave the service); rename candidates from the diff go back to `/plan` as typed JSON; RFC 9457 problem documents (400, 413, 422 with line and column diagnostics, 500 without details); limits (body 3 MB incl. chunked, 1 M characters per input, 2,000 statements per script); CORS from config; Swagger UI; actuator health; virtual threads; gzip. Multi-stage Dockerfile (JRE, non-root, health check) and `render.yaml`; a CI job builds the image, starts it and calls it. Jar smoke test: starts in 3 s, ~235 MB resident, lint of the evolution fixture ~30 ms (2026-11-17)
 - [x] **5.2** Saved analyses (permalinks): `POST /api/v1/analyses/{diff,report,plan,lint}` runs the analysis and stores request + result (201, `Location`); `GET /api/v1/analyses/{id}` returns them exactly as computed; `DELETE` with the `X-Delete-Token` returned at save time. Ids are 128 random bits in base 62; only the SHA-256 of the token is stored. 30-day retention (hourly job), 1 MB per analysis, 200 MB in total (507 beyond). PostgreSQL through plain spring-jdbc + HikariCP + Flyway, wired by hand: off without `SCHEMAGUARD_PERSISTENCE_URL` (503), lazy (nothing connects at startup, schema migrated on first use), a down database costs only the permalinks. Accepts Neon's `postgresql://user:pass@host/db` string. SchemaGuard lints its own migrations in a test. Bugs found by the tests: missing `-parameters` (path variables gave 500), JVM zone `Asia/Calcutta` refused by PostgreSQL at login (service now runs in UTC), springdoc describing raw JSON as `string` (now `types = object`) (2026-11-17)
+- [x] **5.3** First deploy: Render (Docker, free, Singapore) from the Blueprint, Neon PostgreSQL for saved analyses. Manual workflow `live-smoke.yml` checks the deployed service end to end (health, OpenAPI, rules, diff, report, plan, lint, 422 on a bad schema, save/open/wrong token 403/delete 204/gone 404, CORS preflight); first run green. Render now deploys only after CI passes (the image build skips tests, so a red commit used to go live) and only for paths that go into the image (2026-11-18)
 
 ## Phases
 
@@ -77,7 +81,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 | 2 | Diff engine with rename detection (plus SQL writer) | Done (2026-11-14) |
 | 3 | Rules engine, lock knowledge base, scoring | Done (2026-11-14) |
 | 4 | Migration planner, SQL generation, real-database oracle tests, script linter | Done (2026-11-15) |
-| 5 | REST API (Spring Boot), persistence, permalinks, first deploy (v0.1) | Done (2026-11-17); deploy waits for the owner |
+| 5 | REST API (Spring Boot), persistence, permalinks, first deploy (v0.1) | Done (2026-11-18); live |
 | 6 | Web UI: editors, diff, report, ER diagram, example gallery (v0.5) | Next |
 | 7 | Auth, projects, history, trends, API keys | Not started |
 | 8 | CLI, GitHub Action, dogfooding | Not started |
