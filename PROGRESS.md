@@ -18,10 +18,10 @@ After any deploy, run the live smoke test (manual workflow `live-smoke.yml`; che
 all analyses, save/open/delete, CORS). From the Claude container (`gh workflow run` is blocked
 there, the REST call works):
 `gh api -X POST repos/Hanumanth-Raghavendra/schemaguard/actions/workflows/live-smoke.yml/dispatches -f ref=main -f 'inputs[persistence]=required'`
-(or GitHub > Actions > Live smoke test > Run workflow). It prints the build version and time, so
-it also shows whether the latest image is the one running. The first push that changes
-`api/src/main` or `engine/src/main` after 2026-11-18 must be followed by this check, to confirm
-the build filter triggers a deploy.
+(or GitHub > Actions > Live smoke test > Run workflow). It prints the jar's build time, which
+changes only when the jar is rebuilt (Docker layer cache). Both deploy rules were verified on
+2026-11-18: a `pom.xml` change deployed 4 s after CI went green; a docs-only push deployed
+nothing. Render reports each deploy to GitHub (repository > Deployments).
 
 **Phase 6: web UI (v0.5), the next slice.** New folder `web/` (not a Maven module): Vite + React +
 TypeScript + Tailwind, Monaco editor for the two schemas / the migration, result tabs Diff,
