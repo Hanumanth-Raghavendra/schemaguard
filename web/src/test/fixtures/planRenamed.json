@@ -1,0 +1,146 @@
+{
+  "route": "SAFE",
+  "complete": true,
+  "needsDecisions": true,
+  "steps": [
+    {
+      "sql": "SET lock_timeout = '5s'",
+      "operation": null,
+      "table": null,
+      "transactional": true,
+      "note": "Give up instead of queueing behind a long query; run the script again if it times out",
+      "cautions": []
+    },
+    {
+      "sql": "ALTER TABLE public.customers RENAME COLUMN name TO full_name",
+      "operation": {
+        "name": "RENAME_COLUMN",
+        "statement": "RENAME COLUMN",
+        "lock": "ACCESS EXCLUSIVE",
+        "lockEffect": "blocks reads and writes",
+        "referencedLock": null,
+        "work": "NONE"
+      },
+      "table": {
+        "schema": "public",
+        "name": "customers"
+      },
+      "transactional": true,
+      "note": "Confirmed rename: the data is kept",
+      "cautions": []
+    },
+    {
+      "sql": "ALTER TABLE public.customers ADD COLUMN created_at timestamp with time zone DEFAULT now() NOT NULL",
+      "operation": {
+        "name": "ADD_COLUMN_NOT_NULL_DEFAULT",
+        "statement": "ADD COLUMN ... NOT NULL with a constant default",
+        "lock": "ACCESS EXCLUSIVE",
+        "lockEffect": "blocks reads and writes",
+        "referencedLock": null,
+        "work": "NONE"
+      },
+      "table": {
+        "schema": "public",
+        "name": "customers"
+      },
+      "transactional": true,
+      "note": "",
+      "cautions": []
+    },
+    {
+      "sql": "ALTER TABLE public.orders ALTER COLUMN id TYPE bigint",
+      "operation": {
+        "name": "ALTER_TYPE_REWRITE",
+        "statement": "ALTER COLUMN ... TYPE",
+        "lock": "ACCESS EXCLUSIVE",
+        "lockEffect": "blocks reads and writes",
+        "referencedLock": null,
+        "work": "REWRITE"
+      },
+      "table": {
+        "schema": "public",
+        "name": "orders"
+      },
+      "transactional": true,
+      "note": "",
+      "cautions": [
+        "SG-R201 Column type change rewrites the table"
+      ]
+    },
+    {
+      "sql": "ALTER TABLE public.orders ALTER COLUMN total TYPE numeric(12,2)",
+      "operation": {
+        "name": "ALTER_TYPE_NO_REWRITE",
+        "statement": "ALTER COLUMN ... TYPE, binary compatible",
+        "lock": "ACCESS EXCLUSIVE",
+        "lockEffect": "blocks reads and writes",
+        "referencedLock": null,
+        "work": "NONE"
+      },
+      "table": {
+        "schema": "public",
+        "name": "orders"
+      },
+      "transactional": true,
+      "note": "",
+      "cautions": []
+    },
+    {
+      "sql": "ALTER TABLE public.orders ADD CONSTRAINT orders_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers (id) NOT VALID",
+      "operation": {
+        "name": "ADD_FOREIGN_KEY_NOT_VALID",
+        "statement": "ADD CONSTRAINT ... FOREIGN KEY ... NOT VALID",
+        "lock": "SHARE ROW EXCLUSIVE",
+        "lockEffect": "blocks writes, reads continue",
+        "referencedLock": "SHARE ROW EXCLUSIVE",
+        "work": "NONE"
+      },
+      "table": {
+        "schema": "public",
+        "name": "orders"
+      },
+      "transactional": true,
+      "note": "",
+      "cautions": []
+    },
+    {
+      "sql": "CREATE INDEX CONCURRENTLY orders_status_idx ON public.orders USING btree (status)",
+      "operation": {
+        "name": "CREATE_INDEX_CONCURRENTLY",
+        "statement": "CREATE INDEX CONCURRENTLY",
+        "lock": "SHARE UPDATE EXCLUSIVE",
+        "lockEffect": "reads and writes continue, other schema changes wait",
+        "referencedLock": null,
+        "work": "SCAN"
+      },
+      "table": {
+        "schema": "public",
+        "name": "orders"
+      },
+      "transactional": false,
+      "note": "",
+      "cautions": []
+    },
+    {
+      "sql": "ALTER TABLE public.orders VALIDATE CONSTRAINT orders_customer_id_fkey",
+      "operation": {
+        "name": "VALIDATE_FOREIGN_KEY",
+        "statement": "VALIDATE CONSTRAINT on a FOREIGN KEY",
+        "lock": "SHARE UPDATE EXCLUSIVE",
+        "lockEffect": "reads and writes continue, other schema changes wait",
+        "referencedLock": "ROW SHARE",
+        "work": "SCAN"
+      },
+      "table": {
+        "schema": "public",
+        "name": "orders"
+      },
+      "transactional": true,
+      "note": "",
+      "cautions": []
+    }
+  ],
+  "unplanned": [],
+  "warnings": [],
+  "sql": "-- SchemaGuard migration plan, safe route: 8 statements\n\n-- Give up instead of queueing behind a long query; run the script again if it times out\nSET lock_timeout = '5s';\n\n-- Confirmed rename: the data is kept\nALTER TABLE public.customers RENAME COLUMN name TO full_name;\n\nALTER TABLE public.customers ADD COLUMN created_at timestamp with time zone DEFAULT now() NOT NULL;\n\n-- CAUTION: SG-R201 Column type change rewrites the table\nALTER TABLE public.orders ALTER COLUMN id TYPE bigint;\n\nALTER TABLE public.orders ALTER COLUMN total TYPE numeric(12,2);\n\nALTER TABLE public.orders ADD CONSTRAINT orders_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers (id) NOT VALID;\n\n-- Run outside a transaction block.\nCREATE INDEX CONCURRENTLY orders_status_idx ON public.orders USING btree (status);\n\nALTER TABLE public.orders VALIDATE CONSTRAINT orders_customer_id_fkey;\n"
+}

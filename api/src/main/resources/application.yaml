@@ -35,6 +35,8 @@ springdoc:
   api-docs:
     enabled: true
     path: /v3/api-docs
+  # Sorted keys: the document is compared with web/openapi.json, so its order must not vary.
+  writer-with-order-by-keys: true
 
 schemaguard:
   limits:

@@ -2,11 +2,11 @@
 
 > **To resume:** read this file, then start at "Next step". Do not re-plan; the plan is fixed below.
 
-- **Current phase:** 6 (web UI). Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
+- **Current phase:** 6 (web UI): 6.1 done (editors, risks, changes, plan, migration check), 6.2 next. Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
 - **Last updated:** 2026-11-18
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
-- **State:** build green; engine 1,703 tests (276 plans run on a real PostgreSQL 16 in CI), API 45 tests (permalinks tested on real PostgreSQL); line coverage engine 99.3% (gate 85%), API 96.7% (gate 80%); CI builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
-- **Size:** 248 files in 52 folders; 14,576 lines of main Java, 7,683 lines of test Java (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
+- **State:** build green; engine 1,703 tests (276 plans run on a real PostgreSQL 16 in CI), API 47 tests (permalinks tested on real PostgreSQL); web 23 tests (Vitest); line coverage engine 99.3% (gate 85%), API 95.8% (gate 80%); CI builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
+- **Size:** 305 files in 59 folders; 14,721 lines of main Java, 7,797 lines of test Java, 1,677 lines of TypeScript (plus 1,005 generated) (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
 
 ## Next step
 
@@ -23,19 +23,36 @@ changes only when the jar is rebuilt (Docker layer cache). Both deploy rules wer
 2026-11-18: a `pom.xml` change deployed 4 s after CI went green; a docs-only push deployed
 nothing. Render reports each deploy to GitHub (repository > Deployments).
 
-**Phase 6: web UI (v0.5), the next slice.** New folder `web/` (not a Maven module): Vite + React +
-TypeScript + Tailwind, Monaco editor for the two schemas / the migration, result tabs Diff,
-Risk, Plan, Lint, rename confirmation that feeds `/plan`, a "Share" button that saves through
-`/api/v1/analyses/{kind}` and opens `/a/{id}` (needs a client route that reads
-`GET /api/v1/analyses/{id}`; keep the delete token in localStorage so the sharer can delete).
-Check npm for current versions before pinning. Generate TypeScript types from `/v3/api-docs`
-(openapi-typescript) so the UI cannot drift from the API. Deploy to Vercel, then change
-`SCHEMAGUARD_CORS_ALLOWED_ORIGINS` in `render.yaml` to `https://<vercel-host>,http://localhost:5173`
-(local development keeps working) and push. Change it in `render.yaml`, not only in the Render
-dashboard: the Blueprint sync writes the file's value back over a dashboard edit. Give
-`live-smoke.yml` an `origin` input and check the Vercel origin with it. Vitest + Testing Library
-for components; one Playwright test against a locally started API. CI job for `web/` (lint, type
-check, test, build).
+**Phase 6: web UI (v0.5).** Requirements (Blueprint, tier 2 "Web app"): analyse without login
+in two code editors, visual diff, risk report, shareable permalink; interactive ER diagram with
+changed tables and columns highlighted; example gallery of real-world scenarios, so a recruiter
+sees results in one click; export of the report as Markdown or JSON. 6.1 is done (see Done). The
+app lives in `web/` (Vite 8, React 19, TypeScript 5.9, Tailwind 4, Monaco; see D-075).
+
+- **6.2, the next slice: share and export.** "Share" saves through `POST /api/v1/analyses/{kind}`
+  (compare mode saves the report, migration mode the lint) and shows the link `/a/{id}`. Add
+  `react-router` (check npm first) with routes `/` and `/a/:id`; `/a/:id` reads
+  `GET /api/v1/analyses/{id}` and shows the stored request in read-only editors and the stored
+  result with the same views. Keep `{id: deleteToken}` in localStorage so the sharer sees a
+  "Delete" button (`DELETE` with `X-Delete-Token`); handle 404 (expired or deleted) and 503
+  (saving switched off) with plain messages. Add `web/vercel.json` with a rewrite of every path
+  to `/index.html`. Export: "Download JSON" (the response as it came) and "Download Markdown"
+  (built in the browser from the same data: score, reasons, findings with why and fix, plan SQL).
+- **6.3: example gallery and ER diagram.** Gallery: four to six real scenarios (add a column with
+  a default, add a foreign key, change a type, rename, add an index, split a table), each loading
+  both editors and running the analysis. ER diagram: needs a new endpoint (for example
+  `POST /api/v1/model` with `before`/`after`) that returns tables, columns, keys and foreign keys
+  with each table and column marked added, removed, changed or unchanged; draw it in SVG (check
+  npm for a layout library such as elkjs or dagre before writing one), pan and zoom, highlight
+  marks in the change colours.
+- **6.4: end to end and deploy.** One Playwright test against a locally started API (jar) and
+  `vite preview`, run in CI. Deploy to Vercel from `web/` (root directory `web`, build
+  `npm run build`, output `dist`; a production build already calls the live API, see `API_URL` in
+  `web/src/api/client.ts`). Then change
+  `SCHEMAGUARD_CORS_ALLOWED_ORIGINS` in `render.yaml` to `https://<vercel-host>,http://localhost:5173`
+  and push. Change it in `render.yaml`, not only in the Render dashboard: the Blueprint sync
+  writes the file's value back over a dashboard edit. Give `live-smoke.yml` an `origin` input and
+  check the Vercel origin with it. Put the web address in the README and the Blueprint.
 
 **Local PostgreSQL.** The Claude build container has PostgreSQL 16 server binaries in
 `/usr/lib/postgresql/16/bin`. Run them as the `postgres` user (`runuser -u postgres -- ...`)
@@ -71,6 +88,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 - [x] **5.1** REST API module `api` (Spring Boot 4.1.2, Java 21, Jackson 3, springdoc 3.2.0): `POST /api/v1/diff|report|plan|lint`, `GET /api/v1/rules`; own DTOs (engine types never leave the service); rename candidates from the diff go back to `/plan` as typed JSON; RFC 9457 problem documents (400, 413, 422 with line and column diagnostics, 500 without details); limits (body 3 MB incl. chunked, 1 M characters per input, 2,000 statements per script); CORS from config; Swagger UI; actuator health; virtual threads; gzip. Multi-stage Dockerfile (JRE, non-root, health check) and `render.yaml`; a CI job builds the image, starts it and calls it. Jar smoke test: starts in 3 s, ~235 MB resident, lint of the evolution fixture ~30 ms (2026-11-17)
 - [x] **5.2** Saved analyses (permalinks): `POST /api/v1/analyses/{diff,report,plan,lint}` runs the analysis and stores request + result (201, `Location`); `GET /api/v1/analyses/{id}` returns them exactly as computed; `DELETE` with the `X-Delete-Token` returned at save time. Ids are 128 random bits in base 62; only the SHA-256 of the token is stored. 30-day retention (hourly job), 1 MB per analysis, 200 MB in total (507 beyond). PostgreSQL through plain spring-jdbc + HikariCP + Flyway, wired by hand: off without `SCHEMAGUARD_PERSISTENCE_URL` (503), lazy (nothing connects at startup, schema migrated on first use), a down database costs only the permalinks. Accepts Neon's `postgresql://user:pass@host/db` string. SchemaGuard lints its own migrations in a test. Bugs found by the tests: missing `-parameters` (path variables gave 500), JVM zone `Asia/Calcutta` refused by PostgreSQL at login (service now runs in UTC), springdoc describing raw JSON as `string` (now `types = object`) (2026-11-17)
 - [x] **5.3** First deploy: Render (Docker, free, Singapore) from the Blueprint, Neon PostgreSQL for saved analyses. Manual workflow `live-smoke.yml` checks the deployed service end to end (health, OpenAPI, rules, diff, report, plan, lint, 422 on a bad schema, save/open/wrong token 403/delete 204/gone 404, CORS preflight); first run green. Render now deploys only after CI passes (the image build skips tests, so a red commit used to go live) and only for paths that go into the image (2026-11-18)
+- [x] **6.1** Web app in `web/`: two Monaco editors (bundled, loaded after the page; plain text area meanwhile), "Compare two schemas" (diff, report and plan in parallel; tabs Risks, Changes, Plan) and "Check a migration" (lint, statement by statement). Each lock is drawn on PostgreSQL's eight-step lock scale, coloured by what traffic does. Plan tab: Safe/Direct route and rename confirmation, which re-plan; copy script. API problems are listed with input, line and column and underlined in the editor; a notice explains the free host's cold start, which a ping on page load starts early. The OpenAPI document is now exact (every response field required, 13 nullable ones marked with jspecify `@Nullable`, rename subtypes a clean union) and copied to `web/openapi.json` by `OpenApiContractTest`; TypeScript types are generated from it and CI fails if either drifts. CI job "Web app": lint, type check, test, build. Tests use real API answers recorded from a local server (2026-11-18)
 
 ## Phases
 
@@ -82,7 +100,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 | 3 | Rules engine, lock knowledge base, scoring | Done (2026-11-14) |
 | 4 | Migration planner, SQL generation, real-database oracle tests, script linter | Done (2026-11-15) |
 | 5 | REST API (Spring Boot), persistence, permalinks, first deploy (v0.1) | Done (2026-11-18); live |
-| 6 | Web UI: editors, diff, report, ER diagram, example gallery (v0.5) | Next |
+| 6 | Web UI: editors, diff, report, ER diagram, example gallery (v0.5) | In progress (6.1 done) |
 | 7 | Auth, projects, history, trends, API keys | Not started |
 | 8 | CLI, GitHub Action, dogfooding | Not started |
 | 9 | Hardening and launch (v1.0) | Not started |
@@ -97,6 +115,10 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 - Never commit on a red build. `./mvnw -B -ntp verify` must pass first.
 - Pin dependency versions only after checking the registry, never from memory.
 - Decisions go in `docs/DECISIONS.md`; explanations for interviews go in `docs/INTERVIEW.md`.
+- Web app (`web/`, Node 22): `npm ci`, then `npm run lint -- --max-warnings 0`, `npm run typecheck`,
+  `npm test`, `npm run build`, all green before a commit. After any API change: run the Maven build
+  with `-Dgolden.update=true` (rewrites `web/openapi.json`), then `npm run gen:api` in `web/`, and
+  commit both files. Re-record `web/src/test/fixtures/` from a local API when a response changes.
 - In tests, do not use `@CsvSource` for SQL with its default quote character: it mangles `'`.
   Use the `rows(...)` helper with `@MethodSource`, or set `quoteCharacter = '"'`.
 - Golden files: `DiffGoldenTest` compares with `golden/evolution/expected-diff.txt`. After an
@@ -117,6 +139,10 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
   needs an identical column definition, so "renamed and made NOT NULL" cannot be confirmed.
   An identity column's hidden sequence is not modelled.
 - The parser accepts a reserved word as a constraint name (`CONSTRAINT both`); PostgreSQL does not.
+- **Web:** the risk report does not know about confirmed renames (`/api/v1/report` takes no
+  renames; `/plan` does), so a confirmed rename still shows "Column is dropped" under Risks.
+  Fix in the API (renames on `/report`) before 6.4. Problem extension members (`code`,
+  `diagnostics`) are typed by hand in `web/src/api/client.ts`.
 - **API:** no rate limiting yet (one free instance); add per-IP limits before sharing the URL
   widely, especially for saving (storage is capped at 200 MB in total, so abuse fills it and
   saving answers 507 until analyses expire). No auth until Phase 7. The API's coverage gate

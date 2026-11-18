@@ -52,6 +52,11 @@
       Flyway auto-configuration, so the service starts and serves the stateless endpoints
       without a database, and never connects to one before the first permalink request.
     -->
+    <!-- Marks response fields that can be null; read by OpenApiConfig (version from the Boot BOM). -->
+    <dependency>
+      <groupId>org.jspecify</groupId>
+      <artifactId>jspecify</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.springframework</groupId>
       <artifactId>spring-jdbc</artifactId>

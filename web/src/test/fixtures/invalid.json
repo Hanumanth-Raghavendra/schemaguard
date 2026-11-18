@@ -1,0 +1,18 @@
+{
+  "detail": "The before schema has 1 error and cannot be analysed.",
+  "instance": "/api/v1/diff",
+  "status": 422,
+  "title": "Input cannot be analysed",
+  "type": "about:blank",
+  "code": "SG-API-422",
+  "diagnostics": [
+    {
+      "input": "before",
+      "severity": "ERROR",
+      "code": "SG-PARSE-002",
+      "message": "Expected ',' or ')' but found end of statement",
+      "line": 1,
+      "column": 23
+    }
+  ]
+}

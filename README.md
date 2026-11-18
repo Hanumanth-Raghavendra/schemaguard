@@ -5,7 +5,7 @@
 A PostgreSQL migration-safety platform. Give it two versions of a schema and it tells you
 what changed, what that change will lock or break in production, and how to ship it safely.
 
-> **Status: v0.1 is live: engine and REST API, with shareable saved analyses. The web UI is next.**
+> **Status: v0.1 is live: engine and REST API, with shareable saved analyses. The web app is being built (`web/`).**
 > Try it: [Swagger UI](https://schemaguard-api-c00y.onrender.com/swagger-ui.html) (free tier: the
 > first call after 15 idle minutes takes about a minute). See [PROGRESS.md](PROGRESS.md) for the
 > current state and roadmap.
@@ -110,6 +110,21 @@ curl -X POST http://localhost:8080/api/v1/report -H 'Content-Type: application/j
 Saving needs PostgreSQL: set `SCHEMAGUARD_PERSISTENCE_URL` to a JDBC URL or a connection string
 such as `postgresql://user:password@host/db?sslmode=require`. Without it everything else works
 and the save endpoints answer 503. SchemaGuard lints its own database migrations in its tests.
+
+## Run the web app
+
+Needs Node 22 (with nvm: `nvm install 22`, then `nvm use 22`) and the API running on
+`http://localhost:8080` (see above). From the repository root:
+
+```bash
+cd web
+npm ci
+npm run dev
+```
+
+Open http://localhost:5173. Checks: `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
+The TypeScript types come from `web/openapi.json`, which the API build keeps equal to the API's
+OpenAPI document; after an API change run `npm run gen:api`.
 
 ## Documentation
 

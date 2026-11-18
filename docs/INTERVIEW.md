@@ -454,3 +454,28 @@ Neon PostgreSQL, and a manual workflow checks the live service end to end.
 - *What does the free tier cost you?* The service sleeps after 15 idle minutes and the first
   call takes about a minute. Health checks never touch the database, so they do not keep Neon
   awake (D-065).
+
+## Phase 6.1: the web app
+
+**What it is.** A React app in `web/` with two Monaco editors. "Compare two schemas" calls diff,
+report and plan in parallel and shows Risks, Changes and Plan; "Check a migration" lints a script
+statement by statement. Every lock is drawn on PostgreSQL's eight-step lock scale.
+
+**Likely questions**
+
+- *How does the UI stay in step with the API?* The API's OpenAPI document is the contract.
+  `OpenApiContractTest` fails the Java build if `web/openapi.json` differs from it, and CI fails if
+  the TypeScript types generated from that file differ from the committed ones. A renamed field
+  breaks the build, not production (D-074).
+- *Why mark nullable fields by hand?* Jackson writes every field, so "optional" in the document
+  was wrong; the truth is "always present, sometimes null". `@Nullable` on 13 record components,
+  checked by a test, makes the generated types exact, so the UI handles `null` only where it occurs.
+- *Monaco is huge; how is the page still fast?* It is a separate 2.7 MB chunk loaded after the
+  first render with `React.lazy`; a plain text area takes input meanwhile. The shell is 78 kB
+  gzipped (D-075).
+- *How do you test a UI that needs a server?* Real responses were recorded from a local API for
+  the example schemas and are served by a fake `fetch`. Tests click through the app as a person
+  would (Testing Library) and check what is sent, for example the confirmed rename in the `/plan`
+  body. A Playwright test against a real server comes in 6.4.
+- *What happens when the free server is asleep?* The page pings it on load, and a request pending
+  for 3 seconds explains the cold start instead of spinning silently (D-077).

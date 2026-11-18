@@ -2,6 +2,7 @@ package io.github.hanumanthraghavendra.schemaguard.api.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /** The bodies the API returns. Each carries a {@code text} form ready to show as it is. */
 public final class Responses {
@@ -22,10 +23,10 @@ public final class Responses {
             @Schema(example = "ColumnAdded") String kind,
             @Schema(example = "+ column public.users.email text NOT NULL") String summary,
             @Schema(description = "True if the change is only a different way of writing the same thing") boolean cosmetic,
-            @Schema(description = "The table the change belongs to, if any") NameDto table,
+            @Schema(description = "The table the change belongs to, if any") @Nullable NameDto table,
             @Schema(description = "For a rename candidate: the rename to send back to /plan once confirmed")
-                    RenameDto rename,
-            @Schema(description = "For a rename candidate: how likely the rename is, from 0 to 1") Double confidence) {}
+                    @Nullable RenameDto rename,
+            @Schema(description = "For a rename candidate: how likely the rename is, from 0 to 1") @Nullable Double confidence) {}
 
     @Schema(name = "DiffResponse")
     public record Diff(
@@ -38,9 +39,9 @@ public final class Responses {
     public record Operation(
             @Schema(example = "CREATE_INDEX") String name,
             @Schema(example = "CREATE INDEX") String statement,
-            @Schema(description = "Lock on the table, or null", example = "SHARE") String lock,
-            @Schema(example = "blocks writes, reads continue") String lockEffect,
-            @Schema(description = "Lock on tables it references through a foreign key, or null") String referencedLock,
+            @Schema(description = "Lock on the table, or null", example = "SHARE") @Nullable String lock,
+            @Schema(description = "What the lock blocks, or null", example = "blocks writes, reads continue") @Nullable String lockEffect,
+            @Schema(description = "Lock on tables it references through a foreign key, or null") @Nullable String referencedLock,
             @Schema(description = "NONE, SCAN or REWRITE") String work) {}
 
     @Schema(name = "Finding", description = "One risk")
@@ -55,10 +56,10 @@ public final class Responses {
             String fix,
             @Schema(description = "From 1 to 100") int score,
             @Schema(description = "From 0 to 1") double certainty,
-            NameDto table,
-            Operation operation,
-            @Schema(description = "What the statement locks and for how long, in one line") String effect,
-            @Schema(description = "The change the finding is about (risk reports only)") String change) {}
+            @Nullable NameDto table,
+            @Nullable Operation operation,
+            @Schema(description = "What the statement locks and for how long, in one line") @Nullable String effect,
+            @Schema(description = "The change the finding is about (risk reports only)") @Nullable String change) {}
 
     @Schema(name = "Score")
     public record Score(
@@ -72,8 +73,8 @@ public final class Responses {
     @Schema(name = "Step", description = "One statement of a migration plan")
     public record Step(
             String sql,
-            Operation operation,
-            NameDto table,
+            @Nullable Operation operation,
+            @Nullable NameDto table,
             @Schema(description = "False if the statement must run outside a transaction block") boolean transactional,
             String note,
             @Schema(description = "Risks the plan could not remove; each needs a decision") List<String> cautions) {}
@@ -97,7 +98,7 @@ public final class Responses {
             int column,
             String sql,
             @Schema(description = "ANALYSED, NOT_SCHEMA, NOT_ANALYSED or WOULD_FAIL") String status,
-            NameDto table,
+            @Nullable NameDto table,
             List<Operation> operations,
             List<Finding> findings) {}
 

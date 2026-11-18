@@ -1,0 +1,103 @@
+{
+  "changes": [
+    {
+      "kind": "ColumnAdded",
+      "summary": "+ column public.customers.full_name text",
+      "cosmetic": false,
+      "table": {
+        "schema": "public",
+        "name": "customers"
+      },
+      "rename": null,
+      "confidence": null
+    },
+    {
+      "kind": "ColumnAdded",
+      "summary": "+ column public.customers.created_at timestamp with time zone DEFAULT now() NOT NULL",
+      "cosmetic": false,
+      "table": {
+        "schema": "public",
+        "name": "customers"
+      },
+      "rename": null,
+      "confidence": null
+    },
+    {
+      "kind": "ColumnDropped",
+      "summary": "- column public.customers.name text",
+      "cosmetic": false,
+      "table": {
+        "schema": "public",
+        "name": "customers"
+      },
+      "rename": null,
+      "confidence": null
+    },
+    {
+      "kind": "ColumnRenameCandidate",
+      "summary": "? column public.customers.name may have been renamed to full_name (confidence 0.86: same type and attributes; one name contains the other; both are column 3)",
+      "cosmetic": false,
+      "table": {
+        "schema": "public",
+        "name": "customers"
+      },
+      "rename": {
+        "kind": "column",
+        "table": {
+          "schema": "public",
+          "name": "customers"
+        },
+        "from": "name",
+        "to": "full_name"
+      },
+      "confidence": 0.86
+    },
+    {
+      "kind": "ColumnTypeChanged",
+      "summary": "~ column public.orders.id: type integer -> bigint",
+      "cosmetic": false,
+      "table": {
+        "schema": "public",
+        "name": "orders"
+      },
+      "rename": null,
+      "confidence": null
+    },
+    {
+      "kind": "ColumnTypeChanged",
+      "summary": "~ column public.orders.total: type numeric(10,2) -> numeric(12,2)",
+      "cosmetic": false,
+      "table": {
+        "schema": "public",
+        "name": "orders"
+      },
+      "rename": null,
+      "confidence": null
+    },
+    {
+      "kind": "ConstraintAdded",
+      "summary": "+ constraint public.orders.orders_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers (id)",
+      "cosmetic": false,
+      "table": {
+        "schema": "public",
+        "name": "orders"
+      },
+      "rename": null,
+      "confidence": null
+    },
+    {
+      "kind": "IndexAdded",
+      "summary": "+ index public.orders_status_idx ON public.orders USING btree (status)",
+      "cosmetic": false,
+      "table": {
+        "schema": "public",
+        "name": "orders"
+      },
+      "rename": null,
+      "confidence": null
+    }
+  ],
+  "significant": 8,
+  "warnings": [],
+  "text": "+ column public.customers.full_name text\n+ column public.customers.created_at timestamp with time zone DEFAULT now() NOT NULL\n- column public.customers.name text\n? column public.customers.name may have been renamed to full_name (confidence 0.86: same type and attributes; one name contains the other; both are column 3)\n~ column public.orders.id: type integer -> bigint\n~ column public.orders.total: type numeric(10,2) -> numeric(12,2)\n+ constraint public.orders.orders_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers (id)\n+ index public.orders_status_idx ON public.orders USING btree (status)\n"
+}

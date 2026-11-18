@@ -1,0 +1,70 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/schibsted-grotesk';
+@import '@fontsource-variable/jetbrains-mono';
+
+/* Colours follow what a PostgreSQL lock does to traffic: calm while reads and writes continue,
+   amber when writes wait, red when everything waits. */
+@theme {
+  --font-sans: 'Schibsted Grotesk Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  --color-paper: #eef2f5;
+  --color-surface: #ffffff;
+  --color-ink: #14212e;
+  --color-muted: #566676;
+  --color-line: #d3dce4;
+  --color-elephant: #1d3b5a;
+  --color-elephant-soft: #dbe6f0;
+
+  --color-calm: #3f7f9a;
+  --color-none: #6b7c8c;
+  --color-low: #2f7d5b;
+  --color-medium: #a86b12;
+  --color-high: #c24f1d;
+  --color-critical: #c62f35;
+}
+
+@layer base {
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-paper: #0f1720;
+      --color-surface: #16212c;
+      --color-ink: #e6edf3;
+      --color-muted: #93a4b4;
+      --color-line: #283746;
+      --color-elephant: #9cc2e6;
+      --color-elephant-soft: #1f3347;
+
+      --color-calm: #6fb3cf;
+      --color-none: #8c9cab;
+      --color-low: #4fb388;
+      --color-medium: #e0a33a;
+      --color-high: #ee7a45;
+      --color-critical: #f0646a;
+    }
+  }
+
+  html {
+    color-scheme: light dark;
+  }
+
+  body {
+    @apply bg-paper font-sans text-ink antialiased;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-elephant);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

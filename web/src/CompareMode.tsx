@@ -1,0 +1,200 @@
+import { useEffect, useRef, useState } from 'react';
+import {
+  ApiError,
+  diff,
+  plan,
+  report,
+  type DiffResponse,
+  type PlanResponse,
+  type RenameDto,
+  type ReportResponse,
+  type Route,
+} from './api/client.ts';
+import { ChangeList } from './components/ChangeList.tsx';
+import { FindingList } from './components/FindingList.tsx';
+import { ErrorNotice, SkippedNotice, WakingNotice } from './components/Notices.tsx';
+import { PlanView } from './components/PlanView.tsx';
+import { RiskSummary } from './components/RiskSummary.tsx';
+import { SqlEditor } from './components/SqlEditor.tsx';
+import { Tabs } from './components/Tabs.tsx';
+import { EXAMPLE_AFTER, EXAMPLE_BEFORE } from './examples.ts';
+import { renameKey } from './renames.ts';
+import { useSlow } from './useSlow.ts';
+
+interface Results {
+  before: string;
+  after: string;
+  diff: DiffResponse;
+  report: ReportResponse;
+  plan: PlanResponse;
+}
+
+function toError(cause: unknown): ApiError {
+  if (cause instanceof ApiError) return cause;
+  return new ApiError(0, { title: 'The analysis failed', detail: String(cause) });
+}
+
+/** Two schemas in, three answers out: what changed, what it risks, and how to apply it. */
+export function CompareMode() {
+  const [before, setBefore] = useState('');
+  const [after, setAfter] = useState('');
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
+  const [results, setResults] = useState<Results | null>(null);
+  const [tab, setTab] = useState('risks');
+  const [route, setRoute] = useState<Route>('SAFE');
+  const [renames, setRenames] = useState<RenameDto[]>([]);
+  const [planning, setPlanning] = useState(false);
+  const slow = useSlow(running);
+  const planRequest = useRef<AbortController | null>(null);
+
+  async function analyse() {
+    setRunning(true);
+    setError(null);
+    setRenames([]);
+    try {
+      const [diffResult, reportResult, planResult] = await Promise.all([
+        diff(before, after),
+        report(before, after),
+        plan({ before, after, route, renames: [] }),
+      ]);
+      setResults({ before, after, diff: diffResult, report: reportResult, plan: planResult });
+    } catch (cause) {
+      setResults(null);
+      setError(toError(cause));
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  async function replan(nextRoute: Route, nextRenames: RenameDto[]) {
+    if (!results) return;
+    planRequest.current?.abort();
+    const controller = new AbortController();
+    planRequest.current = controller;
+    setPlanning(true);
+    try {
+      const planResult = await plan(
+        { before: results.before, after: results.after, route: nextRoute, renames: nextRenames },
+        controller.signal,
+      );
+      setResults((current) => (current ? { ...current, plan: planResult } : current));
+      setError(null);
+    } catch (cause) {
+      if (controller.signal.aborted) return;
+      setError(toError(cause));
+    } finally {
+      if (planRequest.current === controller) setPlanning(false);
+    }
+  }
+
+  useEffect(() => () => planRequest.current?.abort(), []);
+
+  const diagnosticsFor = (input: string) => [
+    ...(error?.problem.diagnostics ?? []),
+    ...(results ? [...results.diff.warnings] : []),
+  ].filter((diagnostic) => diagnostic.input === input);
+
+  const candidates = results?.diff.changes.filter((change) => change.rename !== null) ?? [];
+  const confirmed = new Set(renames.map(renameKey));
+
+  return (
+    <div className="space-y-8">
+      <form
+        className="space-y-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void analyse();
+        }}
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <SqlEditor
+            label="Current schema"
+            value={before}
+            onChange={setBefore}
+            diagnostics={diagnosticsFor('before')}
+            placeholder="Paste the schema as it is now, for example pg_dump --schema-only output"
+          />
+          <SqlEditor
+            label="New schema"
+            value={after}
+            onChange={setAfter}
+            diagnostics={diagnosticsFor('after')}
+            placeholder="Paste the schema as it should be after the release"
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="submit"
+            disabled={running || after.trim() === ''}
+            className="rounded-md bg-elephant px-4 py-2 font-semibold text-paper hover:opacity-90 disabled:opacity-50"
+          >
+            {running ? 'Analysing…' : 'Analyse changes'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setBefore(EXAMPLE_BEFORE);
+              setAfter(EXAMPLE_AFTER);
+            }}
+            className="rounded-md px-3 py-2 text-sm font-medium text-elephant hover:underline"
+          >
+            Load an example
+          </button>
+          {slow && <WakingNotice />}
+        </div>
+      </form>
+
+      {error && <ErrorNotice error={error} />}
+
+      {results && (
+        <div className="space-y-6 rounded-lg border border-line bg-surface p-5 sm:p-6">
+          <RiskSummary score={results.report.score} subject="this change" />
+          <SkippedNotice warnings={results.diff.warnings} />
+          <Tabs
+            label="Results"
+            selected={tab}
+            onSelect={setTab}
+            tabs={[
+              {
+                id: 'risks',
+                label: `Risks (${results.report.findings.length})`,
+                content: <FindingList findings={results.report.findings} empty="No risks found." />,
+              },
+              {
+                id: 'changes',
+                label: `Changes (${results.diff.significant})`,
+                content: <ChangeList changes={results.diff.changes} />,
+              },
+              {
+                id: 'plan',
+                label: 'Plan',
+                content: (
+                  <PlanView
+                    plan={results.plan}
+                    route={route}
+                    onRouteChange={(next) => {
+                      setRoute(next);
+                      void replan(next, renames);
+                    }}
+                    candidates={candidates}
+                    confirmed={confirmed}
+                    onToggleRename={(rename) => {
+                      const key = renameKey(rename);
+                      const next = confirmed.has(key)
+                        ? renames.filter((each) => renameKey(each) !== key)
+                        : [...renames, rename];
+                      setRenames(next);
+                      void replan(route, next);
+                    }}
+                    planning={planning}
+                  />
+                ),
+              },
+            ]}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
