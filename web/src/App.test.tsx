@@ -1,8 +1,7 @@
-import { render, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { App } from './App.tsx';
-import { fakeApi, fixtures } from './test/fakeApi.ts';
+import { fakeApi, fixtures, renderApp } from './test/fakeApi.tsx';
 
 function steps(count: number): RegExp {
   return new RegExp(`^${count} steps, reaches the new schema`);
@@ -10,7 +9,7 @@ function steps(count: number): RegExp {
 
 async function analyseExample() {
   const user = userEvent.setup();
-  render(<App />);
+  renderApp();
   await user.click(screen.getByRole('button', { name: 'Load an example' }));
   await user.click(screen.getByRole('button', { name: 'Analyse changes' }));
   await screen.findByRole('region', { name: 'Overall risk' });
@@ -77,7 +76,7 @@ describe('Compare two schemas', () => {
   it('shows where a schema cannot be read', async () => {
     fakeApi({ invalidSchema: true });
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await user.type(screen.getByLabelText('Current schema'), 'CREATE TABLE t (id int;');
     await user.type(screen.getByLabelText('New schema'), 'CREATE TABLE t (id int);');
     await user.click(screen.getByRole('button', { name: 'Analyse changes' }));
@@ -90,7 +89,7 @@ describe('Compare two schemas', () => {
 
   it('needs a new schema before it can analyse', () => {
     fakeApi();
-    render(<App />);
+    renderApp();
     expect(screen.getByRole('button', { name: 'Analyse changes' })).toBeDisabled();
   });
 });
@@ -99,7 +98,7 @@ describe('Check a migration', () => {
   it('checks each statement and puts a failure under its statement', async () => {
     const sent = fakeApi();
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await user.click(screen.getByRole('radio', { name: 'Check a migration' }));
     await user.click(screen.getByRole('button', { name: 'Load an example' }));
     await user.click(screen.getByRole('button', { name: 'Check migration' }));

@@ -479,3 +479,21 @@ statement by statement. Every lock is drawn on PostgreSQL's eight-step lock scal
   body. A Playwright test against a real server comes in 6.4.
 - *What happens when the free server is asleep?* The page pings it on load, and a request pending
   for 3 seconds explains the cold start instead of spinning silently (D-077).
+
+## Phase 6.2: share links and export
+
+**What it is.** "Share" saves an analysis and gives a link `/a/{id}` anyone can open until it
+expires; the sharer can delete it. Results download as Markdown or JSON.
+
+**Likely questions**
+
+- *How does the sharer delete a link without an account?* Saving returns a random 256-bit token;
+  the server keeps only its SHA-256 (D-067). The browser keeps the token in localStorage, and
+  `DELETE` sends it in `X-Delete-Token`. Lose the browser data and the link simply expires.
+- *Why store only the report, not the plan and diff too?* They are deterministic and cheap to
+  recompute from the saved schemas; "Open in the editor" does exactly that (D-078).
+- *How did you handle a confirmed rename making the risk report wrong?* Instead of teaching the
+  report about renames, the page lints the generated plan, which already judges `RENAME COLUMN`
+  and sees no data loss (D-079). Same engine, no new API.
+- *How does a client-side route like `/a/{id}` work on static hosting?* `vercel.json` rewrites
+  every path that is not a file to `index.html`; react-router reads the address in the browser.

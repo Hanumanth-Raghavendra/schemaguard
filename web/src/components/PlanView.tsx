@@ -12,6 +12,8 @@ interface Props {
   confirmed: ReadonlySet<string>;
   onToggleRename: (rename: RenameDto) => void;
   planning: boolean;
+  /** Opens the plan's SQL in "Check a migration", against the current schema. */
+  onCheckPlan: () => void;
 }
 
 const ROUTES: { value: Route; label: string; hint: string }[] = [
@@ -20,7 +22,7 @@ const ROUTES: { value: Route; label: string; hint: string }[] = [
 ];
 
 /** The migration that turns the current schema into the new one, step by step. */
-export function PlanView({ plan, route, onRouteChange, candidates, confirmed, onToggleRename, planning }: Props) {
+export function PlanView({ plan, route, onRouteChange, candidates, confirmed, onToggleRename, planning, onCheckPlan }: Props) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!copied) return;
@@ -91,18 +93,28 @@ export function PlanView({ plan, route, onRouteChange, candidates, confirmed, on
           {plan.complete ? ', reaches the new schema' : ', does not reach the new schema (see below)'}
           {plan.needsDecisions && ', some steps need a decision'}
         </p>
-        <button
-          type="button"
-          disabled={plan.sql === ''}
-          onClick={() => {
-            void navigator.clipboard.writeText(plan.sql).then(() => {
-              setCopied(true);
-            });
-          }}
-          className="rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium hover:border-elephant disabled:opacity-50"
-        >
-          {copied ? 'Copied' : 'Copy script'}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={plan.sql === ''}
+            onClick={onCheckPlan}
+            className="rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium hover:border-elephant disabled:opacity-50"
+          >
+            Check this plan as a migration
+          </button>
+          <button
+            type="button"
+            disabled={plan.sql === ''}
+            onClick={() => {
+              void navigator.clipboard.writeText(plan.sql).then(() => {
+                setCopied(true);
+              });
+            }}
+            className="rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium hover:border-elephant disabled:opacity-50"
+          >
+            {copied ? 'Copied' : 'Copy script'}
+          </button>
+        </div>
       </div>
 
       {plan.steps.length === 0 ? (

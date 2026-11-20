@@ -2,11 +2,11 @@
 
 > **To resume:** read this file, then start at "Next step". Do not re-plan; the plan is fixed below.
 
-- **Current phase:** 6 (web UI): 6.1 done (editors, risks, changes, plan, migration check), 6.2 next. Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
-- **Last updated:** 2026-11-18
+- **Current phase:** 6 (web UI): 6.1 and 6.2 done (editors, risks, changes, plan, migration check, share links, export), 6.3 next. Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
+- **Last updated:** 2026-11-19
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
-- **State:** build green; engine 1,703 tests (276 plans run on a real PostgreSQL 16 in CI), API 47 tests (permalinks tested on real PostgreSQL); web 23 tests (Vitest); line coverage engine 99.3% (gate 85%), API 95.8% (gate 80%); CI builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
-- **Size:** 305 files in 59 folders; 14,721 lines of main Java, 7,797 lines of test Java, 1,677 lines of TypeScript (plus 1,005 generated) (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
+- **State:** build green; engine 1,703 tests (276 plans run on a real PostgreSQL 16 in CI), API 47 tests (permalinks tested on real PostgreSQL); web 40 tests (Vitest); line coverage engine 99.3% (gate 85%), API 95.8% (gate 80%); CI builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
+- **Size:** 322 files in 59 folders; 14,721 lines of main Java, 7,797 lines of test Java, 2,671 lines of TypeScript (plus 1,005 generated) (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
 
 ## Next step
 
@@ -26,19 +26,10 @@ nothing. Render reports each deploy to GitHub (repository > Deployments).
 **Phase 6: web UI (v0.5).** Requirements (Blueprint, tier 2 "Web app"): analyse without login
 in two code editors, visual diff, risk report, shareable permalink; interactive ER diagram with
 changed tables and columns highlighted; example gallery of real-world scenarios, so a recruiter
-sees results in one click; export of the report as Markdown or JSON. 6.1 is done (see Done). The
+sees results in one click; export of the report as Markdown or JSON. 6.1 and 6.2 are done (see Done). The
 app lives in `web/` (Vite 8, React 19, TypeScript 5.9, Tailwind 4, Monaco; see D-075).
 
-- **6.2, the next slice: share and export.** "Share" saves through `POST /api/v1/analyses/{kind}`
-  (compare mode saves the report, migration mode the lint) and shows the link `/a/{id}`. Add
-  `react-router` (check npm first) with routes `/` and `/a/:id`; `/a/:id` reads
-  `GET /api/v1/analyses/{id}` and shows the stored request in read-only editors and the stored
-  result with the same views. Keep `{id: deleteToken}` in localStorage so the sharer sees a
-  "Delete" button (`DELETE` with `X-Delete-Token`); handle 404 (expired or deleted) and 503
-  (saving switched off) with plain messages. Add `web/vercel.json` with a rewrite of every path
-  to `/index.html`. Export: "Download JSON" (the response as it came) and "Download Markdown"
-  (built in the browser from the same data: score, reasons, findings with why and fix, plan SQL).
-- **6.3: example gallery and ER diagram.** Gallery: four to six real scenarios (add a column with
+- **6.3, the next slice: example gallery and ER diagram.** Gallery: four to six real scenarios (add a column with
   a default, add a foreign key, change a type, rename, add an index, split a table), each loading
   both editors and running the analysis. ER diagram: needs a new endpoint (for example
   `POST /api/v1/model` with `before`/`after`) that returns tables, columns, keys and foreign keys
@@ -94,6 +85,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 - [x] **5.2** Saved analyses (permalinks): `POST /api/v1/analyses/{diff,report,plan,lint}` runs the analysis and stores request + result (201, `Location`); `GET /api/v1/analyses/{id}` returns them exactly as computed; `DELETE` with the `X-Delete-Token` returned at save time. Ids are 128 random bits in base 62; only the SHA-256 of the token is stored. 30-day retention (hourly job), 1 MB per analysis, 200 MB in total (507 beyond). PostgreSQL through plain spring-jdbc + HikariCP + Flyway, wired by hand: off without `SCHEMAGUARD_PERSISTENCE_URL` (503), lazy (nothing connects at startup, schema migrated on first use), a down database costs only the permalinks. Accepts Neon's `postgresql://user:pass@host/db` string. SchemaGuard lints its own migrations in a test. Bugs found by the tests: missing `-parameters` (path variables gave 500), JVM zone `Asia/Calcutta` refused by PostgreSQL at login (service now runs in UTC), springdoc describing raw JSON as `string` (now `types = object`) (2026-11-17)
 - [x] **5.3** First deploy: Render (Docker, free, Singapore) from the Blueprint, Neon PostgreSQL for saved analyses. Manual workflow `live-smoke.yml` checks the deployed service end to end (health, OpenAPI, rules, diff, report, plan, lint, 422 on a bad schema, save/open/wrong token 403/delete 204/gone 404, CORS preflight); first run green. Render now deploys only after CI passes (the image build skips tests, so a red commit used to go live) and only for paths that go into the image (2026-11-18)
 - [x] **6.1** Web app in `web/`: two Monaco editors (bundled, loaded after the page; plain text area meanwhile), "Compare two schemas" (diff, report and plan in parallel; tabs Risks, Changes, Plan) and "Check a migration" (lint, statement by statement). Each lock is drawn on PostgreSQL's eight-step lock scale, coloured by what traffic does. Plan tab: Safe/Direct route and rename confirmation, which re-plan; copy script. API problems are listed with input, line and column and underlined in the editor; a notice explains the free host's cold start, which a ping on page load starts early. The OpenAPI document is now exact (every response field required, 13 nullable ones marked with jspecify `@Nullable`, rename subtypes a clean union) and copied to `web/openapi.json` by `OpenApiContractTest`; TypeScript types are generated from it and CI fails if either drifts. CI job "Web app": lint, type check, test, build. Tests use real API answers recorded from a local server (2026-11-18)
+- [x] **6.2** Share and export. "Share" saves the report (compare) or the lint (migration) through `/api/v1/analyses/{kind}` and shows a link `/a/{id}` with its expiry; the delete key is kept in localStorage and expired keys are dropped. `/a/{id}` (react-router 8.5.1) shows the saved result and inputs, "Open in the editor" (loads the inputs and runs the full analysis), downloads, and "Delete link" with an inline confirmation for the sharer; expired, deleted, wrong-key and switched-off cases have plain messages. Downloads: Markdown built in the browser (score, reasons, risks worst first with why and instead, changes, plan SQL; or statement by statement) and JSON (inputs with every response). "Check this plan as a migration" lints the generated plan; the Risks tab points to it once a rename is confirmed. `web/vercel.json` sends every path to `index.html`. 17 new tests on recorded save/open/delete answers; checked in Chromium against a local API with PostgreSQL (2026-11-19)
 
 ## Phases
 
@@ -105,7 +97,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 | 3 | Rules engine, lock knowledge base, scoring | Done (2026-11-14) |
 | 4 | Migration planner, SQL generation, real-database oracle tests, script linter | Done (2026-11-15) |
 | 5 | REST API (Spring Boot), persistence, permalinks, first deploy (v0.1) | Done (2026-11-18); live |
-| 6 | Web UI: editors, diff, report, ER diagram, example gallery (v0.5) | In progress (6.1 done) |
+| 6 | Web UI: editors, diff, report, ER diagram, example gallery (v0.5) | In progress (6.1, 6.2 done) |
 | 7 | Auth, projects, history, trends, API keys | Not started |
 | 8 | CLI, GitHub Action, dogfooding | Not started |
 | 9 | Hardening and launch (v1.0) | Not started |
@@ -144,10 +136,13 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
   needs an identical column definition, so "renamed and made NOT NULL" cannot be confirmed.
   An identity column's hidden sequence is not modelled.
 - The parser accepts a reserved word as a constraint name (`CONSTRAINT both`); PostgreSQL does not.
-- **Web:** the risk report does not know about confirmed renames (`/api/v1/report` takes no
-  renames; `/plan` does), so a confirmed rename still shows "Column is dropped" under Risks.
-  Fix in the API (renames on `/report`) before 6.4. Problem extension members (`code`,
-  `diagnostics`) are typed by hand in `web/src/api/client.ts`.
+- **Web:** the risk report judges the schemas as written (`/api/v1/report` takes no renames), so
+  a confirmed rename still shows "Column is dropped" under Risks. The page says so and offers
+  "Check the plan as a migration", which lints the generated plan and shows its real risks
+  (D-079). Renames on `/report` would make the Risks tab exact; not planned yet. Problem
+  extension members (`code`, `diagnostics`) are typed by hand in `web/src/api/client.ts`.
+- **Web, shared links:** the delete key lives in the sharer's browser only (localStorage); a
+  cleared browser cannot delete its links, which then expire after 30 days.
 - **API:** no rate limiting yet (one free instance); add per-IP limits before sharing the URL
   widely, especially for saving (storage is capped at 200 MB in total, so abuse fills it and
   saving answers 507 until analyses expire). No auth until Phase 7. The API's coverage gate

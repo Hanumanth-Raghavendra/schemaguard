@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fakeApi, fixtures } from '../test/fakeApi.ts';
+import { fakeApi, fixtures } from '../test/fakeApi.tsx';
 import { API_URL, ApiError, diff, plan } from './client.ts';
 
 describe('API client', () => {
@@ -8,7 +8,12 @@ describe('API client', () => {
     const result = await diff('CREATE TABLE a (id int);', 'CREATE TABLE b (id int);');
     expect(result.significant).toBe(fixtures.diff.significant);
     expect(sent).toEqual([
-      { path: '/api/v1/diff', body: { before: 'CREATE TABLE a (id int);', after: 'CREATE TABLE b (id int);' } },
+      {
+        method: 'POST',
+        path: '/api/v1/diff',
+        body: { before: 'CREATE TABLE a (id int);', after: 'CREATE TABLE b (id int);' },
+        token: null,
+      },
     ]);
   });
 

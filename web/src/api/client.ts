@@ -14,6 +14,8 @@ export type Score = Schemas['Score'];
 export type Step = Schemas['Step'];
 export type LintedStatement = Schemas['LintedStatement'];
 export type RenameDto = Schemas['RenameDto'];
+export type SavedAnalysis = Schemas['SavedAnalysis'];
+export type StoredAnalysis = Schemas['StoredAnalysis'];
 export type Route = 'DIRECT' | 'SAFE';
 
 /** RFC 9457 problem as the API sends it; `code` and `diagnostics` are its extension members. */
@@ -49,10 +51,17 @@ function asProblem(error: unknown, status: number): Problem {
   return problem;
 }
 
-async function call<T>(request: () => Promise<{ data?: T; error?: unknown; response: Response }>): Promise<T> {
-  let result: { data?: T; error?: unknown; response: Response };
+interface Answer<T> {
+  data?: T;
+  error?: unknown;
+  response: Response;
+}
+
+/** Sends a request; a network failure becomes an ApiError with status 0, an error status an ApiError. */
+async function send<T>(request: () => Promise<Answer<T>>): Promise<Answer<T>> {
+  let answer: Answer<T>;
   try {
-    result = await request();
+    answer = await request();
   } catch (cause) {
     if (cause instanceof DOMException && cause.name === 'AbortError') throw cause;
     throw new ApiError(0, {
@@ -60,8 +69,13 @@ async function call<T>(request: () => Promise<{ data?: T; error?: unknown; respo
       detail: `No answer from ${API_URL}. Check your connection and try again.`,
     });
   }
-  const { data, error, response } = result;
-  if (!response.ok || data === undefined) throw new ApiError(response.status, asProblem(error, response.status));
+  if (!answer.response.ok) throw new ApiError(answer.response.status, asProblem(answer.error, answer.response.status));
+  return answer;
+}
+
+async function call<T>(request: () => Promise<Answer<T>>): Promise<T> {
+  const { data, response } = await send(request);
+  if (data === undefined) throw new ApiError(response.status, asProblem(undefined, response.status));
   return data;
 }
 
@@ -86,6 +100,26 @@ export function plan(input: PlanInput, signal?: AbortSignal): Promise<PlanRespon
 
 export function lint(schema: string, migration: string, signal?: AbortSignal): Promise<LintResponse> {
   return call(() => client.POST('/api/v1/lint', { body: { schema, migration }, signal: signal ?? null }));
+}
+
+/** Saves a risk report so it can be shared; the answer holds the id and the delete token. */
+export function saveReport(before: string, after: string): Promise<SavedAnalysis> {
+  return call(() => client.POST('/api/v1/analyses/report', { body: { before, after } }));
+}
+
+/** Saves a migration check so it can be shared. */
+export function saveLint(schema: string, migration: string): Promise<SavedAnalysis> {
+  return call(() => client.POST('/api/v1/analyses/lint', { body: { schema, migration } }));
+}
+
+export function openAnalysis(id: string, signal?: AbortSignal): Promise<StoredAnalysis> {
+  return call(() => client.GET('/api/v1/analyses/{id}', { params: { path: { id } }, signal: signal ?? null }));
+}
+
+export async function deleteAnalysis(id: string, token: string): Promise<void> {
+  await send(() =>
+    client.DELETE('/api/v1/analyses/{id}', { params: { path: { id }, header: { 'X-Delete-Token': token } } }),
+  );
 }
 
 /** Starts the sleeping API host early. The answer is opaque (no CORS on /actuator) and not needed. */

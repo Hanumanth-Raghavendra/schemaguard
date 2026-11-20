@@ -8,6 +8,10 @@ vi.mock('../components/MonacoSqlEditor.tsx', async () => {
   return { default: plain.PlainSqlEditor };
 });
 
+// jsdom has no object URLs; downloads make them, and tests spy on these.
+URL.createObjectURL = () => 'blob:test';
+URL.revokeObjectURL = () => undefined;
+
 afterEach(() => {
   cleanup();
 });

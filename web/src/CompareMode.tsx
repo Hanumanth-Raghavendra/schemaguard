@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router';
 import {
   ApiError,
   diff,
   plan,
   report,
+  saveReport,
   type DiffResponse,
   type PlanResponse,
   type RenameDto,
@@ -14,10 +16,13 @@ import { ChangeList } from './components/ChangeList.tsx';
 import { FindingList } from './components/FindingList.tsx';
 import { ErrorNotice, SkippedNotice, WakingNotice } from './components/Notices.tsx';
 import { PlanView } from './components/PlanView.tsx';
+import { ResultActions } from './components/ResultActions.tsx';
 import { RiskSummary } from './components/RiskSummary.tsx';
 import { SqlEditor } from './components/SqlEditor.tsx';
 import { Tabs } from './components/Tabs.tsx';
 import { EXAMPLE_AFTER, EXAMPLE_BEFORE } from './examples.ts';
+import { compareMarkdown, downloadJson, downloadMarkdown } from './export.ts';
+import type { Preset } from './presets.ts';
 import { renameKey } from './renames.ts';
 import { useSlow } from './useSlow.ts';
 
@@ -35,9 +40,10 @@ function toError(cause: unknown): ApiError {
 }
 
 /** Two schemas in, three answers out: what changed, what it risks, and how to apply it. */
-export function CompareMode() {
-  const [before, setBefore] = useState('');
-  const [after, setAfter] = useState('');
+export function CompareMode({ preset }: { preset: { before: string; after: string } | null }) {
+  const navigate = useNavigate();
+  const [before, setBefore] = useState(preset?.before ?? '');
+  const [after, setAfter] = useState(preset?.after ?? '');
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const [results, setResults] = useState<Results | null>(null);
@@ -48,7 +54,7 @@ export function CompareMode() {
   const slow = useSlow(running);
   const planRequest = useRef<AbortController | null>(null);
 
-  async function analyse() {
+  async function analyse(before: string, after: string) {
     setRunning(true);
     setError(null);
     setRenames([]);
@@ -90,10 +96,24 @@ export function CompareMode() {
 
   useEffect(() => () => planRequest.current?.abort(), []);
 
+  // Inputs handed over by another page (a shared link, the plan check) run at once, one time.
+  const started = useRef(false);
+  useEffect(() => {
+    if (preset === null || started.current) return;
+    started.current = true;
+    void analyse(preset.before, preset.after);
+  });
+
   const diagnosticsFor = (input: string) => [
     ...(error?.problem.diagnostics ?? []),
     ...(results ? [...results.diff.warnings] : []),
   ].filter((diagnostic) => diagnostic.input === input);
+
+  function checkPlan() {
+    if (!results) return;
+    const next: Preset = { mode: 'lint', schema: results.before, migration: results.plan.sql };
+    void navigate('/', { state: next });
+  }
 
   const candidates = results?.diff.changes.filter((change) => change.rename !== null) ?? [];
   const confirmed = new Set(renames.map(renameKey));
@@ -104,7 +124,7 @@ export function CompareMode() {
         className="space-y-4"
         onSubmit={(event) => {
           event.preventDefault();
-          void analyse();
+          void analyse(before, after);
         }}
       >
         <div className="grid gap-4 md:grid-cols-2">
@@ -150,6 +170,15 @@ export function CompareMode() {
       {results && (
         <div className="space-y-6 rounded-lg border border-line bg-surface p-5 sm:p-6">
           <RiskSummary score={results.report.score} subject="this change" />
+          <ResultActions
+            save={() => saveReport(results.before, results.after)}
+            onMarkdown={() => {
+              downloadMarkdown('schemaguard-report.md', compareMarkdown(results));
+            }}
+            onJson={() => {
+              downloadJson('schemaguard-report.json', { kind: 'compare', ...results });
+            }}
+          />
           <SkippedNotice warnings={results.diff.warnings} />
           <Tabs
             label="Results"
@@ -159,7 +188,21 @@ export function CompareMode() {
               {
                 id: 'risks',
                 label: `Risks (${results.report.findings.length})`,
-                content: <FindingList findings={results.report.findings} empty="No risks found." />,
+                content: (
+                  <div className="space-y-4">
+                    {renames.length > 0 && (
+                      <p className="border-l-2 border-elephant pl-2 text-sm">
+                        These risks judge the schemas as written, so a rename you confirmed still counts as a drop and
+                        an add. The plan keeps the data; to see the risks of the plan itself,{' '}
+                        <button type="button" onClick={checkPlan} className="text-elephant underline">
+                          check the plan as a migration
+                        </button>
+                        .
+                      </p>
+                    )}
+                    <FindingList findings={results.report.findings} empty="No risks found." />
+                  </div>
+                ),
               },
               {
                 id: 'changes',
@@ -188,6 +231,7 @@ export function CompareMode() {
                       void replan(route, next);
                     }}
                     planning={planning}
+                    onCheckPlan={checkPlan}
                   />
                 ),
               },

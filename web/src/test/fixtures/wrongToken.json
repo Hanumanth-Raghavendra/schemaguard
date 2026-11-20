@@ -1,0 +1,8 @@
+{
+  "detail": "The delete token does not match this analysis.",
+  "instance": "/api/v1/analyses/5WHyVecqR8TlwqbO3bzRl4",
+  "status": 403,
+  "title": "Forbidden",
+  "type": "about:blank",
+  "code": "SG-API-403"
+}

@@ -1,0 +1,8 @@
+{
+  "detail": "No saved analysis has this id, or it has expired.",
+  "instance": "/api/v1/analyses/5WHyVecqR8TlwqbO3bzRl4",
+  "status": 404,
+  "title": "Not Found",
+  "type": "about:blank",
+  "code": "SG-API-404"
+}

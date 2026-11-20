@@ -1,26 +1,28 @@
-import { useState } from 'react';
-import { ApiError, lint, type LintResponse } from './api/client.ts';
+import { useEffect, useRef, useState } from 'react';
+import { ApiError, lint, saveLint, type LintResponse } from './api/client.ts';
 import { LintView } from './components/LintView.tsx';
 import { ErrorNotice, SkippedNotice, WakingNotice } from './components/Notices.tsx';
+import { ResultActions } from './components/ResultActions.tsx';
 import { RiskSummary } from './components/RiskSummary.tsx';
 import { SqlEditor } from './components/SqlEditor.tsx';
 import { EXAMPLE_BEFORE, EXAMPLE_MIGRATION } from './examples.ts';
+import { downloadJson, downloadMarkdown, lintMarkdown } from './export.ts';
 import { useSlow } from './useSlow.ts';
 
 /** A hand-written migration checked statement by statement against the schema it will run on. */
-export function LintMode() {
-  const [schema, setSchema] = useState('');
-  const [migration, setMigration] = useState('');
+export function LintMode({ preset }: { preset: { schema: string; migration: string } | null }) {
+  const [schema, setSchema] = useState(preset?.schema ?? '');
+  const [migration, setMigration] = useState(preset?.migration ?? '');
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
-  const [result, setResult] = useState<LintResponse | null>(null);
+  const [result, setResult] = useState<{ schema: string; migration: string; lint: LintResponse } | null>(null);
   const slow = useSlow(running);
 
-  async function check() {
+  async function check(schema: string, migration: string) {
     setRunning(true);
     setError(null);
     try {
-      setResult(await lint(schema, migration));
+      setResult({ schema, migration, lint: await lint(schema, migration) });
     } catch (cause) {
       setResult(null);
       setError(cause instanceof ApiError ? cause : new ApiError(0, { title: 'The check failed', detail: String(cause) }));
@@ -29,8 +31,16 @@ export function LintMode() {
     }
   }
 
+  // Inputs handed over by another page (a shared link, the plan check) run at once, one time.
+  const started = useRef(false);
+  useEffect(() => {
+    if (preset === null || started.current) return;
+    started.current = true;
+    void check(preset.schema, preset.migration);
+  });
+
   const diagnosticsFor = (input: string) =>
-    [...(error?.problem.diagnostics ?? []), ...(result ? [...result.warnings, ...result.diagnostics] : [])].filter(
+    [...(error?.problem.diagnostics ?? []), ...(result ? [...result.lint.warnings, ...result.lint.diagnostics] : [])].filter(
       (diagnostic) => diagnostic.input === input,
     );
 
@@ -40,7 +50,7 @@ export function LintMode() {
         className="space-y-4"
         onSubmit={(event) => {
           event.preventDefault();
-          void check();
+          void check(schema, migration);
         }}
       >
         <div className="grid gap-4 md:grid-cols-2">
@@ -85,9 +95,18 @@ export function LintMode() {
 
       {result && (
         <div className="space-y-6 rounded-lg border border-line bg-surface p-5 sm:p-6">
-          <RiskSummary score={result.score} subject="this migration" />
-          <SkippedNotice warnings={result.warnings} />
-          <LintView lint={result} />
+          <RiskSummary score={result.lint.score} subject="this migration" />
+          <ResultActions
+            save={() => saveLint(result.schema, result.migration)}
+            onMarkdown={() => {
+              downloadMarkdown('schemaguard-migration-check.md', lintMarkdown(result.lint));
+            }}
+            onJson={() => {
+              downloadJson('schemaguard-migration-check.json', { kind: 'lint', ...result });
+            }}
+          />
+          <SkippedNotice warnings={result.lint.warnings} />
+          <LintView lint={result.lint} />
         </div>
       )}
     </div>

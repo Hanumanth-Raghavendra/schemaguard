@@ -1,0 +1,261 @@
+{
+  "id": "1rsTzMFS8t0eWbp1EHBLap",
+  "kind": "lint",
+  "createdAt": "2026-11-19T17:57:37.390Z",
+  "expiresAt": "2026-12-19T17:57:37.390Z",
+  "engineVersion": "0.1.0-SNAPSHOT",
+  "request": {
+    "schema": "CREATE TABLE customers (\n  id integer PRIMARY KEY,\n  email text NOT NULL,\n  name text\n);\n\nCREATE TABLE orders (\n  id integer PRIMARY KEY,\n  customer_id integer NOT NULL,\n  status text NOT NULL,\n  total numeric(10, 2)\n);\n",
+    "migration": "ALTER TABLE customers RENAME COLUMN name TO full_name;\nALTER TABLE customers ADD COLUMN created_at timestamptz NOT NULL DEFAULT now();\nALTER TABLE orders ALTER COLUMN id TYPE bigint;\nALTER TABLE orders ADD FOREIGN KEY (customer_id) REFERENCES customers (id);\nCREATE INDEX orders_status_idx ON orders (status);\n"
+  },
+  "result": {
+    "score": {
+      "value": 98,
+      "level": "CRITICAL",
+      "reasons": [
+        "60 SG-R510 Table, column or enum value is renamed in one step",
+        "60 SG-R201 Column type change rewrites the table",
+        "60 SG-R104 Foreign key is added without NOT VALID",
+        "60 SG-R101 Index is built without CONCURRENTLY",
+        "10 SG-R111 Statements that need a full lock should run with a lock timeout"
+      ]
+    },
+    "statements": [
+      {
+        "line": 1,
+        "column": 1,
+        "sql": "ALTER TABLE customers RENAME COLUMN name TO full_name",
+        "status": "ANALYSED",
+        "table": {
+          "schema": "public",
+          "name": "customers"
+        },
+        "operations": [
+          {
+            "name": "RENAME_COLUMN",
+            "statement": "RENAME COLUMN",
+            "lock": "ACCESS EXCLUSIVE",
+            "lockEffect": "blocks reads and writes",
+            "referencedLock": null,
+            "work": "NONE"
+          }
+        ],
+        "findings": [
+          {
+            "ruleId": "SG-R510",
+            "rule": "renamed-in-place",
+            "category": "compatibility",
+            "severity": "HIGH",
+            "title": "Table, column or enum value is renamed in one step",
+            "message": "Column public.customers.name becomes full_name. Queries that still use the old name fail at once.",
+            "why": "The rename itself is quick and keeps the data. But the old name is gone the moment it commits, and every query of the running application that still uses it fails. Application and database cannot be deployed at the same instant, so there is always a window where one of them is wrong.",
+            "fix": "Add the new name next to the old one: a new column kept in step by a trigger, or a view under the new table name. Move the application over, then remove the old name in a later migration.",
+            "score": 60,
+            "certainty": 1,
+            "table": {
+              "schema": "public",
+              "name": "customers"
+            },
+            "operation": {
+              "name": "RENAME_COLUMN",
+              "statement": "RENAME COLUMN",
+              "lock": "ACCESS EXCLUSIVE",
+              "lockEffect": "blocks reads and writes",
+              "referencedLock": null,
+              "work": "NONE"
+            },
+            "effect": "RENAME COLUMN takes ACCESS EXCLUSIVE on public.customers (blocks reads and writes), held briefly",
+            "change": null
+          },
+          {
+            "ruleId": "SG-R111",
+            "rule": "lock-timeout",
+            "category": "locking",
+            "severity": "LOW",
+            "title": "Statements that need a full lock should run with a lock timeout",
+            "message": "No lock_timeout is set before this statement. The script locks public.customers, public.orders against reads and writes; each such statement first waits for the queries already running there, and blocks all new ones while it waits.",
+            "why": "An ACCESS EXCLUSIVE lock has to wait for every query already running on the table, even a slow report. While it waits, every new query on that table waits behind it. A statement that takes a millisecond can so stop an application for minutes.",
+            "fix": "Run SET lock_timeout = '5s' before the migration and try again if it times out. A failed attempt costs nothing; a waiting one blocks everybody.",
+            "score": 10,
+            "certainty": 1,
+            "table": {
+              "schema": "public",
+              "name": "customers"
+            },
+            "operation": null,
+            "effect": null,
+            "change": null
+          }
+        ]
+      },
+      {
+        "line": 2,
+        "column": 1,
+        "sql": "ALTER TABLE customers ADD COLUMN created_at timestamptz NOT NULL DEFAULT now()",
+        "status": "ANALYSED",
+        "table": {
+          "schema": "public",
+          "name": "customers"
+        },
+        "operations": [
+          {
+            "name": "ADD_COLUMN_NOT_NULL_DEFAULT",
+            "statement": "ADD COLUMN ... NOT NULL with a constant default",
+            "lock": "ACCESS EXCLUSIVE",
+            "lockEffect": "blocks reads and writes",
+            "referencedLock": null,
+            "work": "NONE"
+          }
+        ],
+        "findings": []
+      },
+      {
+        "line": 3,
+        "column": 1,
+        "sql": "ALTER TABLE orders ALTER COLUMN id TYPE bigint",
+        "status": "ANALYSED",
+        "table": {
+          "schema": "public",
+          "name": "orders"
+        },
+        "operations": [
+          {
+            "name": "ALTER_TYPE_REWRITE",
+            "statement": "ALTER COLUMN ... TYPE",
+            "lock": "ACCESS EXCLUSIVE",
+            "lockEffect": "blocks reads and writes",
+            "referencedLock": null,
+            "work": "REWRITE"
+          }
+        ],
+        "findings": [
+          {
+            "ruleId": "SG-R201",
+            "rule": "column-type-rewrite",
+            "category": "table rewrite",
+            "severity": "HIGH",
+            "title": "Column type change rewrites the table",
+            "message": "Changing public.orders.id from integer to bigint rewrites the whole table while reads and writes wait.",
+            "why": "The stored bytes of the old type are not valid for the new one. PostgreSQL writes every row into a new copy of the table and rebuilds every index, all under an ACCESS EXCLUSIVE lock: no reads, no writes, for as long as it takes. It also needs free disk space for the second copy.",
+            "fix": "Add a new column of the new type, fill it in batches, keep it in step with a trigger, then switch the application over and drop the old column. Some changes need no rewrite at all: a longer varchar, varchar to text, or a numeric with more digits and the same scale.",
+            "score": 60,
+            "certainty": 1,
+            "table": {
+              "schema": "public",
+              "name": "orders"
+            },
+            "operation": {
+              "name": "ALTER_TYPE_REWRITE",
+              "statement": "ALTER COLUMN ... TYPE",
+              "lock": "ACCESS EXCLUSIVE",
+              "lockEffect": "blocks reads and writes",
+              "referencedLock": null,
+              "work": "REWRITE"
+            },
+            "effect": "ALTER COLUMN ... TYPE takes ACCESS EXCLUSIVE on public.orders (blocks reads and writes), held while the whole table is written again",
+            "change": null
+          }
+        ]
+      },
+      {
+        "line": 4,
+        "column": 1,
+        "sql": "ALTER TABLE orders ADD FOREIGN KEY (customer_id) REFERENCES customers (id)",
+        "status": "ANALYSED",
+        "table": {
+          "schema": "public",
+          "name": "orders"
+        },
+        "operations": [
+          {
+            "name": "ADD_FOREIGN_KEY",
+            "statement": "ADD CONSTRAINT ... FOREIGN KEY",
+            "lock": "SHARE ROW EXCLUSIVE",
+            "lockEffect": "blocks writes, reads continue",
+            "referencedLock": "SHARE ROW EXCLUSIVE",
+            "work": "SCAN"
+          }
+        ],
+        "findings": [
+          {
+            "ruleId": "SG-R104",
+            "rule": "foreign-key-added-validated",
+            "category": "locking",
+            "severity": "HIGH",
+            "title": "Foreign key is added without NOT VALID",
+            "message": "Adding foreign key orders_customer_id_fkey checks every row of public.orders against public.customers. Writes to both tables wait until the check ends.",
+            "why": "Adding a foreign key checks every existing row against the referenced table. For the whole check it holds a SHARE ROW EXCLUSIVE lock on both tables, which blocks all writes to them. It also fails if one row points to a row that does not exist.",
+            "fix": "Add the constraint with NOT VALID: it then applies to new rows only and is quick. Run ALTER TABLE ... VALIDATE CONSTRAINT as a second statement; it checks the existing rows without blocking reads or writes.",
+            "score": 60,
+            "certainty": 1,
+            "table": {
+              "schema": "public",
+              "name": "orders"
+            },
+            "operation": {
+              "name": "ADD_FOREIGN_KEY",
+              "statement": "ADD CONSTRAINT ... FOREIGN KEY",
+              "lock": "SHARE ROW EXCLUSIVE",
+              "lockEffect": "blocks writes, reads continue",
+              "referencedLock": "SHARE ROW EXCLUSIVE",
+              "work": "SCAN"
+            },
+            "effect": "ADD CONSTRAINT ... FOREIGN KEY takes SHARE ROW EXCLUSIVE on public.orders (blocks writes, reads continue) and SHARE ROW EXCLUSIVE on public.customers (blocks writes, reads continue), held while every row is read",
+            "change": null
+          }
+        ]
+      },
+      {
+        "line": 5,
+        "column": 1,
+        "sql": "CREATE INDEX orders_status_idx ON orders (status)",
+        "status": "ANALYSED",
+        "table": {
+          "schema": "public",
+          "name": "orders"
+        },
+        "operations": [
+          {
+            "name": "CREATE_INDEX",
+            "statement": "CREATE INDEX",
+            "lock": "SHARE",
+            "lockEffect": "blocks writes, reads continue",
+            "referencedLock": null,
+            "work": "SCAN"
+          }
+        ],
+        "findings": [
+          {
+            "ruleId": "SG-R101",
+            "rule": "index-added-without-concurrently",
+            "category": "locking",
+            "severity": "HIGH",
+            "title": "Index is built without CONCURRENTLY",
+            "message": "Building index orders_status_idx blocks every write to public.orders until the build ends.",
+            "why": "CREATE INDEX takes a SHARE lock on the table for the whole build. Reads continue, but every INSERT, UPDATE and DELETE waits, and on a large table the build takes minutes or hours.",
+            "fix": "Use CREATE INDEX CONCURRENTLY. It builds the index without blocking writes. It cannot run inside a transaction, and if it fails it leaves an invalid index that has to be dropped before trying again.",
+            "score": 60,
+            "certainty": 1,
+            "table": {
+              "schema": "public",
+              "name": "orders"
+            },
+            "operation": {
+              "name": "CREATE_INDEX",
+              "statement": "CREATE INDEX",
+              "lock": "SHARE",
+              "lockEffect": "blocks writes, reads continue",
+              "referencedLock": null,
+              "work": "SCAN"
+            },
+            "effect": "CREATE INDEX takes SHARE on public.orders (blocks writes, reads continue), held while every row is read",
+            "change": null
+          }
+        ]
+      }
+    ],
+    "diagnostics": [],
+    "warnings": [],
+    "text": "Risk: 98/100 CRITICAL\nFindings: 5 (4 high, 1 low)\n\nline 1: ALTER TABLE customers RENAME COLUMN name TO full_name\n  HIGH     SG-R510  Table, column or enum value is renamed in one step  [compatibility, score 60]\n      Column public.customers.name becomes full_name. Queries that still use the old name fail at once.\n      Lock: RENAME COLUMN takes ACCESS EXCLUSIVE on public.customers (blocks reads and writes), held briefly\n      Safer: Add the new name next to the old one: a new column kept in step by a trigger, or a view under the new table name. Move the application over, then remove the old name in a later migration.\n  LOW      SG-R111  Statements that need a full lock should run with a lock timeout  [locking, score 10]\n      No lock_timeout is set before this statement. The script locks public.customers, public.orders against reads and writes; each such statement first waits for the queries already running there, and blocks all new ones while it waits.\n      Safer: Run SET lock_timeout = '5s' before the migration and try again if it times out. A failed attempt costs nothing; a waiting one blocks everybody.\n\nline 3: ALTER TABLE orders ALTER COLUMN id TYPE bigint\n  HIGH     SG-R201  Column type change rewrites the table  [table rewrite, score 60]\n      Changing public.orders.id from integer to bigint rewrites the whole table while reads and writes wait.\n      Lock: ALTER COLUMN ... TYPE takes ACCESS EXCLUSIVE on public.orders (blocks reads and writes), held while the whole table is written again\n      Safer: Add a new column of the new type, fill it in batches, keep it in step with a trigger, then switch the application over and drop the old column. Some changes need no rewrite at all: a longer varchar, varchar to text, or a numeric with more digits and the same scale.\n\nline 4: ALTER TABLE orders ADD FOREIGN KEY (customer_id) REFERENCES customers (id)\n  HIGH     SG-R104  Foreign key is added without NOT VALID  [locking, score 60]\n      Adding foreign key orders_customer_id_fkey checks every row of public.orders against public.customers. Writes to both tables wait until the check ends.\n      Lock: ADD CONSTRAINT ... FOREIGN KEY takes SHARE ROW EXCLUSIVE on public.orders (blocks writes, reads continue) and SHARE ROW EXCLUSIVE on public.customers (blocks writes, reads continue), held while every row is read\n      Safer: Add the constraint with NOT VALID: it then applies to new rows only and is quick. Run ALTER TABLE ... VALIDATE CONSTRAINT as a second statement; it checks the existing rows without blocking reads or writes.\n\nline 5: CREATE INDEX orders_status_idx ON orders (status)\n  HIGH     SG-R101  Index is built without CONCURRENTLY  [locking, score 60]\n      Building index orders_status_idx blocks every write to public.orders until the build ends.\n      Lock: CREATE INDEX takes SHARE on public.orders (blocks writes, reads continue), held while every row is read\n      Safer: Use CREATE INDEX CONCURRENTLY. It builds the index without blocking writes. It cannot run inside a transaction, and if it fails it leaves an invalid index that has to be dropped before trying again.\n\n1 statement without findings\n"
+  }
+}
