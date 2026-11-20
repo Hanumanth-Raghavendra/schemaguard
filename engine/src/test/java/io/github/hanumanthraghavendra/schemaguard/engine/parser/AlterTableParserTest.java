@@ -307,6 +307,9 @@ class AlterTableParserTest {
                 ALTER TABLE t ADD PRIMARY KEY USING INDEX               | Expected an index name but found end of statement
                 ALTER TABLE t DROP COLUMN                               | Expected a column name but found end of statement
                 ALTER TABLE t DROP CONSTRAINT                           | Expected a constraint name but found end of statement
+                ALTER TABLE t DROP CONSTRAINT both                      | Expected a constraint name but found the reserved word 'both' (write "both" to use it as a name)
+                ALTER TABLE t ADD CONSTRAINT check CHECK (a > 0)        | Expected a constraint name but found the reserved word 'check' (write "check" to use it as a name)
+                ALTER TABLE t RENAME CONSTRAINT a TO both               | Expected a constraint name but found the reserved word 'both' (write "both" to use it as a name)
                 ALTER TABLE t DROP COLUMN a b                           | Unexpected 'b' at the end of the statement
                 ALTER TABLE t ALTER COLUMN a                            | Expected a column action but found end of statement
                 ALTER TABLE t ALTER COLUMN a 5                          | Expected a column action but found '5'

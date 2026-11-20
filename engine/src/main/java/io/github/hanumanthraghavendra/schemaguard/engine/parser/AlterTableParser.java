@@ -54,7 +54,7 @@ final class AlterTableParser extends ParserBase {
             return alterColumn();
         }
         if (cursor.acceptWords("validate", "constraint")) {
-            return new AlterAction.ValidateConstraint(cursor.identifier("a constraint name"));
+            return new AlterAction.ValidateConstraint(cursor.name("a constraint name"));
         }
         if (cursor.acceptWord("rename")) {
             return rename();
@@ -123,7 +123,7 @@ final class AlterTableParser extends ParserBase {
     private AlterAction addConstraintUsingIndex() {
         Optional<String> name = Optional.empty();
         if (cursor.acceptWord("constraint")) {
-            name = Optional.of(cursor.identifier("a constraint name"));
+            name = Optional.of(cursor.name("a constraint name"));
         }
         boolean primaryKey = !cursor.acceptWord("unique");
         if (primaryKey) {
@@ -154,7 +154,7 @@ final class AlterTableParser extends ParserBase {
     private AlterAction drop() {
         if (cursor.acceptWord("constraint")) {
             boolean ifExists = ifExists();
-            String name = cursor.identifier("a constraint name");
+            String name = cursor.name("a constraint name");
             return new AlterAction.DropConstraint(name, ifExists, cascade());
         }
         cursor.acceptWord("column");
@@ -165,9 +165,9 @@ final class AlterTableParser extends ParserBase {
 
     private AlterAction rename() {
         if (cursor.acceptWord("constraint")) {
-            String from = cursor.identifier("a constraint name");
+            String from = cursor.name("a constraint name");
             cursor.expectWord("to");
-            return new AlterAction.RenameConstraint(from, cursor.identifier("a constraint name"));
+            return new AlterAction.RenameConstraint(from, cursor.name("a constraint name"));
         }
         if (cursor.acceptWord("to")) {
             return new AlterAction.RenameTable(cursor.identifier("a table name"));

@@ -1,0 +1,43 @@
+# Monthly dependency updates, grouped so a month brings a handful of pull requests, each checked by
+# CI (tests, coverage gates, end-to-end) before anyone merges it. Majors come one by one.
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      maven-minor-and-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      web-minor-and-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+    ignore:
+      # typescript-eslint and openapi-typescript do not support TypeScript 6 or 7 yet (D-075).
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+      # Pinned to the Playwright preinstalled in the Claude build container, so local runs need no
+      # browser download; update it by hand together with that.
+      - dependency-name: '@playwright/test'
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: monthly

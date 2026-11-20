@@ -2,6 +2,7 @@ package io.github.hanumanthraghavendra.schemaguard.engine.parser;
 
 import io.github.hanumanthraghavendra.schemaguard.engine.lexer.Token;
 import io.github.hanumanthraghavendra.schemaguard.engine.lexer.TokenType;
+import io.github.hanumanthraghavendra.schemaguard.engine.model.Identifiers;
 import io.github.hanumanthraghavendra.schemaguard.engine.source.SourceSpan;
 import java.util.ArrayList;
 import java.util.List;
@@ -115,6 +116,21 @@ final class TokenCursor {
         }
         index++;
         return token.value();
+    }
+
+    /**
+     * Consumes a name in a place where PostgreSQL's grammar takes a {@code ColId}: quoted, or unquoted
+     * and not a reserved keyword. {@code CONSTRAINT both CHECK (...)} is a syntax error in PostgreSQL.
+     */
+    String name(String description) {
+        Token token = peek();
+        if (token.type() == TokenType.WORD && Identifiers.isReserved(token.value())) {
+            throw ParseError.syntax(
+                    "Expected " + description + " but found the reserved word '" + token.value()
+                            + "' (write \"" + token.value() + "\" to use it as a name)",
+                    token);
+        }
+        return identifier(description);
     }
 
     /** Consumes {@code ( ... )} and returns the tokens between the matching parentheses. */

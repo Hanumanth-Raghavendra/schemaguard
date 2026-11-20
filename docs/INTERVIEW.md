@@ -537,3 +537,22 @@ site, plus the Vercel deploy of the web app.
   the site.
 - *Why can preview deployments not call the API?* CORS allows only the production origin, so a
   preview cannot write to the shared database (D-084).
+
+## Audit 2 (after Phase 6)
+
+**What changed.** A self-review of everything live, with fixes: an error boundary around lazily
+loaded parts, a Content-Security-Policy, asset caching, a parser fix matching PostgreSQL on
+reserved constraint names, release versioning and a changelog.
+
+**Likely questions**
+
+- *What is the worst bug the audit found?* If the 2.7 MB editor chunk failed to download, React
+  unmounted the whole app: a blank page. An error boundary now swaps in the plain text editor.
+  No test caught it because tests never fail a download; a unit test now does exactly that.
+- *How did you choose the CSP without breaking the site?* Listed what the built app loads (own
+  scripts and a worker file, inline styles from Monaco, fonts, calls to the API), wrote the
+  policy, then ran the full browser test under it locally with the same headers Vercel sends.
+  The test fails on any "Refused to" console error and checks the editor really loaded (D-086).
+- *Why not add rate limiting now?* Limiting per IP behind Render's proxy depends on which
+  `X-Forwarded-For` entry the proxy guarantees; guessing wrong makes the limit spoofable or
+  throttles everyone as one client. It is planned for hardening, with a measured answer.

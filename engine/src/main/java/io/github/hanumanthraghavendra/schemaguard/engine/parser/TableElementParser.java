@@ -248,7 +248,7 @@ final class TableElementParser extends ParserBase {
 
     private Optional<String> optionalConstraintName() {
         return cursor.acceptWord("constraint")
-                ? Optional.of(cursor.identifier("a constraint name"))
+                ? Optional.of(cursor.name("a constraint name"))
                 : Optional.empty();
     }
 

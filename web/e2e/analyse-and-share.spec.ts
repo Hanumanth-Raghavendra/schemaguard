@@ -3,7 +3,15 @@ import { expect, test } from '@playwright/test';
 // The whole promise of the site against a real API and database: paste (here, one click on an
 // example), analyse, look at every view, share, open the link elsewhere, delete it.
 test('analyse an example, share it, open the link and delete it', async ({ page, context }) => {
+  // The site's Content-Security-Policy must not block anything the app needs.
+  const blocked: string[] = [];
+  context.on('console', (message) => {
+    if (message.type() === 'error' && /Content Security Policy|Refused to/i.test(message.text())) blocked.push(message.text());
+  });
+
   await page.goto('/');
+  // The code editor (a separate download) really loaded, not just its plain fallback.
+  await expect(page.locator('.monaco-editor').first()).toBeVisible();
   await page.getByRole('button', { name: /^A typical release/ }).click();
 
   const risk = page.getByRole('region', { name: 'Overall risk' });
@@ -36,4 +44,5 @@ test('analyse an example, share it, open the link and delete it', async ({ page,
 
   await shared.reload();
   await expect(shared.getByRole('alert')).toHaveText('This link has expired or was deleted.');
+  expect(blocked).toEqual([]);
 });

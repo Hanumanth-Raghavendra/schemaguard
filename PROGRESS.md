@@ -5,8 +5,8 @@
 - **Current phase:** 6 (web UI) is live at https://schemaguard-nu.vercel.app; only the `v0.5.0` tag is left (owner, step A). Phase 7 next. Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
 - **Last updated:** 2026-11-20 (Phase 6 live)
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
-- **State:** build green; engine 1,708 tests (276 plans run on a real PostgreSQL 16 in CI), API 49 tests (permalinks tested on real PostgreSQL); web 50 tests (Vitest); line coverage engine 99.3% (gate 85%), API 96.0% (gate 80%); CI builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
-- **Size:** 332 files in 63 folders; 15,041 lines of main Java, 7,996 lines of test Java, 3,458 lines of TypeScript (plus 1,118 generated) (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
+- **State:** build green; engine 1,714 tests (276 plans run on a real PostgreSQL 16 in CI), API 49 tests (permalinks tested on real PostgreSQL); web 51 tests (Vitest) and 1 end-to-end test (Playwright); line coverage engine 99.3% (gate 85%), API 96.0% (gate 80%); CI builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
+- **Size:** 337 files in 64 folders; 15,057 lines of main Java, 8,010 lines of test Java, 3,535 lines of TypeScript (plus 1,118 generated) (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
 
 ## Next step
 
@@ -37,7 +37,12 @@ both refuse), so the owner tags, in a terminal in the repository folder:
 `git pull`, then `git tag -a v0.5.0 -m "SchemaGuard 0.5.0"`, then `git push origin v0.5.0`
 (or GitHub > Releases > Draft a new release > choose a tag: `v0.5.0`, target `main` > Publish).
 
-**B. Phase 7: accounts, projects, history, trends, API keys.** Blueprint tier 3: sign-up and login
+**B. Phase 7: accounts, projects, history, trends, API keys.** First commit of Phase 7, after the tag:
+set the version to `0.6.0-SNAPSHOT` in `pom.xml`, `engine/pom.xml` and `api/pom.xml`, and in
+`web/` run `npm version 0.6.0-SNAPSHOT --no-git-tag-version`, so builds after the tag are not
+mistaken for 0.5.0 (D-087).
+
+**Phase 7 scope.** Blueprint tier 3: sign-up and login
 with JWT access and refresh tokens; projects with schema versions on a timeline, a risk trend chart
 and saved reports; per-user API keys for the CLI and CI. Done when a user can save schema versions
 and see the risk trend. Decide first, and record in DECISIONS:
@@ -92,6 +97,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 - [x] **6.2** Share and export. "Share" saves the report (compare) or the lint (migration) through `/api/v1/analyses/{kind}` and shows a link `/a/{id}` with its expiry; the delete key is kept in localStorage and expired keys are dropped. `/a/{id}` (react-router 8.5.1) shows the saved result and inputs, "Open in the editor" (loads the inputs and runs the full analysis), downloads, and "Delete link" with an inline confirmation for the sharer; expired, deleted, wrong-key and switched-off cases have plain messages. Downloads: Markdown built in the browser (score, reasons, risks worst first with why and instead, changes, plan SQL; or statement by statement) and JSON (inputs with every response). "Check this plan as a migration" lints the generated plan; the Risks tab points to it once a rename is confirmed. `web/vercel.json` sends every path to `index.html`. 17 new tests on recorded save/open/delete answers; checked in Chromium against a local API with PostgreSQL (2026-11-19)
 - [x] **6.3** Example gallery and ER diagram. Engine `diagram.ErModel` merges both catalogs into one model and marks every table, column and foreign key added, removed, changed or unchanged from the diff's significant changes (5 tests); `POST /api/v1/model` serves it (status values are enums in the contract, so TypeScript gets a union). The Diagram tab lays tables out left to right with dagre 3.1.3 (referenced tables first) and draws them in SVG: change colours plus words (new, dropped, changed, +, −, ~, old → new type), a curve from each foreign key's column to the referenced column, drag to pan, Ctrl+wheel, buttons or keys to zoom, a fitted view per analysis; the chunk (19 kB gzipped) loads on first open. The gallery (7 scenarios: a typical release, required column, foreign key, int to bigint, rename, index, split a table; each checked against the API) fills both editors and runs the analysis in one click. Fixed duplicate React keys when the same reason or caution appears twice. Live smoke test now checks `/api/v1/model` (2026-11-20)
 - [x] **6.4** End to end and deploy. One Playwright 1.63.0 test (example, risks, changes, diagram, plan with a confirmed rename, share, open in a new page, delete, link gone) runs in the CI job "End to end" against the API jar with PostgreSQL and `vite preview`, and against the live site in the live smoke test's new "browser" job (`E2E_BASE_URL`). Vercel project `schemaguard` (team "blindcoder", root `web/`, production branch `main`) serves https://schemaguard-nu.vercel.app; `web/vercel.json` pins Vite, `npm ci`, `npm run build`, `dist` and the SPA rewrite. `render.yaml` allows that origin plus `http://localhost:5173`; the Blueprint sync redeployed the API. `live-smoke.yml` has inputs `origin` and `web` and fails when the origin is not allowed. First full live run green (2026-11-20)
+- [x] **Audit 2** (2026-11-20). Fixed: a failed download of the editor or diagram chunk blanked the whole page (no error boundary); now the plain editor or a message takes its place. Added a Content-Security-Policy and other security headers on Vercel, tested under the policy with the end-to-end test (which now fails on any CSP block and checks Monaco really loaded), and year-long caching for hashed assets. The parser no longer accepts an unquoted reserved word as a constraint name, matching PostgreSQL 16 (checked with psql). Version 0.5.0 everywhere before the tag, `CHANGELOG.md`, social preview tags and image for shared links, clearer page title, monthly grouped Dependabot updates. Stale known issues removed (licence, reserved names)
 
 ## Phases
 
@@ -135,13 +141,11 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 
 ## Known issues and open questions
 
-- License not chosen yet (see D-007).
 - **Planner:** the oracle compares schemas on empty tables; it does not yet prove that rows
   survive (renames, the safe NOT NULL route). Not planned: enum value removal or reorder,
   partitioning changes, a new generation expression, temporary tables. A rename candidate
   needs an identical column definition, so "renamed and made NOT NULL" cannot be confirmed.
   An identity column's hidden sequence is not modelled.
-- The parser accepts a reserved word as a constraint name (`CONSTRAINT both`); PostgreSQL does not.
 - **Web:** the risk report judges the schemas as written (`/api/v1/report` takes no renames), so
   a confirmed rename still shows "Column is dropped" under Risks. The page says so and offers
   "Check the plan as a migration", which lints the generated plan and shows its real risks
@@ -149,9 +153,11 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
   extension members (`code`, `diagnostics`) are typed by hand in `web/src/api/client.ts`.
 - **Web, shared links:** the delete key lives in the sharer's browser only (localStorage); a
   cleared browser cannot delete its links, which then expire after 30 days.
-- **API:** no rate limiting yet (one free instance); add per-IP limits before sharing the URL
-  widely, especially for saving (storage is capped at 200 MB in total, so abuse fills it and
-  saving answers 507 until analyses expire). No auth until Phase 7. The API's coverage gate
+- **API:** no rate limiting yet (one free instance). Per-IP limits need the real client address,
+  and which `X-Forwarded-For` entry Render's proxy guarantees is not verified yet; a limit keyed
+  on the wrong entry would either be spoofable or throttle every visitor as one. Settle that in
+  Phase 9 (hardening). Meanwhile saving is the abusable part: storage is capped at 200 MB in
+  total, so abuse fills it and saving answers 507 until analyses expire. No auth until Phase 7. The API's coverage gate
   counts the permalink tests, which need `SG_PG_ORACLE=1` and a PostgreSQL server; without
   them `verify` on `api` can fall under 80%. The Docker image is verified in CI only (no Docker on the
   development machine).

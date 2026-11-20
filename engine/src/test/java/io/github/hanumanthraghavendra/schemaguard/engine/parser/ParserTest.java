@@ -344,6 +344,15 @@ class ParserTest {
     @Nested
     class TableConstraints {
 
+        @Test
+        void aReservedWordNamesAConstraintOnlyWhenQuoted() {
+            // PostgreSQL 16: CONSTRAINT both is a syntax error, CONSTRAINT "both" and CONSTRAINT name are fine.
+            assertThat(constraint(table("CREATE TABLE t (a int CONSTRAINT \"both\" CHECK (a > 0))"), Check.class).name())
+                    .contains("both");
+            assertThat(constraint(table("CREATE TABLE t (a int, CONSTRAINT name CHECK (a > 0))"), Check.class).name())
+                    .contains("name");
+        }
+
         private final Table items =
                 table(
                         """
@@ -673,6 +682,8 @@ class ParserTest {
                         CREATE TABLE t (a int, PRIMARY KEY (b))                         | Column "b" named in a constraint does not exist
                         CREATE TABLE t (a int, NOT NULL b)                              | Column "b" named in a constraint does not exist
                         CREATE TABLE t (a int DEFAULT)                                  | Expected an expression after DEFAULT but found ')'
+                        CREATE TABLE t (a int CONSTRAINT both CHECK (a > 0))            | Expected a constraint name but found the reserved word 'both' (write "both" to use it as a name)
+                        CREATE TABLE t (a int, CONSTRAINT primary PRIMARY KEY (a))      | Expected a constraint name but found the reserved word 'primary' (write "primary" to use it as a name)
                         CREATE TABLE t (a int CHECK ())                                 | Expected an expression inside the parentheses
                         CREATE TABLE t (a int CONSTRAINT c)                             | Expected a constraint definition but found ')'
                         CREATE TABLE t (a int, CONSTRAINT c)                            | Expected a constraint definition but found ')'

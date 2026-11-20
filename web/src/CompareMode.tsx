@@ -17,6 +17,7 @@ import {
 import { ChangeList } from './components/ChangeList.tsx';
 import { FindingList } from './components/FindingList.tsx';
 import { Gallery } from './components/Gallery.tsx';
+import { LoadBoundary } from './components/LoadBoundary.tsx';
 import { ErrorNotice, SkippedNotice, WakingNotice } from './components/Notices.tsx';
 import { PlanView } from './components/PlanView.tsx';
 import { ResultActions } from './components/ResultActions.tsx';
@@ -218,9 +219,18 @@ export function CompareMode({ preset }: { preset: { before: string; after: strin
                 id: 'diagram',
                 label: 'Diagram',
                 content: (
-                  <Suspense fallback={<p className="text-sm text-muted">Drawing the diagram…</p>}>
-                    <ErDiagram model={results.model} />
-                  </Suspense>
+                  <LoadBoundary
+                    fallback={
+                      <p role="alert" className="text-sm text-critical">
+                        The diagram could not be loaded. Reload the page to try again; the Changes tab lists every
+                        change.
+                      </p>
+                    }
+                  >
+                    <Suspense fallback={<p className="text-sm text-muted">Drawing the diagram…</p>}>
+                      <ErDiagram model={results.model} />
+                    </Suspense>
+                  </LoadBoundary>
                 ),
               },
               {
