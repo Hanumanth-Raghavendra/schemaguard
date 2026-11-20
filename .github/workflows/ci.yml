@@ -101,3 +101,65 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  e2e:
+    name: End to end
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Build the API
+        run: ./mvnw -B -ntp -DskipTests -pl api -am package
+      - name: Start the API with saving on
+        env:
+          SCHEMAGUARD_PERSISTENCE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          SCHEMAGUARD_CORS_ALLOWED_ORIGINS: http://localhost:4173
+        run: |
+          nohup java -jar "$(ls api/target/schemaguard-api-*.jar)" > api.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:8080/actuator/health/readiness && exit 0
+            sleep 2
+          done
+          cat api.log
+          exit 1
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        working-directory: web
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Build the web app against the local API
+        working-directory: web
+        env:
+          VITE_API_URL: http://localhost:8080
+        run: npm run build
+      - name: Analyse, share, open and delete in Chromium
+        working-directory: web
+        run: npm run test:e2e
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-report
+          path: |
+            web/playwright-report
+            web/test-results
+            api.log
+          retention-days: 7

@@ -1,7 +1,8 @@
 name: Live smoke test
 
 # Calls a deployed SchemaGuard API the way a client would. Run it by hand after a deploy:
-#   gh workflow run live-smoke.yml -f url=https://schemaguard-api-c00y.onrender.com -f persistence=required
+#   gh workflow run live-smoke.yml -f url=https://schemaguard-api-c00y.onrender.com -f persistence=required \
+#     -f origin=https://<the Vercel address>
 on:
   workflow_dispatch:
     inputs:
@@ -15,6 +16,10 @@ on:
         default: required
         type: choice
         options: [optional, required]
+      origin:
+        description: A web origin the API must allow (CORS), for example the Vercel address
+        required: true
+        default: http://localhost:5173
 
 permissions:
   contents: read
@@ -27,6 +32,7 @@ jobs:
     env:
       URL: ${{ inputs.url }}
       PERSISTENCE: ${{ inputs.persistence }}
+      ORIGIN: ${{ inputs.origin }}
     steps:
       - name: Wake the service
         run: |
@@ -81,6 +87,7 @@ jobs:
 
       - name: CORS
         run: |
-          ORIGINS=$(curl -s -o /dev/null -D - -X OPTIONS "$URL/api/v1/diff" -H 'Origin: http://localhost:5173' \
+          ORIGINS=$(curl -s -o /dev/null -D - -X OPTIONS "$URL/api/v1/diff" -H "Origin: $ORIGIN" \
             -H 'Access-Control-Request-Method: POST' | grep -i '^access-control-allow-origin' || true)
-          echo "CORS for http://localhost:5173: ${ORIGINS:-not allowed}" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "CORS for $ORIGIN: ${ORIGINS:-not allowed}" | tee -a "$GITHUB_STEP_SUMMARY"
+          test -n "$ORIGINS" || { echo "::error::The API does not allow $ORIGIN (SCHEMAGUARD_CORS_ALLOWED_ORIGINS in render.yaml)"; exit 1; }
