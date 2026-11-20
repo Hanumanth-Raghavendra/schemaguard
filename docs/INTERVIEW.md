@@ -517,3 +517,23 @@ that draws both schemas as one ER diagram with every table, column and foreign k
 - *A bug you found by looking?* A real browser showed React's duplicate-key warning when one rule
   gave the same reason twice (three dropped columns). Keys now include the position. Also, a
   second analysis kept the first diagram's zoom; state now resets when the model changes.
+
+## Phase 6.4: end to end and deploy
+
+**What it is.** One browser test that runs the site as a person would, in CI and against the live
+site, plus the Vercel deploy of the web app.
+
+**Likely questions**
+
+- *Why only one end-to-end test?* Unit and component tests cover the logic (50 in the web app, 1,708
+  in the engine). The browser test checks what they cannot: the built bundle, real HTTP, CORS, the
+  database, and a link opened in a fresh page. One flow that touches all of it is enough, and it
+  stays fast and stable (D-085).
+- *How do you know production works after a deploy?* The live smoke workflow calls every endpoint,
+  then runs the same browser test against https://schemaguard-nu.vercel.app. It deletes the link it
+  creates, so it leaves nothing behind.
+- *What broke on the way?* A strict locator matched a hidden copy of a change line in another tab;
+  scoping it to the visible panel fixed it. And the first live run raced the workflow queue, not
+  the site.
+- *Why can preview deployments not call the API?* CORS allows only the production origin, so a
+  preview cannot write to the shared database (D-084).
