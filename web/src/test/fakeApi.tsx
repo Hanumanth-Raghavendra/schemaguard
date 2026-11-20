@@ -1,12 +1,13 @@
 import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { vi } from 'vitest';
-import type { DiffResponse, LintResponse, PlanResponse, ReportResponse } from '../api/client.ts';
+import type { DiffResponse, LintResponse, ModelResponse, PlanResponse, ReportResponse } from '../api/client.ts';
 import { App } from '../App.tsx';
 import diff from './fixtures/diff.json';
 import gone from './fixtures/gone.json';
 import invalid from './fixtures/invalid.json';
 import lint from './fixtures/lint.json';
+import model from './fixtures/model.json';
 import plan from './fixtures/plan.json';
 import planDirect from './fixtures/planDirect.json';
 import planRenamed from './fixtures/planRenamed.json';
@@ -23,6 +24,7 @@ export const fixtures = {
   gone,
   invalid,
   lint: lint as LintResponse,
+  model: model as ModelResponse,
   plan: plan as PlanResponse,
   planDirect: planDirect as PlanResponse,
   planRenamed: planRenamed as PlanResponse,
@@ -90,6 +92,8 @@ export function fakeApi(options: { invalidSchema?: boolean; sharingOff?: boolean
           return json(200, (request.renames ?? []).length > 0 ? planRenamed : plan);
         case '/api/v1/lint':
           return json(200, lint);
+        case '/api/v1/model':
+          return json(200, model);
         default:
           return json(404, { title: 'Not found' });
       }

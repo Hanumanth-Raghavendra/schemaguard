@@ -1,0 +1,115 @@
+{
+  "tables": [
+    {
+      "name": {
+        "schema": "public",
+        "name": "customers"
+      },
+      "status": "CHANGED",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "notNull": true,
+          "primaryKey": true,
+          "status": "UNCHANGED",
+          "previousType": null
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "notNull": true,
+          "primaryKey": false,
+          "status": "UNCHANGED",
+          "previousType": null
+        },
+        {
+          "name": "full_name",
+          "type": "text",
+          "notNull": false,
+          "primaryKey": false,
+          "status": "ADDED",
+          "previousType": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primaryKey": false,
+          "status": "ADDED",
+          "previousType": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "notNull": false,
+          "primaryKey": false,
+          "status": "REMOVED",
+          "previousType": null
+        }
+      ]
+    },
+    {
+      "name": {
+        "schema": "public",
+        "name": "orders"
+      },
+      "status": "CHANGED",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "primaryKey": true,
+          "status": "CHANGED",
+          "previousType": "integer"
+        },
+        {
+          "name": "customer_id",
+          "type": "integer",
+          "notNull": true,
+          "primaryKey": false,
+          "status": "UNCHANGED",
+          "previousType": null
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "notNull": true,
+          "primaryKey": false,
+          "status": "UNCHANGED",
+          "previousType": null
+        },
+        {
+          "name": "total",
+          "type": "numeric(12,2)",
+          "notNull": false,
+          "primaryKey": false,
+          "status": "CHANGED",
+          "previousType": "numeric(10,2)"
+        }
+      ]
+    }
+  ],
+  "references": [
+    {
+      "name": "orders_customer_id_fkey",
+      "from": {
+        "schema": "public",
+        "name": "orders"
+      },
+      "columns": [
+        "customer_id"
+      ],
+      "to": {
+        "schema": "public",
+        "name": "customers"
+      },
+      "referencedColumns": [
+        "id"
+      ],
+      "status": "ADDED"
+    }
+  ],
+  "warnings": []
+}

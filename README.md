@@ -100,6 +100,7 @@ curl -X POST http://localhost:8080/api/v1/report -H 'Content-Type: application/j
 | --- | --- |
 | `POST /api/v1/diff` | Every difference between two schemas, with rename candidates |
 | `POST /api/v1/report` | Risk of each change on the direct route, scored 0 to 100 |
+| `POST /api/v1/model` | Both schemas as one ER model, each table, column and foreign key marked added, removed, changed or unchanged |
 | `POST /api/v1/plan` | The migration, direct or safe route, with confirmed renames |
 | `POST /api/v1/lint` | A hand-written migration, judged statement by statement |
 | `GET /api/v1/rules` | Every rule, why it matters and the safer alternative |

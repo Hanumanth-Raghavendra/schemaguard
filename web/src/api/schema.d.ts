@@ -124,6 +124,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Both schemas as one entity-relationship model, each table, column and foreign key marked as added, removed, changed or unchanged */
+        post: operations["model"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/plan": {
         parameters: {
             query?: never;
@@ -315,6 +332,51 @@ export interface components {
             /** @description ANALYSED, NOT_SCHEMA, NOT_ANALYSED or WOULD_FAIL */
             status: string;
             table: components["schemas"]["NameDto"] | null;
+        };
+        /** @description A column of the merged model */
+        ModelColumn: {
+            name: string;
+            notNull: boolean;
+            /**
+             * @description The old type, when the type changed
+             * @example integer
+             */
+            previousType: string | null;
+            primaryKey: boolean;
+            /** @enum {string} */
+            status: "ADDED" | "REMOVED" | "CHANGED" | "UNCHANGED";
+            /**
+             * @description Type as SQL, from the new schema unless the column was removed
+             * @example bigint
+             */
+            type: string;
+        };
+        /** @description A foreign key of either schema */
+        ModelReference: {
+            columns: string[];
+            /** @description The table that holds the key */
+            from: components["schemas"]["NameDto"];
+            /** @description Constraint name, or null */
+            name: string | null;
+            referencedColumns: string[];
+            /** @enum {string} */
+            status: "ADDED" | "REMOVED" | "CHANGED" | "UNCHANGED";
+            /** @description The referenced table */
+            to: components["schemas"]["NameDto"];
+        };
+        ModelResponse: {
+            references: components["schemas"]["ModelReference"][];
+            /** @description Every table of either schema, sorted by name */
+            tables: components["schemas"]["ModelTable"][];
+            warnings: components["schemas"]["Diagnostic"][];
+        };
+        /** @description A table of either schema */
+        ModelTable: {
+            /** @description The new schema's columns in their order, then the removed ones */
+            columns: components["schemas"]["ModelColumn"][];
+            name: components["schemas"]["NameDto"];
+            /** @enum {string} */
+            status: "ADDED" | "REMOVED" | "CHANGED" | "UNCHANGED";
         };
         /** @description A schema-qualified name of a table or type */
         NameDto: {
@@ -822,6 +884,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LintResponse"];
+                };
+            };
+            /** @description The body is not valid JSON or a required field is missing */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description An input is larger than the service accepts */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description A schema does not parse, or PostgreSQL would refuse it; see diagnostics */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    model: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompareRequest"];
+            };
+        };
+        responses: {
+            /** @description The result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelResponse"];
                 };
             };
             /** @description The body is not valid JSON or a required field is missing */

@@ -136,8 +136,8 @@ export function PlanView({ plan, route, onRouteChange, candidates, confirmed, on
                   {!step.transactional && <span className="text-sm text-medium">Runs outside a transaction</span>}
                 </div>
                 {step.note !== '' && <p className="text-sm text-muted">{step.note}</p>}
-                {step.cautions.map((caution) => (
-                  <p key={caution} className="border-l-2 border-medium pl-2 text-sm">
+                {step.cautions.map((caution, n) => (
+                  <p key={`${n}-${caution}`} className="border-l-2 border-medium pl-2 text-sm">
                     {caution}
                   </p>
                 ))}
@@ -151,8 +151,8 @@ export function PlanView({ plan, route, onRouteChange, candidates, confirmed, on
         <section className="space-y-2">
           <h3 className="text-sm font-semibold">Not in the plan</h3>
           <ul className="space-y-1 text-sm">
-            {plan.unplanned.map((item) => (
-              <li key={item.change}>
+            {plan.unplanned.map((item, n) => (
+              <li key={`${n}-${item.change}`}>
                 <code className="font-mono">{item.change}</code>
                 <span className="text-muted">: {item.reason}</span>
               </li>

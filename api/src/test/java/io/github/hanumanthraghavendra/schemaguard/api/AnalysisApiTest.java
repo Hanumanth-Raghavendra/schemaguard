@@ -95,6 +95,43 @@ class AnalysisApiTest {
         assertThat(reply.body().get("text").asString()).isEmpty();
     }
 
+    // ---------------------------------------------------------------- model
+
+    @Test
+    void modelMarksWhatChangedInEachTableColumnAndForeignKey() {
+        Reply reply = post("/api/v1/model", compare(BEFORE, AFTER));
+        assertThat(reply.status()).isEqualTo(200);
+        JsonNode tables = reply.body().get("tables");
+        assertThat(tables.size()).isEqualTo(2);
+        JsonNode posts = tables.get(0);
+        assertThat(posts.get("name").get("name").asString()).isEqualTo("posts");
+        assertThat(posts.get("status").asString()).isEqualTo("CHANGED");
+        JsonNode users = tables.get(1);
+        assertThat(users.get("status").asString()).isEqualTo("CHANGED");
+        StringBuilder columns = new StringBuilder();
+        for (JsonNode column : users.get("columns")) {
+            columns.append(column.get("name").asString()).append('=').append(column.get("status").asString()).append(' ');
+        }
+        assertThat(columns.toString().trim())
+                .isEqualTo("id=UNCHANGED full_name=ADDED email=CHANGED display_name=REMOVED");
+        assertThat(users.get("columns").get(0).get("primaryKey").asBoolean()).isTrue();
+        assertThat(users.get("columns").get(0).get("previousType").isNull()).isTrue();
+
+        JsonNode reference = reply.body().get("references").get(0);
+        assertThat(reference.get("from").get("name").asString()).isEqualTo("posts");
+        assertThat(reference.get("to").get("name").asString()).isEqualTo("users");
+        assertThat(reference.get("columns").get(0).asString()).isEqualTo("user_id");
+        assertThat(reference.get("status").asString()).isEqualTo("ADDED");
+        assertThat(reply.body().get("warnings").size()).isZero();
+    }
+
+    @Test
+    void modelRefusesASchemaItCannotRead() {
+        Reply reply = post("/api/v1/model", compare("CREATE TABLE t (id int;", AFTER));
+        assertThat(reply.status()).isEqualTo(422);
+        assertThat(reply.body().get("diagnostics").get(0).get("input").asString()).isEqualTo("before");
+    }
+
     // ---------------------------------------------------------------- report
 
     @Test

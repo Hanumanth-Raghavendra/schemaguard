@@ -2,11 +2,11 @@
 
 > **To resume:** read this file, then start at "Next step". Do not re-plan; the plan is fixed below.
 
-- **Current phase:** 6 (web UI): 6.1 and 6.2 done (editors, risks, changes, plan, migration check, share links, export), 6.3 next. Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
-- **Last updated:** 2026-11-19
+- **Current phase:** 6 (web UI): 6.1 to 6.3 done (editors, risks, changes, plan, migration check, share links, export, example gallery, ER diagram), 6.4 next. Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
+- **Last updated:** 2026-11-20
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
-- **State:** build green; engine 1,703 tests (276 plans run on a real PostgreSQL 16 in CI), API 47 tests (permalinks tested on real PostgreSQL); web 40 tests (Vitest); line coverage engine 99.3% (gate 85%), API 95.8% (gate 80%); CI builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
-- **Size:** 322 files in 59 folders; 14,721 lines of main Java, 7,797 lines of test Java, 2,671 lines of TypeScript (plus 1,005 generated) (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
+- **State:** build green; engine 1,708 tests (276 plans run on a real PostgreSQL 16 in CI), API 49 tests (permalinks tested on real PostgreSQL); web 50 tests (Vitest); line coverage engine 99.3% (gate 85%), API 96.0% (gate 80%); CI builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
+- **Size:** 330 files in 62 folders; 15,041 lines of main Java, 7,996 lines of test Java, 3,419 lines of TypeScript (plus 1,118 generated) (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
 
 ## Next step
 
@@ -26,17 +26,10 @@ nothing. Render reports each deploy to GitHub (repository > Deployments).
 **Phase 6: web UI (v0.5).** Requirements (Blueprint, tier 2 "Web app"): analyse without login
 in two code editors, visual diff, risk report, shareable permalink; interactive ER diagram with
 changed tables and columns highlighted; example gallery of real-world scenarios, so a recruiter
-sees results in one click; export of the report as Markdown or JSON. 6.1 and 6.2 are done (see Done). The
+sees results in one click; export of the report as Markdown or JSON. 6.1 to 6.3 are done (see Done). The
 app lives in `web/` (Vite 8, React 19, TypeScript 5.9, Tailwind 4, Monaco; see D-075).
 
-- **6.3, the next slice: example gallery and ER diagram.** Gallery: four to six real scenarios (add a column with
-  a default, add a foreign key, change a type, rename, add an index, split a table), each loading
-  both editors and running the analysis. ER diagram: needs a new endpoint (for example
-  `POST /api/v1/model` with `before`/`after`) that returns tables, columns, keys and foreign keys
-  with each table and column marked added, removed, changed or unchanged; draw it in SVG (check
-  npm for a layout library such as elkjs or dagre before writing one), pan and zoom, highlight
-  marks in the change colours.
-- **6.4: end to end and deploy.** One Playwright test against a locally started API (jar) and
+- **6.4, the next slice: end to end and deploy.** One Playwright test against a locally started API (jar) and
   `vite preview`, run in CI. Deploy to Vercel from `web/` (root directory `web`, build
   `npm run build`, output `dist`; a production build already calls the live API, see `API_URL` in
   `web/src/api/client.ts`). Then change
@@ -86,6 +79,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 - [x] **5.3** First deploy: Render (Docker, free, Singapore) from the Blueprint, Neon PostgreSQL for saved analyses. Manual workflow `live-smoke.yml` checks the deployed service end to end (health, OpenAPI, rules, diff, report, plan, lint, 422 on a bad schema, save/open/wrong token 403/delete 204/gone 404, CORS preflight); first run green. Render now deploys only after CI passes (the image build skips tests, so a red commit used to go live) and only for paths that go into the image (2026-11-18)
 - [x] **6.1** Web app in `web/`: two Monaco editors (bundled, loaded after the page; plain text area meanwhile), "Compare two schemas" (diff, report and plan in parallel; tabs Risks, Changes, Plan) and "Check a migration" (lint, statement by statement). Each lock is drawn on PostgreSQL's eight-step lock scale, coloured by what traffic does. Plan tab: Safe/Direct route and rename confirmation, which re-plan; copy script. API problems are listed with input, line and column and underlined in the editor; a notice explains the free host's cold start, which a ping on page load starts early. The OpenAPI document is now exact (every response field required, 13 nullable ones marked with jspecify `@Nullable`, rename subtypes a clean union) and copied to `web/openapi.json` by `OpenApiContractTest`; TypeScript types are generated from it and CI fails if either drifts. CI job "Web app": lint, type check, test, build. Tests use real API answers recorded from a local server (2026-11-18)
 - [x] **6.2** Share and export. "Share" saves the report (compare) or the lint (migration) through `/api/v1/analyses/{kind}` and shows a link `/a/{id}` with its expiry; the delete key is kept in localStorage and expired keys are dropped. `/a/{id}` (react-router 8.5.1) shows the saved result and inputs, "Open in the editor" (loads the inputs and runs the full analysis), downloads, and "Delete link" with an inline confirmation for the sharer; expired, deleted, wrong-key and switched-off cases have plain messages. Downloads: Markdown built in the browser (score, reasons, risks worst first with why and instead, changes, plan SQL; or statement by statement) and JSON (inputs with every response). "Check this plan as a migration" lints the generated plan; the Risks tab points to it once a rename is confirmed. `web/vercel.json` sends every path to `index.html`. 17 new tests on recorded save/open/delete answers; checked in Chromium against a local API with PostgreSQL (2026-11-19)
+- [x] **6.3** Example gallery and ER diagram. Engine `diagram.ErModel` merges both catalogs into one model and marks every table, column and foreign key added, removed, changed or unchanged from the diff's significant changes (5 tests); `POST /api/v1/model` serves it (status values are enums in the contract, so TypeScript gets a union). The Diagram tab lays tables out left to right with dagre 3.1.3 (referenced tables first) and draws them in SVG: change colours plus words (new, dropped, changed, +, −, ~, old → new type), a curve from each foreign key's column to the referenced column, drag to pan, Ctrl+wheel, buttons or keys to zoom, a fitted view per analysis; the chunk (19 kB gzipped) loads on first open. The gallery (7 scenarios: a typical release, required column, foreign key, int to bigint, rename, index, split a table; each checked against the API) fills both editors and runs the analysis in one click. Fixed duplicate React keys when the same reason or caution appears twice. Live smoke test now checks `/api/v1/model` (2026-11-20)
 
 ## Phases
 
@@ -97,7 +91,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 | 3 | Rules engine, lock knowledge base, scoring | Done (2026-11-14) |
 | 4 | Migration planner, SQL generation, real-database oracle tests, script linter | Done (2026-11-15) |
 | 5 | REST API (Spring Boot), persistence, permalinks, first deploy (v0.1) | Done (2026-11-18); live |
-| 6 | Web UI: editors, diff, report, ER diagram, example gallery (v0.5) | In progress (6.1, 6.2 done) |
+| 6 | Web UI: editors, diff, report, ER diagram, example gallery (v0.5) | In progress (6.1 to 6.3 done) |
 | 7 | Auth, projects, history, trends, API keys | Not started |
 | 8 | CLI, GitHub Action, dogfooding | Not started |
 | 9 | Hardening and launch (v1.0) | Not started |

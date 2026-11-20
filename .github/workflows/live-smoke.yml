@@ -40,7 +40,7 @@ jobs:
       - name: Health, docs and rules
         run: |
           curl -fs "$URL/actuator/health" | jq -e '.status == "UP"'
-          curl -fs "$URL/v3/api-docs" | jq -e '.paths | has("/api/v1/report") and has("/api/v1/analyses/{id}")'
+          curl -fs "$URL/v3/api-docs" | jq -e '.paths | has("/api/v1/report") and has("/api/v1/model") and has("/api/v1/analyses/{id}")'
           test "$(curl -s -o /dev/null -w '%{http_code}' "$URL/swagger-ui/index.html")" = 200
           test "$(curl -fs "$URL/api/v1/rules" | jq length)" -ge 40
           curl -fs "$URL/actuator/info" | jq -r '"Running build " + .build.version + " from " + .build.time' | tee -a "$GITHUB_STEP_SUMMARY"
@@ -56,6 +56,7 @@ jobs:
           test "$(post /api/v1/report "$COMPARE")" = 200 && jq -e '[.findings[].ruleId] | index("SG-R101") and index("SG-R106")' body.json
           echo "Report: $(jq -r '.score.value|tostring + "/100 " ' body.json)$(jq -r .score.level body.json)" | tee -a "$GITHUB_STEP_SUMMARY"
           test "$(post /api/v1/plan "$COMPARE")" = 200 && jq -e '.sql | contains("CREATE INDEX CONCURRENTLY")' body.json
+          test "$(post /api/v1/model "$COMPARE")" = 200 && jq -e '.tables[0].status == "CHANGED" and ([.tables[0].columns[] | select(.name == "email")][0].status == "CHANGED")' body.json
           LINT=$(jq -n --arg s "$BEFORE" '{schema: $s, migration: "CREATE INDEX CONCURRENTLY i ON users (email);"}')
           test "$(post /api/v1/lint "$LINT")" = 200 && jq -e '.statements[0].findings | length == 0' body.json
           test "$(post /api/v1/report '{"before":"CREATE TABLE (;","after":""}')" = 422 && jq -e '.code == "SG-API-422"' body.json

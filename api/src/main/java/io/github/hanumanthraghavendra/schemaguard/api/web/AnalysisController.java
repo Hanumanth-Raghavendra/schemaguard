@@ -44,6 +44,12 @@ public class AnalysisController {
         return service.diff(request);
     }
 
+    @PostMapping(path = "/model", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Both schemas as one entity-relationship model, each table, column and foreign key marked as added, removed, changed or unchanged")
+    public Responses.Model model(@Valid @RequestBody Requests.Compare request) {
+        return service.model(request);
+    }
+
     @PostMapping(path = "/report", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "What each change would lock or break if applied the direct way, scored from 0 to 100")
     public Responses.Report report(@Valid @RequestBody Requests.Compare request) {

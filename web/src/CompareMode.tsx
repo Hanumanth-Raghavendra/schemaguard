@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   ApiError,
   diff,
+  model,
   plan,
   report,
   saveReport,
   type DiffResponse,
+  type ModelResponse,
   type PlanResponse,
   type RenameDto,
   type ReportResponse,
@@ -14,17 +16,20 @@ import {
 } from './api/client.ts';
 import { ChangeList } from './components/ChangeList.tsx';
 import { FindingList } from './components/FindingList.tsx';
+import { Gallery } from './components/Gallery.tsx';
 import { ErrorNotice, SkippedNotice, WakingNotice } from './components/Notices.tsx';
 import { PlanView } from './components/PlanView.tsx';
 import { ResultActions } from './components/ResultActions.tsx';
 import { RiskSummary } from './components/RiskSummary.tsx';
 import { SqlEditor } from './components/SqlEditor.tsx';
 import { Tabs } from './components/Tabs.tsx';
-import { EXAMPLE_AFTER, EXAMPLE_BEFORE } from './examples.ts';
 import { compareMarkdown, downloadJson, downloadMarkdown } from './export.ts';
 import type { Preset } from './presets.ts';
 import { renameKey } from './renames.ts';
 import { useSlow } from './useSlow.ts';
+
+// The diagram and its layout library load when the Diagram tab first opens.
+const ErDiagram = lazy(() => import('./components/ErDiagram.tsx'));
 
 interface Results {
   before: string;
@@ -32,6 +37,7 @@ interface Results {
   diff: DiffResponse;
   report: ReportResponse;
   plan: PlanResponse;
+  model: ModelResponse;
 }
 
 function toError(cause: unknown): ApiError {
@@ -59,12 +65,13 @@ export function CompareMode({ preset }: { preset: { before: string; after: strin
     setError(null);
     setRenames([]);
     try {
-      const [diffResult, reportResult, planResult] = await Promise.all([
+      const [diffResult, reportResult, planResult, modelResult] = await Promise.all([
         diff(before, after),
         report(before, after),
         plan({ before, after, route, renames: [] }),
+        model(before, after),
       ]);
-      setResults({ before, after, diff: diffResult, report: reportResult, plan: planResult });
+      setResults({ before, after, diff: diffResult, report: reportResult, plan: planResult, model: modelResult });
     } catch (cause) {
       setResults(null);
       setError(toError(cause));
@@ -127,6 +134,14 @@ export function CompareMode({ preset }: { preset: { before: string; after: strin
           void analyse(before, after);
         }}
       >
+        <Gallery
+          disabled={running}
+          onPick={(example) => {
+            setBefore(example.before);
+            setAfter(example.after);
+            void analyse(example.before, example.after);
+          }}
+        />
         <div className="grid gap-4 md:grid-cols-2">
           <SqlEditor
             label="Current schema"
@@ -150,16 +165,6 @@ export function CompareMode({ preset }: { preset: { before: string; after: strin
             className="rounded-md bg-elephant px-4 py-2 font-semibold text-paper hover:opacity-90 disabled:opacity-50"
           >
             {running ? 'Analysing…' : 'Analyse changes'}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setBefore(EXAMPLE_BEFORE);
-              setAfter(EXAMPLE_AFTER);
-            }}
-            className="rounded-md px-3 py-2 text-sm font-medium text-elephant hover:underline"
-          >
-            Load an example
           </button>
           {slow && <WakingNotice />}
         </div>
@@ -208,6 +213,15 @@ export function CompareMode({ preset }: { preset: { before: string; after: strin
                 id: 'changes',
                 label: `Changes (${results.diff.significant})`,
                 content: <ChangeList changes={results.diff.changes} />,
+              },
+              {
+                id: 'diagram',
+                label: 'Diagram',
+                content: (
+                  <Suspense fallback={<p className="text-sm text-muted">Drawing the diagram…</p>}>
+                    <ErDiagram model={results.model} />
+                  </Suspense>
+                ),
               },
               {
                 id: 'plan',

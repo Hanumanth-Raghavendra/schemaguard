@@ -110,6 +110,37 @@ public final class Responses {
             @Schema(description = "Warnings about the schema") List<Diagnostic> warnings,
             String text) {}
 
+    @Schema(name = "ModelColumn", description = "A column of the merged model")
+    public record ModelColumn(
+            String name,
+            @Schema(description = "Type as SQL, from the new schema unless the column was removed", example = "bigint")
+                    String type,
+            boolean notNull,
+            boolean primaryKey,
+            @Schema(allowableValues = {"ADDED", "REMOVED", "CHANGED", "UNCHANGED"}) String status,
+            @Schema(description = "The old type, when the type changed", example = "integer") @Nullable String previousType) {}
+
+    @Schema(name = "ModelTable", description = "A table of either schema")
+    public record ModelTable(
+            NameDto name,
+            @Schema(allowableValues = {"ADDED", "REMOVED", "CHANGED", "UNCHANGED"}) String status,
+            @Schema(description = "The new schema's columns in their order, then the removed ones") List<ModelColumn> columns) {}
+
+    @Schema(name = "ModelReference", description = "A foreign key of either schema")
+    public record ModelReference(
+            @Schema(description = "Constraint name, or null") @Nullable String name,
+            @Schema(description = "The table that holds the key") NameDto from,
+            List<String> columns,
+            @Schema(description = "The referenced table") NameDto to,
+            List<String> referencedColumns,
+            @Schema(allowableValues = {"ADDED", "REMOVED", "CHANGED", "UNCHANGED"}) String status) {}
+
+    @Schema(name = "ModelResponse")
+    public record Model(
+            @Schema(description = "Every table of either schema, sorted by name") List<ModelTable> tables,
+            List<ModelReference> references,
+            List<Diagnostic> warnings) {}
+
     @Schema(name = "Rule")
     public record Rule(
             String id,

@@ -1,6 +1,7 @@
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { EXAMPLES } from './examples.ts';
 import { fakeApi, fixtures, renderApp } from './test/fakeApi.tsx';
 
 function steps(count: number): RegExp {
@@ -10,8 +11,7 @@ function steps(count: number): RegExp {
 async function analyseExample() {
   const user = userEvent.setup();
   renderApp();
-  await user.click(screen.getByRole('button', { name: 'Load an example' }));
-  await user.click(screen.getByRole('button', { name: 'Analyse changes' }));
+  await user.click(screen.getByRole('button', { name: /^A typical release/ }));
   await screen.findByRole('region', { name: 'Overall risk' });
   return user;
 }
@@ -21,7 +21,7 @@ describe('Compare two schemas', () => {
     const sent = fakeApi();
     await analyseExample();
 
-    expect(sent.map((request) => request.path).sort()).toEqual(['/api/v1/diff', '/api/v1/plan', '/api/v1/report']);
+    expect(sent.map((request) => request.path).sort()).toEqual(['/api/v1/diff', '/api/v1/model', '/api/v1/plan', '/api/v1/report']);
     const risk = screen.getByRole('region', { name: 'Overall risk' });
     expect(risk).toHaveTextContent(`${fixtures.report.score.value}/ 100`);
     expect(risk).toHaveTextContent('Critical risk');
@@ -61,6 +61,28 @@ describe('Compare two schemas', () => {
     await user.click(screen.getByRole('radio', { name: /Direct/ }));
     await screen.findByText(steps(fixtures.planDirect.steps.length));
     expect(sent.at(-1)?.body).toMatchObject({ route: 'DIRECT' });
+  });
+
+  it('runs a gallery example in one click', async () => {
+    const sent = fakeApi();
+    const user = userEvent.setup();
+    renderApp();
+    const example = EXAMPLES.find((each) => each.id === 'index');
+    if (!example) throw new Error('no index example');
+    await user.click(screen.getByRole('button', { name: new RegExp(`^${example.title}`) }));
+    await screen.findByRole('region', { name: 'Overall risk' });
+    expect(screen.getByLabelText('Current schema')).toHaveValue(example.before);
+    expect(sent.find((request) => request.path === '/api/v1/diff')?.body).toEqual({
+      before: example.before,
+      after: example.after,
+    });
+  });
+
+  it('draws the diagram of both schemas', async () => {
+    fakeApi();
+    const user = await analyseExample();
+    await user.click(screen.getByRole('tab', { name: 'Diagram' }));
+    expect(await screen.findByRole('img', { name: /^Diagram of 2 tables/ })).toBeVisible();
   });
 
   it('copies the plan as a script', async () => {

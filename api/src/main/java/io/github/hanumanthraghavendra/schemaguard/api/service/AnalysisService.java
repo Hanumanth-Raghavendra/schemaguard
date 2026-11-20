@@ -3,6 +3,7 @@ package io.github.hanumanthraghavendra.schemaguard.api.service;
 import io.github.hanumanthraghavendra.schemaguard.api.config.ApiProperties;
 import io.github.hanumanthraghavendra.schemaguard.api.dto.Requests;
 import io.github.hanumanthraghavendra.schemaguard.api.dto.Responses;
+import io.github.hanumanthraghavendra.schemaguard.engine.diagram.ErModel;
 import io.github.hanumanthraghavendra.schemaguard.engine.catalog.CatalogBuilder;
 import io.github.hanumanthraghavendra.schemaguard.engine.catalog.CatalogResult;
 import io.github.hanumanthraghavendra.schemaguard.engine.diagnostics.Severity;
@@ -50,6 +51,16 @@ public class AnalysisService {
                 diff.significant().size(),
                 warnings(before, after),
                 ChangeFormatter.format(diff));
+    }
+
+    public Responses.Model model(Requests.Compare request) {
+        Parsed before = parse("before", request.before());
+        Parsed after = parse("after", request.after());
+        ErModel model = ErModel.of(SchemaDiff.compare(before.catalog(), after.catalog()));
+        return new Responses.Model(
+                model.tables().stream().map(DtoMapper::table).toList(),
+                model.relationships().stream().map(DtoMapper::reference).toList(),
+                warnings(before, after));
     }
 
     public Responses.Report report(Requests.Compare request) {

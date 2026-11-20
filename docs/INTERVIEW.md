@@ -497,3 +497,23 @@ expires; the sharer can delete it. Results download as Markdown or JSON.
   and sees no data loss (D-079). Same engine, no new API.
 - *How does a client-side route like `/a/{id}` work on static hosting?* `vercel.json` rewrites
   every path that is not a file to `index.html`; react-router reads the address in the browser.
+
+## Phase 6.3: example gallery and ER diagram
+
+**What it is.** A gallery of seven real schema changes, each one click away, and a Diagram tab
+that draws both schemas as one ER diagram with every table, column and foreign key marked.
+
+**Likely questions**
+
+- *Where do the marks come from?* The engine merges both catalogs and takes each mark from the
+  diff's significant changes (`ErModel`, D-081). So the diagram cannot disagree with the change
+  list: `int4` respelled as `integer` is unchanged in both.
+- *Why dagre and not a diagram library?* Layout is the hard part (layered placement, crossing
+  reduction); drawing is easy and is where the meaning lives. dagre gives positions, the SVG is
+  ours: colours plus words, edges from the exact columns (D-082).
+- *How did you make a diagram accessible?* Every mark has a word or symbol as well as a colour;
+  the SVG has a summary as its name; it can be zoomed and moved from the keyboard; and the Changes
+  tab is the full text alternative.
+- *A bug you found by looking?* A real browser showed React's duplicate-key warning when one rule
+  gave the same reason twice (three dropped columns). Keys now include the position. Also, a
+  second analysis kept the first diagram's zoom; state now resets when the model changes.

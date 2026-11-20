@@ -12,8 +12,7 @@ beforeEach(() => {
 async function analyseExample() {
   const user = userEvent.setup();
   renderApp();
-  await user.click(screen.getByRole('button', { name: 'Load an example' }));
-  await user.click(screen.getByRole('button', { name: 'Analyse changes' }));
+  await user.click(screen.getByRole('button', { name: /^A typical release/ }));
   await screen.findByRole('region', { name: 'Overall risk' });
   return user;
 }
@@ -108,7 +107,7 @@ describe('A shared link', () => {
     await screen.findByRole('tab', { name: 'Plan' });
     expect(screen.getByLabelText('Current schema')).toHaveValue(EXAMPLE_BEFORE);
     const analyses = sent.filter((request) => request.method === 'POST').map((request) => request.path);
-    expect(analyses.sort()).toEqual(['/api/v1/diff', '/api/v1/plan', '/api/v1/report']);
+    expect(analyses.sort()).toEqual(['/api/v1/diff', '/api/v1/model', '/api/v1/plan', '/api/v1/report']);
   });
 });
 

@@ -3,6 +3,7 @@ package io.github.hanumanthraghavendra.schemaguard.api.service;
 import io.github.hanumanthraghavendra.schemaguard.api.dto.NameDto;
 import io.github.hanumanthraghavendra.schemaguard.api.dto.RenameDto;
 import io.github.hanumanthraghavendra.schemaguard.api.dto.Responses;
+import io.github.hanumanthraghavendra.schemaguard.engine.diagram.ErModel;
 import io.github.hanumanthraghavendra.schemaguard.engine.diagnostics.Diagnostic;
 import io.github.hanumanthraghavendra.schemaguard.engine.diff.Change;
 import io.github.hanumanthraghavendra.schemaguard.engine.diff.ChangeFormatter;
@@ -29,6 +30,31 @@ import java.util.Optional;
 final class DtoMapper {
 
     private DtoMapper() {}
+
+    static Responses.ModelTable table(ErModel.Entity table) {
+        return new Responses.ModelTable(
+                name(table.name()),
+                table.status().name(),
+                table.columns().stream()
+                        .map(column -> new Responses.ModelColumn(
+                                column.name(),
+                                column.type(),
+                                column.notNull(),
+                                column.primaryKey(),
+                                column.status().name(),
+                                column.previousType().orElse(null)))
+                        .toList());
+    }
+
+    static Responses.ModelReference reference(ErModel.Relationship relationship) {
+        return new Responses.ModelReference(
+                relationship.name().orElse(null),
+                name(relationship.from()),
+                relationship.columns(),
+                name(relationship.to()),
+                relationship.referencedColumns(),
+                relationship.status().name());
+    }
 
     static NameDto name(QualifiedName name) {
         return new NameDto(name.schema(), name.name());

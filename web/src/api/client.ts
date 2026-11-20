@@ -14,6 +14,10 @@ export type Score = Schemas['Score'];
 export type Step = Schemas['Step'];
 export type LintedStatement = Schemas['LintedStatement'];
 export type RenameDto = Schemas['RenameDto'];
+export type ModelResponse = Schemas['ModelResponse'];
+export type ModelTable = Schemas['ModelTable'];
+export type ModelColumn = Schemas['ModelColumn'];
+export type ModelReference = Schemas['ModelReference'];
 export type SavedAnalysis = Schemas['SavedAnalysis'];
 export type StoredAnalysis = Schemas['StoredAnalysis'];
 export type Route = 'DIRECT' | 'SAFE';
@@ -85,6 +89,11 @@ export function diff(before: string, after: string, signal?: AbortSignal): Promi
 
 export function report(before: string, after: string, signal?: AbortSignal): Promise<ReportResponse> {
   return call(() => client.POST('/api/v1/report', { body: { before, after }, signal: signal ?? null }));
+}
+
+/** Both schemas as one entity-relationship model, for the diagram. */
+export function model(before: string, after: string, signal?: AbortSignal): Promise<ModelResponse> {
+  return call(() => client.POST('/api/v1/model', { body: { before, after }, signal: signal ?? null }));
 }
 
 export interface PlanInput {

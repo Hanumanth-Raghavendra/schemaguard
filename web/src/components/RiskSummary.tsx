@@ -14,10 +14,11 @@ export function RiskSummary({ score, subject }: { score: Score; subject: string 
       </p>
       {score.reasons.length > 0 ? (
         <ul className="list-disc space-y-1 pl-5 text-sm">
-          {score.reasons.map((reason) => {
+          {score.reasons.map((reason, index) => {
             const { points, rule, title } = splitReason(reason);
             return (
-              <li key={reason}>
+              // The same rule can give the same reason twice (two dropped columns), so the place counts too.
+              <li key={`${index}-${reason}`}>
                 {title}
                 {rule !== null && (
                   <span className="text-muted">
