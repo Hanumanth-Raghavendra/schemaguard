@@ -2,15 +2,15 @@
 
 > **To resume:** read this file, then start at "Next step". Do not re-plan; the plan is fixed below.
 
-- **Current phase:** 6 (web UI) is live at https://schemaguard-nu.vercel.app; only the `v0.5.0` tag is left (owner, step A). Phase 7 next. Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
-- **Last updated:** 2026-11-20 (Phase 6 live)
+- **Current phase:** 7 (accounts, projects, history, trends, API keys), not started. Phase 6 is done: web app live at https://schemaguard-v1.vercel.app (renamed from schemaguard-nu on 2026-11-22), released as `v0.5.0` (tagged by the owner on 2026-11-22). Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
+- **Last updated:** 2026-11-22
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
 - **State:** build green; engine 1,714 tests (276 plans run on a real PostgreSQL 16 in CI), API 49 tests (permalinks tested on real PostgreSQL); web 51 tests (Vitest) and 1 end-to-end test (Playwright); line coverage engine 99.3% (gate 85%), API 96.0% (gate 80%); CI builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
 - **Size:** 337 files in 64 folders; 15,057 lines of main Java, 8,010 lines of test Java, 3,535 lines of TypeScript (plus 1,118 generated) (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
 
 ## Next step
 
-**Live service.** Web app https://schemaguard-nu.vercel.app (Vercel, redeploys on every push to `main`).
+**Live service.** Web app https://schemaguard-v1.vercel.app (Vercel, redeploys on every push to `main`).
 API https://schemaguard-api-c00y.onrender.com (Swagger UI at `/swagger-ui.html`).
 Render builds the `Dockerfile` from `main` after the CI checks pass, and only when a push changes
 what goes into the image (`render.yaml`: `autoDeployTrigger: checksPass`, `buildFilter`). Neon's
@@ -27,17 +27,10 @@ nothing. Render reports each deploy to GitHub (repository > Deployments).
 **Phase 6: web UI (v0.5), live.** Requirements (Blueprint, tier 2 "Web app"): analyse without login
 in two code editors, visual diff, risk report, shareable permalink; interactive ER diagram with
 changed tables and columns highlighted; example gallery of real-world scenarios, so a recruiter
-sees results in one click; export of the report as Markdown or JSON. All four slices are done (see Done); only the tag is left (step A). Live at https://schemaguard-nu.vercel.app. The
+sees results in one click; export of the report as Markdown or JSON. All four slices are done (see Done); released as `v0.5.0`. Live at https://schemaguard-v1.vercel.app. The
 app lives in `web/` (Vite 8, React 19, TypeScript 5.9, Tailwind 4, Monaco; see D-075).
 
-**A. The owner tags v0.5.0 (the last step of Phase 6).** Phase 6 is done when paste, analyse and
-share work on the live site (checked by the live smoke test's browser job on 2026-11-20) and
-`v0.5.0` is tagged. The Claude container cannot push tags (the session's git proxy and the API
-both refuse), so the owner tags, in a terminal in the repository folder:
-`git pull`, then `git tag -a v0.5.0 -m "SchemaGuard 0.5.0"`, then `git push origin v0.5.0`
-(or GitHub > Releases > Draft a new release > choose a tag: `v0.5.0`, target `main` > Publish).
-
-**B. Phase 7: accounts, projects, history, trends, API keys.** First commit of Phase 7, after the tag:
+**Phase 7: accounts, projects, history, trends, API keys.** First commit of Phase 7, after the tag:
 set the version to `0.6.0-SNAPSHOT` in `pom.xml`, `engine/pom.xml` and `api/pom.xml`, and in
 `web/` run `npm version 0.6.0-SNAPSHOT --no-git-tag-version`, so builds after the tag are not
 mistaken for 0.5.0 (D-087).
@@ -96,7 +89,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 - [x] **6.1** Web app in `web/`: two Monaco editors (bundled, loaded after the page; plain text area meanwhile), "Compare two schemas" (diff, report and plan in parallel; tabs Risks, Changes, Plan) and "Check a migration" (lint, statement by statement). Each lock is drawn on PostgreSQL's eight-step lock scale, coloured by what traffic does. Plan tab: Safe/Direct route and rename confirmation, which re-plan; copy script. API problems are listed with input, line and column and underlined in the editor; a notice explains the free host's cold start, which a ping on page load starts early. The OpenAPI document is now exact (every response field required, 13 nullable ones marked with jspecify `@Nullable`, rename subtypes a clean union) and copied to `web/openapi.json` by `OpenApiContractTest`; TypeScript types are generated from it and CI fails if either drifts. CI job "Web app": lint, type check, test, build. Tests use real API answers recorded from a local server (2026-11-18)
 - [x] **6.2** Share and export. "Share" saves the report (compare) or the lint (migration) through `/api/v1/analyses/{kind}` and shows a link `/a/{id}` with its expiry; the delete key is kept in localStorage and expired keys are dropped. `/a/{id}` (react-router 8.5.1) shows the saved result and inputs, "Open in the editor" (loads the inputs and runs the full analysis), downloads, and "Delete link" with an inline confirmation for the sharer; expired, deleted, wrong-key and switched-off cases have plain messages. Downloads: Markdown built in the browser (score, reasons, risks worst first with why and instead, changes, plan SQL; or statement by statement) and JSON (inputs with every response). "Check this plan as a migration" lints the generated plan; the Risks tab points to it once a rename is confirmed. `web/vercel.json` sends every path to `index.html`. 17 new tests on recorded save/open/delete answers; checked in Chromium against a local API with PostgreSQL (2026-11-19)
 - [x] **6.3** Example gallery and ER diagram. Engine `diagram.ErModel` merges both catalogs into one model and marks every table, column and foreign key added, removed, changed or unchanged from the diff's significant changes (5 tests); `POST /api/v1/model` serves it (status values are enums in the contract, so TypeScript gets a union). The Diagram tab lays tables out left to right with dagre 3.1.3 (referenced tables first) and draws them in SVG: change colours plus words (new, dropped, changed, +, −, ~, old → new type), a curve from each foreign key's column to the referenced column, drag to pan, Ctrl+wheel, buttons or keys to zoom, a fitted view per analysis; the chunk (19 kB gzipped) loads on first open. The gallery (7 scenarios: a typical release, required column, foreign key, int to bigint, rename, index, split a table; each checked against the API) fills both editors and runs the analysis in one click. Fixed duplicate React keys when the same reason or caution appears twice. Live smoke test now checks `/api/v1/model` (2026-11-20)
-- [x] **6.4** End to end and deploy. One Playwright 1.63.0 test (example, risks, changes, diagram, plan with a confirmed rename, share, open in a new page, delete, link gone) runs in the CI job "End to end" against the API jar with PostgreSQL and `vite preview`, and against the live site in the live smoke test's new "browser" job (`E2E_BASE_URL`). Vercel project `schemaguard` (team "blindcoder", root `web/`, production branch `main`) serves https://schemaguard-nu.vercel.app; `web/vercel.json` pins Vite, `npm ci`, `npm run build`, `dist` and the SPA rewrite. `render.yaml` allows that origin plus `http://localhost:5173`; the Blueprint sync redeployed the API. `live-smoke.yml` has inputs `origin` and `web` and fails when the origin is not allowed. First full live run green (2026-11-20)
+- [x] **6.4** End to end and deploy. One Playwright 1.63.0 test (example, risks, changes, diagram, plan with a confirmed rename, share, open in a new page, delete, link gone) runs in the CI job "End to end" against the API jar with PostgreSQL and `vite preview`, and against the live site in the live smoke test's new "browser" job (`E2E_BASE_URL`). Vercel project `schemaguard` (team "blindcoder", root `web/`, production branch `main`) serves https://schemaguard-v1.vercel.app; `web/vercel.json` pins Vite, `npm ci`, `npm run build`, `dist` and the SPA rewrite. `render.yaml` allows that origin plus `http://localhost:5173`; the Blueprint sync redeployed the API. `live-smoke.yml` has inputs `origin` and `web` and fails when the origin is not allowed. First full live run green (2026-11-20)
 - [x] **Audit 2** (2026-11-20). Fixed: a failed download of the editor or diagram chunk blanked the whole page (no error boundary); now the plain editor or a message takes its place. Added a Content-Security-Policy and other security headers on Vercel, tested under the policy with the end-to-end test (which now fails on any CSP block and checks Monaco really loaded), and year-long caching for hashed assets. The parser no longer accepts an unquoted reserved word as a constraint name, matching PostgreSQL 16 (checked with psql). Version 0.5.0 everywhere before the tag, `CHANGELOG.md`, social preview tags and image for shared links, clearer page title, monthly grouped Dependabot updates. Stale known issues removed (licence, reserved names)
 
 ## Phases
@@ -109,8 +102,8 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 | 3 | Rules engine, lock knowledge base, scoring | Done (2026-11-14) |
 | 4 | Migration planner, SQL generation, real-database oracle tests, script linter | Done (2026-11-15) |
 | 5 | REST API (Spring Boot), persistence, permalinks, first deploy (v0.1) | Done (2026-11-18); live |
-| 6 | Web UI: editors, diff, report, ER diagram, example gallery (v0.5) | Done (2026-11-20), live; `v0.5.0` tag left (owner) |
-| 7 | Auth, projects, history, trends, API keys | Not started |
+| 6 | Web UI: editors, diff, report, ER diagram, example gallery (v0.5) | Done (2026-11-20), live; `v0.5.0` released 2026-11-22 |
+| 7 | Auth, projects, history, trends, API keys | Next |
 | 8 | CLI, GitHub Action, dogfooding | Not started |
 | 9 | Hardening and launch (v1.0) | Not started |
 

@@ -530,7 +530,7 @@ site, plus the Vercel deploy of the web app.
   database, and a link opened in a fresh page. One flow that touches all of it is enough, and it
   stays fast and stable (D-085).
 - *How do you know production works after a deploy?* The live smoke workflow calls every endpoint,
-  then runs the same browser test against https://schemaguard-nu.vercel.app. It deletes the link it
+  then runs the same browser test against https://schemaguard-v1.vercel.app. It deletes the link it
   creates, so it leaves nothing behind.
 - *What broke on the way?* A strict locator matched a hidden copy of a change line in another tab;
   scoping it to the visible panel fixed it. And the first live run raced the workflow queue, not

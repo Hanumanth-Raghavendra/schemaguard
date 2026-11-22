@@ -19,11 +19,11 @@ on:
       origin:
         description: A web origin the API must allow (CORS), for example the Vercel address
         required: true
-        default: https://schemaguard-nu.vercel.app
+        default: https://schemaguard-v1.vercel.app
       web:
         description: Address of the deployed web app to click through in Chromium; empty skips it
         required: false
-        default: https://schemaguard-nu.vercel.app
+        default: https://schemaguard-v1.vercel.app
 
 permissions:
   contents: read

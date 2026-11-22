@@ -6,7 +6,7 @@ each release is a git tag (`v0.5.0`) on `main`. Details and reasons: `PROGRESS.m
 
 ## 0.5.0 (2026-11-20): the web app
 
-Live at https://schemaguard-nu.vercel.app.
+Live at https://schemaguard-v1.vercel.app.
 
 - **Compare two schemas**: two code editors with PostgreSQL highlighting; Risks (worst first,
   each with why it matters and what to do instead), Changes (added, removed, changed, possible

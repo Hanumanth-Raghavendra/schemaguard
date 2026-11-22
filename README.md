@@ -5,7 +5,7 @@
 A PostgreSQL migration-safety platform. Give it two versions of a schema and it tells you
 what changed, what that change will lock or break in production, and how to ship it safely.
 
-> **Status: live. Web app: https://schemaguard-nu.vercel.app (pick an example, see the risks, the plan
+> **Status: live. Web app: https://schemaguard-v1.vercel.app (pick an example, see the risks, the plan
 > and the diagram, share a link). API: [Swagger UI](https://schemaguard-api-c00y.onrender.com/swagger-ui.html).**
 > Free hosting: the first analysis after 15 idle minutes takes about a minute while the API wakes up.
 > See [PROGRESS.md](PROGRESS.md) for the current state and roadmap.
