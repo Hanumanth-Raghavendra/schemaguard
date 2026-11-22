@@ -37,6 +37,16 @@ class PermalinksDatabaseDownTest {
     }
 
     @Test
+    void signingUpAnswers503TooWithoutLeakingAnything() {
+        String credentials = "{\"email\":\"you@example.com\",\"password\":\"correct horse battery staple\"}";
+        MvcTestResult signUp =
+                mvc.post().uri("/api/v1/auth/signup").contentType(MediaType.APPLICATION_JSON).content(credentials).exchange();
+        assertThat(signUp.getResponse().getStatus()).isEqualTo(503);
+        String body = new String(signUp.getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
+        assertThat(body).contains("Accounts are unavailable right now").doesNotContain("topsecret").doesNotContain("127.0.0.1");
+    }
+
+    @Test
     void theRestOfTheServiceKeepsWorking() {
         assertThat(mvc.post().uri("/api/v1/diff").contentType(MediaType.APPLICATION_JSON).content(BODY).exchange().getResponse().getStatus())
                 .isEqualTo(200);

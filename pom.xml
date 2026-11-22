@@ -48,6 +48,8 @@
     <!-- Versions verified against Maven Central on 2026-11-17. -->
     <spring-boot.version>4.1.2</spring-boot.version>
     <springdoc.version>3.2.0</springdoc.version>
+    <!-- Verified against Maven Central on 2026-11-22. -->
+    <bouncycastle.version>1.87</bouncycastle.version>
     <!-- Filled by JaCoCo's prepare-agent; empty when JaCoCo is skipped. -->
     <argLine></argLine>
   </properties>

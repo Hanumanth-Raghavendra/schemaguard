@@ -1,0 +1,8 @@
+{
+  "type": "about:blank",
+  "title": "Unauthorized",
+  "status": 401,
+  "detail": "The access token has expired or is not valid. Renew the session or log in again.",
+  "instance": "/api/v1/account",
+  "code": "SG-API-401"
+}

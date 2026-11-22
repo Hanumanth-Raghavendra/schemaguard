@@ -2,11 +2,11 @@
 
 > **To resume:** read this file, then start at "Next step". Do not re-plan; the plan is fixed below.
 
-- **Current phase:** 7 (accounts, projects, history, trends, API keys): 7.0 done (one origin), 7.1 accounts next. Phase 6 is done: web app live at https://schemaguard-v1.vercel.app (renamed from schemaguard-nu on 2026-11-22), released as `v0.5.0` (tagged by the owner on 2026-11-22). Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
+- **Current phase:** 7 (accounts, projects, history, trends, API keys): 7.0 (one origin) and 7.1 (accounts) done, 7.2 projects and schema versions next. Phase 6 is done: web app live at https://schemaguard-v1.vercel.app (renamed from schemaguard-nu on 2026-11-22), released as `v0.5.0` (tagged by the owner on 2026-11-22). Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
 - **Last updated:** 2026-11-22
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
-- **State:** build green; engine 1,714 tests (276 plans run on a real PostgreSQL 16 in CI), API 49 tests (permalinks tested on real PostgreSQL); web 51 tests (Vitest) and 1 end-to-end test (Playwright); line coverage engine 99.3% (gate 85%), API 96.0% (gate 80%); CI builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
-- **Size:** 337 files in 64 folders; 15,057 lines of main Java, 8,010 lines of test Java, 3,535 lines of TypeScript (plus 1,118 generated) (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
+- **State:** build green; engine 1,714 tests (276 plans run on a real PostgreSQL 16 in CI), API 109 tests (permalinks and accounts tested on real PostgreSQL); web 64 tests (Vitest) and 2 end-to-end tests (Playwright); line coverage engine 99.3% (gate 85%), API 95.6% (gate 80%); CI builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
+- **Size:** 385 files in 68 folders; 16,585 lines of main Java, 8,908 lines of test Java, 4,652 lines of TypeScript (plus 1,517 generated) (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
 
 ## Next step
 
@@ -35,15 +35,23 @@ app lives in `web/` (Vite 8, React 19, TypeScript 5.9, Tailwind 4, Monaco; see D
 **Phase 7 scope.** Blueprint tier 3: sign-up and login
 with JWT access and refresh tokens; projects with schema versions on a timeline, a risk trend chart
 and saved reports; per-user API keys for the CLI and CI. Done when a user can save schema versions
-and see the risk trend. Decided: the refresh token lives in an httpOnly, Secure, SameSite=Strict cookie, first-party
-because the web app reaches the API through its own origin (7.0, D-090). Still to settle:
+and see the risk trend. Accounts (7.1) are settled in D-091 to D-096: Spring Security 7.1 resource
+server, RFC 9068 access tokens (HS256, 15 min, memory only in the browser), opaque rotating refresh
+tokens in an httpOnly SameSite=Strict cookie with reuse detection, Argon2id, per-account backoff.
+New endpoints need a token by adding their path to `SecurityConfig` (`/api/v1/account/**` today) and
+`@SecurityRequirement(name = SecurityConfig.BEARER)`; the web app calls them through
+`useAuth().withToken(...)`, which renews an expired token once.
 
-- **Libraries.** Spring Security 7 (in the Boot 4.1 BOM) as an OAuth2 resource server for access
-  tokens; Argon2id password hashing from spring-security-crypto (its Bouncy Castle dependency);
-  refresh tokens random, stored hashed, rotated on use, with reuse detection. Check versions.
-- **Slices.** 7.1 accounts (Flyway V2 users and refresh tokens; sign-up, login, refresh, logout;
-  web pages). 7.2 projects and schema versions (save a version, diff it with the previous one,
-  timeline). 7.3 risk trend chart and saved reports. 7.4 API keys (hashed, shown once, revocable).
+- **7.2 projects and schema versions (next).** Flyway V3: `project` (id, account_id with ON DELETE
+  CASCADE, name unique per account, created_at) and `schema_version` (project_id, number from 1,
+  the SQL, created_at, and the risk report against the version before it, stored with its score).
+  Endpoints under `/api/v1/projects` (list, create, rename, delete; add a version, list versions,
+  open one with its diff and report against the previous one), all owner-only (404 for someone
+  else's project, so ids do not reveal what exists). Limits per account and per version (size).
+  Web: a projects page, a project timeline, and "Save as a version" from compare mode. Lint V3
+  with `OwnMigrationsTest` like V1 and V2.
+- **7.3** risk trend chart (score per version) and saved reports. **7.4** API keys (hashed, shown
+  once, revocable) for the CLI and CI.
 
 **Local PostgreSQL.** The Claude build container has PostgreSQL 16 server binaries in
 `/usr/lib/postgresql/16/bin`. Run them as the `postgres` user (`runuser -u postgres -- ...`)
@@ -85,6 +93,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 - [x] **6.4** End to end and deploy. One Playwright 1.63.0 test (example, risks, changes, diagram, plan with a confirmed rename, share, open in a new page, delete, link gone) runs in the CI job "End to end" against the API jar with PostgreSQL and `vite preview`, and against the live site in the live smoke test's new "browser" job (`E2E_BASE_URL`). Vercel project `schemaguard` (team "blindcoder", root `web/`, production branch `main`) serves https://schemaguard-v1.vercel.app; `web/vercel.json` pins Vite, `npm ci`, `npm run build`, `dist` and the SPA rewrite. `render.yaml` allows that origin plus `http://localhost:5173`; the Blueprint sync redeployed the API. `live-smoke.yml` has inputs `origin` and `web` and fails when the origin is not allowed. First full live run green (2026-11-20)
 - [x] **Audit 2** (2026-11-20). Fixed: a failed download of the editor or diagram chunk blanked the whole page (no error boundary); now the plain editor or a message takes its place. Added a Content-Security-Policy and other security headers on Vercel, tested under the policy with the end-to-end test (which now fails on any CSP block and checks Monaco really loaded), and year-long caching for hashed assets. The parser no longer accepts an unquoted reserved word as a constraint name, matching PostgreSQL 16 (checked with psql). Version 0.5.0 everywhere before the tag, `CHANGELOG.md`, social preview tags and image for shared links, clearer page title, monthly grouped Dependabot updates. Stale known issues removed (licence, reserved names)
 - [x] **7.0** One origin for the web app and the API (D-090): Vercel rewrites `/api/*` to Render (rewrite caching off); Vite dev and preview forward `/api` too, so the CI end-to-end test runs the same way. The page still pings the API host directly to wake it. CORS keeps the Vercel origin (the rewrite forwards `Origin`) and now allows the local preview origin by default. Live smoke test checks the proxy. Also: version 0.6.0-SNAPSHOT, and `/actuator/info` shows the real build time again (Maven 3.10 stamped 1980-02-01) (2026-11-22)
+- [x] **7.1** Accounts (D-091 to D-096). API: `POST /api/v1/auth/signup|login|refresh|logout`, `GET` and `DELETE /api/v1/account`; Spring Security 7.1.2 resource server checking RFC 9068 access tokens (HS256, 15 minutes, key generated by Render); opaque refresh tokens (SHA-256 stored) in an httpOnly, Secure, SameSite=Strict `__Secure-sg-refresh` cookie on `/api/v1/auth`, rotated on every use, reuse after 30 s revokes the session, 30-day idle and 90-day absolute lifetime; Argon2id (Bouncy Castle 1.87, 19 MiB, 2 passes, at most 2 at once); 8 to 256 characters, not among the 10,000 most common, not the email; 5 failures in an hour lock the account for 1 minute, doubling to 15; unknown emails cost the same check; delete needs the password (403). Problem documents for every error, `WWW-Authenticate: Bearer` on 401. Shared `Database` class (lazy Flyway, transactions); Flyway V2 `account` and `refresh_token`, linted by SchemaGuard; the retention job also deletes expired tokens; CORS moved into Spring Security. Web: header links, `/signup`, `/login`, `/account` (details, delete with password); access token in memory, one refresh at a time, renewal on load only for browsers that logged in, logins and logouts followed across tabs. Tests: 60 new API tests (service-level with a moved clock on PostgreSQL: rotation, reuse, two tabs, expiry, 90-day cap, lockout growth, rehash; HTTP-level: cookie attributes, 401/403/409/422/429, foreign origin refused), 13 new Vitest tests, a Playwright test of an account's whole life (sign up, reload, log out, wrong password, log in, delete) in CI and live. Live smoke test runs a throwaway account by curl and checks `Set-Cookie` through the Vercel rewrite (2026-11-22)
 
 ## Phases
 
@@ -97,7 +106,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 | 4 | Migration planner, SQL generation, real-database oracle tests, script linter | Done (2026-11-15) |
 | 5 | REST API (Spring Boot), persistence, permalinks, first deploy (v0.1) | Done (2026-11-18); live |
 | 6 | Web UI: editors, diff, report, ER diagram, example gallery (v0.5) | Done (2026-11-20), live; `v0.5.0` released 2026-11-22 |
-| 7 | Auth, projects, history, trends, API keys | Next |
+| 7 | Auth, projects, history, trends, API keys | In progress: 7.0 and 7.1 done (2026-11-22) |
 | 8 | CLI, GitHub Action, dogfooding | Not started |
 | 9 | Hardening and launch (v1.0) | Not started |
 
@@ -139,13 +148,19 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
   (D-079). Renames on `/report` would make the Risks tab exact; not planned yet. Problem
   extension members (`code`, `diagnostics`) are typed by hand in `web/src/api/client.ts`.
 - **Web, shared links:** the delete key lives in the sharer's browser only (localStorage); a
-  cleared browser cannot delete its links, which then expire after 30 days.
+  cleared browser cannot delete its links, which then expire after 30 days. Links are not tied
+  to accounts yet.
+- **Accounts:** no email verification and no password reset (both need an email service);
+  sign-up therefore says when an email is taken (409). Access tokens stay valid up to 15 minutes
+  after logout (they are not looked up per request). A user can only end the current session;
+  "log out everywhere" is not offered yet (deleting the account does end all sessions).
 - **API:** no rate limiting yet (one free instance). Per-IP limits need the real client address,
   and which `X-Forwarded-For` entry Render's proxy guarantees is not verified yet; a limit keyed
   on the wrong entry would either be spoofable or throttle every visitor as one. Settle that in
   Phase 9 (hardening). Meanwhile saving is the abusable part: storage is capped at 200 MB in
-  total, so abuse fills it and saving answers 507 until analyses expire. No auth until Phase 7. The API's coverage gate
-  counts the permalink tests, which need `SG_PG_ORACLE=1` and a PostgreSQL server; without
+  total, so abuse fills it and saving answers 507 until analyses expire. Sign-up has no rate
+  limit either (accounts are a few hundred bytes each). The API's coverage gate counts the
+  permalink and account tests, which need `SG_PG_ORACLE=1` and a PostgreSQL server; without
   them `verify` on `api` can fall under 80%. The Docker image is verified in CI only (no Docker on the
   development machine).
 - **Performance:** linting costs about 1.6 ms per statement at 400 tables (whole-schema diff per

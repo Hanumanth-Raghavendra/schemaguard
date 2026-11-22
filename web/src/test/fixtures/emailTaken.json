@@ -1,0 +1,8 @@
+{
+  "detail": "An account with this email already exists. Log in instead.",
+  "instance": "/api/v1/auth/signup",
+  "status": 409,
+  "title": "Conflict",
+  "type": "about:blank",
+  "code": "SG-API-409"
+}

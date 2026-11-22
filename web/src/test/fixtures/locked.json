@@ -1,0 +1,8 @@
+{
+  "detail": "Too many failed logins for this account. Try again in 1 minute.",
+  "instance": "/api/v1/auth/login",
+  "status": 429,
+  "title": "Too Many Requests",
+  "type": "about:blank",
+  "code": "SG-API-429"
+}

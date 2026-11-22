@@ -8,41 +8,25 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
-import javax.sql.DataSource;
-import org.flywaydb.core.Flyway;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
 /**
- * Saved analyses in PostgreSQL.
- *
- * <p>Nothing here runs at startup. The schema is migrated on the first request that needs
- * the database, and again on the next one if that failed. A database that is asleep (Neon's
- * free tier suspends after a few idle minutes), down or misconfigured therefore costs the
- * permalink endpoints a 503, never the whole service.
+ * Saved analyses in PostgreSQL. The {@link Database} migrates the schema on first use, so a
+ * database that is asleep or down costs the permalink endpoints a 503, never the whole service.
  */
 public class JdbcAnalysisStore implements AnalysisStore {
 
-    private static final Logger LOG = LoggerFactory.getLogger(JdbcAnalysisStore.class);
+    private static final String FEATURE = "Saved analyses";
 
+    private final Database database;
     private final JdbcClient jdbc;
-    private final Flyway flyway;
     private final Clock clock;
     private final long maxTotalBytes;
-    private final AtomicBoolean migrated = new AtomicBoolean();
 
-    public JdbcAnalysisStore(DataSource dataSource, ApiProperties.Persistence settings, Clock clock) {
-        this.jdbc = JdbcClient.create(dataSource);
-        this.flyway =
-                Flyway.configure()
-                        .dataSource(dataSource)
-                        .locations("classpath:db/migration")
-                        .validateMigrationNaming(true)
-                        .load();
+    public JdbcAnalysisStore(Database database, ApiProperties.Persistence settings, Clock clock) {
+        this.database = database;
+        this.jdbc = database.jdbc();
         this.clock = clock;
         this.maxTotalBytes = settings.maxTotalBytes();
     }
@@ -125,31 +109,8 @@ public class JdbcAnalysisStore implements AnalysisStore {
         return run(() -> jdbc.sql("DELETE FROM analysis WHERE expires_at <= :now").param("now", now()).update());
     }
 
-    /** Runs a database operation, migrating the schema first if that has not happened yet. */
     private <T> T run(Supplier<T> operation) {
-        try {
-            if (!migrated.get()) {
-                synchronized (this) {
-                    if (!migrated.get()) {
-                        flyway.migrate();
-                        migrated.set(true);
-                    }
-                }
-            }
-            return operation.get();
-        } catch (DataAccessException | org.flywaydb.core.api.FlywayException e) {
-            // The cause is logged without any request content; the message may name the host, never data.
-            LOG.warn("Saved analyses are unavailable: {}", rootMessage(e));
-            throw new PersistenceUnavailableException("Saved analyses are unavailable right now; try again later.", e);
-        }
-    }
-
-    private static String rootMessage(Throwable error) {
-        Throwable root = error;
-        while (root.getCause() != null && root.getCause() != root) {
-            root = root.getCause();
-        }
-        return root.getClass().getSimpleName() + ": " + root.getMessage();
+        return database.run(FEATURE, operation);
     }
 
     private OffsetDateTime now() {

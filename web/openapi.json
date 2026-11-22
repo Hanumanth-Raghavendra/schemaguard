@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "description": "Checks PostgreSQL schema changes before they reach production: what changed, what each change locks or breaks, and how to apply it safely. All inputs are PostgreSQL DDL, such as the output of pg_dump --schema-only. The analysis endpoints store nothing; the /api/v1/analyses endpoints save the request and its result until they expire, so they can be shared by link.",
+    "description": "Checks PostgreSQL schema changes before they reach production: what changed, what each change locks or breaks, and how to apply it safely. All inputs are PostgreSQL DDL, such as the output of pg_dump --schema-only. The analysis endpoints store nothing; the /api/v1/analyses endpoints save the request and its result until they expire, so they can be shared by link. Accounts (/api/v1/auth, /api/v1/account) need the server's database.",
     "license": {
       "name": "MIT",
       "url": "https://github.com/Hanumanth-Raghavendra/schemaguard/blob/main/LICENSE"
@@ -15,11 +15,129 @@
       "name": "Saved analyses"
     },
     {
+      "description": "Sign up, log in, keep a session going and end it. A session answer holds a short-lived access token for Authorization: Bearer; the refresh token is set as the httpOnly cookie __Secure-sg-refresh, which a browser sends to /api/v1/auth only. Accounts need the server's database (503 without it).",
+      "name": "Accounts"
+    },
+    {
       "description": "Diff, risk report, migration plan and lint",
       "name": "Analysis"
     }
   ],
   "paths": {
+    "/api/v1/account": {
+      "delete": {
+        "description": "Deletes the account and ends all its sessions. Needs the password.",
+        "operationId": "deleteAccount",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordCheck"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Deleted; the refresh cookie is cleared"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "No access token, or one that is expired, invalid, or names a deleted account"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "The password is wrong"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Too many wrong passwords for this account; the Retry-After header says when to try again"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Accounts are switched off on this server or the database is unreachable"
+          }
+        },
+        "security": [
+          {
+            "accessToken": [ ]
+          }
+        ],
+        "summary": "Delete the account",
+        "tags": [
+          "Accounts"
+        ]
+      },
+      "get": {
+        "operationId": "getAccount",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            },
+            "description": "The account"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "No access token, or one that is expired, invalid, or names a deleted account"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Accounts are switched off on this server or the database is unreachable"
+          }
+        },
+        "security": [
+          {
+            "accessToken": [ ]
+          }
+        ],
+        "summary": "The logged-in account",
+        "tags": [
+          "Accounts"
+        ]
+      }
+    },
     "/api/v1/analyses/diff": {
       "post": {
         "operationId": "diff_1",
@@ -333,6 +451,205 @@
         "summary": "Open a saved analysis",
         "tags": [
           "Saved analyses"
+        ]
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "logIn",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Credentials"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": "Logged in; the refresh cookie is set"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "The email or password is wrong"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Too many failed logins for this account; the Retry-After header says when to try again"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Accounts are switched off on this server or the database is unreachable"
+          }
+        },
+        "summary": "Log in",
+        "tags": [
+          "Accounts"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "description": "Ends the session of the refresh cookie and clears it. Access tokens already issued stay valid until they expire, at most the access token lifetime.",
+        "operationId": "logOut",
+        "responses": {
+          "204": {
+            "description": "Logged out (also when there was no session)"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Accounts are switched off on this server or the database is unreachable"
+          }
+        },
+        "security": [
+          {
+            "refreshCookie": [ ]
+          }
+        ],
+        "summary": "Log out",
+        "tags": [
+          "Accounts"
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "description": "Exchanges the refresh cookie for a new one and returns a new access token. A refresh token works once: presenting it again later ends the whole session, because only a stolen copy would.",
+        "operationId": "refreshSession",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": "Renewed; the refresh cookie is replaced"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "No session: the cookie is missing, expired, revoked or reused; it is cleared"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Accounts are switched off on this server or the database is unreachable"
+          }
+        },
+        "security": [
+          {
+            "refreshCookie": [ ]
+          }
+        ],
+        "summary": "Renew the session",
+        "tags": [
+          "Accounts"
+        ]
+      }
+    },
+    "/api/v1/auth/signup": {
+      "post": {
+        "operationId": "signUp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Credentials"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": "Created and logged in; the refresh cookie is set"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "An account with this email exists already"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not an email address, or a password that is too short, too long or too common"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Accounts are switched off on this server or the database is unreachable"
+          }
+        },
+        "summary": "Create an account and log in",
+        "tags": [
+          "Accounts"
         ]
       }
     },
@@ -698,6 +1015,29 @@
   },
   "components": {
     "schemas": {
+      "Account": {
+        "type": "object",
+        "description": "A SchemaGuard account",
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "email": {
+            "type": "string",
+            "example": "you@example.com"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "createdAt",
+          "email",
+          "id"
+        ]
+      },
       "Change": {
         "type": "object",
         "description": "One difference between the two schemas",
@@ -800,6 +1140,25 @@
         "required": [
           "after",
           "before"
+        ]
+      },
+      "Credentials": {
+        "type": "object",
+        "description": "An email and a password, to sign up or log in",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "you@example.com"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "description": "At sign-up: 8 to 256 characters, not one of the 10,000 most common passwords, not the email"
+          }
+        },
+        "required": [
+          "email",
+          "password"
         ]
       },
       "Diagnostic": {
@@ -1323,6 +1682,19 @@
           "work"
         ]
       },
+      "PasswordCheck": {
+        "type": "object",
+        "description": "The account's password, typed again to confirm an action",
+        "properties": {
+          "password": {
+            "type": "string",
+            "format": "password"
+          }
+        },
+        "required": [
+          "password"
+        ]
+      },
       "PlanRequest": {
         "type": "object",
         "description": "Two versions of a schema and how to plan the way between them",
@@ -1597,6 +1969,38 @@
           "value"
         ]
       },
+      "Session": {
+        "type": "object",
+        "description": "A logged-in session. The refresh token travels separately, in an httpOnly cookie the browser keeps and sends to /api/v1/auth only",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "Send as Authorization: Bearer <accessToken>. A JWT (RFC 9068); keep it in memory only"
+          },
+          "account": {
+            "$ref": "#/components/schemas/Account"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Seconds until the access token expires; then call /api/v1/auth/refresh",
+            "example": 900
+          },
+          "tokenType": {
+            "type": "string",
+            "enum": [
+              "Bearer"
+            ],
+            "example": "Bearer"
+          }
+        },
+        "required": [
+          "accessToken",
+          "account",
+          "expiresIn",
+          "tokenType"
+        ]
+      },
       "Step": {
         "type": "object",
         "description": "One statement of a migration plan",
@@ -1727,6 +2131,20 @@
           "change",
           "reason"
         ]
+      }
+    },
+    "securitySchemes": {
+      "accessToken": {
+        "bearerFormat": "JWT",
+        "description": "The accessToken of a session (sign-up, login or refresh)",
+        "scheme": "bearer",
+        "type": "http"
+      },
+      "refreshCookie": {
+        "description": "The httpOnly refresh cookie set by sign-up, login and refresh",
+        "in": "cookie",
+        "name": "__Secure-sg-refresh",
+        "type": "apiKey"
       }
     }
   }

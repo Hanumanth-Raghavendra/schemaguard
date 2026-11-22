@@ -1,0 +1,8 @@
+{
+  "detail": "Your session has ended; log in again.",
+  "instance": "/api/v1/auth/refresh",
+  "status": 401,
+  "title": "Unauthorized",
+  "type": "about:blank",
+  "code": "SG-API-401"
+}

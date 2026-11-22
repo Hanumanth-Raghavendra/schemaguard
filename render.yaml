@@ -33,6 +33,11 @@ services:
       # Change it here, not only in the dashboard: a Blueprint sync writes this value back.
       - key: SCHEMAGUARD_CORS_ALLOWED_ORIGINS
         value: https://schemaguard-v1.vercel.app,http://localhost:5173,http://localhost:4173
-    # Saved analyses (permalinks) are off until SCHEMAGUARD_PERSISTENCE_URL is added in the
+      # Signs the access tokens of logged-in sessions (HS256). Render generates a random 256-bit
+      # value once and keeps it across deploys and syncs, so access tokens survive restarts. It is
+      # never in the repository; without it the service makes a key per start.
+      - key: SCHEMAGUARD_AUTH_JWT_SECRET
+        generateValue: true
+    # Saved analyses (permalinks) and accounts are off until SCHEMAGUARD_PERSISTENCE_URL is added in the
     # dashboard: a PostgreSQL connection string such as Neon's
     # postgresql://user:password@host/db?sslmode=require. It is a secret, so it is not kept here.

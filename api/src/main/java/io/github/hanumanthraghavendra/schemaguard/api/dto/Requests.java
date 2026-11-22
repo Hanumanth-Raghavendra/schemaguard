@@ -40,6 +40,30 @@ public final class Requests {
                             example = "CREATE INDEX users_email_idx ON users (email);")
                     String migration) {}
 
+    @Schema(name = "Credentials", description = "An email and a password, to sign up or log in")
+    public record Credentials(
+            @NotNull @Schema(example = "you@example.com") String email,
+            @NotNull
+                    @Schema(
+                            format = "password",
+                            description = "At sign-up: 8 to 256 characters, not one of the 10,000 most common passwords, not the email")
+                    String password) {
+
+        @Override
+        public String toString() {
+            return "Credentials[password hidden]";
+        }
+    }
+
+    @Schema(name = "PasswordCheck", description = "The account's password, typed again to confirm an action")
+    public record PasswordCheck(@NotNull @Schema(format = "password") String password) {
+
+        @Override
+        public String toString() {
+            return "PasswordCheck[password hidden]";
+        }
+    }
+
     /** Which statements a plan is made of. */
     public enum Route {
         DIRECT,

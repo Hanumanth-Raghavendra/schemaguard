@@ -20,6 +20,8 @@ export type ModelColumn = Schemas['ModelColumn'];
 export type ModelReference = Schemas['ModelReference'];
 export type SavedAnalysis = Schemas['SavedAnalysis'];
 export type StoredAnalysis = Schemas['StoredAnalysis'];
+export type Session = Schemas['Session'];
+export type Account = Schemas['Account'];
 export type Route = 'DIRECT' | 'SAFE';
 
 /** RFC 9457 problem as the API sends it; `code` and `diagnostics` are its extension members. */
@@ -140,6 +142,39 @@ export async function deleteAnalysis(id: string, token: string): Promise<void> {
   await send(() =>
     client.DELETE('/api/v1/analyses/{id}', { params: { path: { id }, header: { 'X-Delete-Token': token } } }),
   );
+}
+
+// Accounts. The refresh token is an httpOnly cookie the browser sends to /api/v1/auth by itself
+// (same origin, D-090); the access token comes back in the JSON and is kept in memory only.
+
+/** Creates an account; the answer is a logged-in session. */
+export function signUp(email: string, password: string): Promise<Session> {
+  return call(() => client.POST('/api/v1/auth/signup', { body: { email, password } }));
+}
+
+export function logIn(email: string, password: string): Promise<Session> {
+  return call(() => client.POST('/api/v1/auth/login', { body: { email, password } }));
+}
+
+/** Exchanges the refresh cookie for a new session; 401 when there is none. */
+export function refreshSession(): Promise<Session> {
+  return call(() => client.POST('/api/v1/auth/refresh'));
+}
+
+export async function logOut(): Promise<void> {
+  await send(() => client.POST('/api/v1/auth/logout'));
+}
+
+function bearer(accessToken: string): { Authorization: string } {
+  return { Authorization: `Bearer ${accessToken}` };
+}
+
+export function getAccount(accessToken: string, signal?: AbortSignal): Promise<Account> {
+  return call(() => client.GET('/api/v1/account', { headers: bearer(accessToken), signal: signal ?? null }));
+}
+
+export async function deleteAccount(accessToken: string, password: string): Promise<void> {
+  await send(() => client.DELETE('/api/v1/account', { headers: bearer(accessToken), body: { password } }));
 }
 
 /** Starts the sleeping API host early. The answer is opaque (no CORS on /actuator) and not needed. */

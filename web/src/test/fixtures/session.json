@@ -1,0 +1,10 @@
+{
+  "accessToken": "eyJraWQiOiI3UmoyUW5uRGRfcHlRcWVNU0U5dUx0MnhDb2xjajJvUXZTelJEVmVJVlNFIiwidHlwIjoiYXQrand0IiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiJmN2E3ZjEwNC00OGVlLTRjMDQtODg0ZC0xNzQ2NmM5Nzg2ZTEiLCJhdWQiOiJzY2hlbWFndWFyZC1hcGkiLCJpc3MiOiJzY2hlbWFndWFyZCIsImV4cCI6MTc5NTM2OTYxNywiaWF0IjoxNzk1MzY4NzE3LCJqdGkiOiIwOTA1Zjg2ZS1iMmUzLTRjNDMtYWNhOC0zMDUzMTJmM2E4Y2MiLCJjbGllbnRfaWQiOiJzY2hlbWFndWFyZC13ZWIifQ.hUCUFwuhFWVF7v-pa-LrgVmYJW7kjwlF-XssMhUYzM8",
+  "tokenType": "Bearer",
+  "expiresIn": 900,
+  "account": {
+    "id": "f7a7f104-48ee-4c04-884d-17466c9786e1",
+    "email": "you@example.com",
+    "createdAt": "2026-11-22T17:31:57.197Z"
+  }
+}

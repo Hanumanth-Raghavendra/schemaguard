@@ -45,11 +45,18 @@ schemaguard:
     max-statements: 2000
   cors:
     allowed-origins: ${SCHEMAGUARD_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:4173}
-  # Saved analyses (permalinks) are off unless SCHEMAGUARD_PERSISTENCE_URL is set, either to a
-  # JDBC URL or to a connection string such as postgresql://user:password@host/db?sslmode=require.
+  # Saved analyses (permalinks) and accounts are off unless SCHEMAGUARD_PERSISTENCE_URL is set,
+  # either to a JDBC URL or to a connection string such as postgresql://user:password@host/db?sslmode=require.
   persistence:
     retention: 30d
     max-analysis-bytes: 1000000
     max-total-bytes: 200000000
     pool-size: 3
     connect-timeout: 10s
+  # Accounts. SCHEMAGUARD_AUTH_JWT_SECRET (at least 32 characters) signs access tokens; without it a
+  # random key is made at startup and access tokens stop working on restart (clients renew them).
+  auth:
+    access-token-lifetime: 15m
+    refresh-token-lifetime: 30d
+    session-lifetime: 90d
+    refresh-reuse-grace: 30s

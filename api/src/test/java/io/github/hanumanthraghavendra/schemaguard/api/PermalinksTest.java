@@ -5,18 +5,23 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.hanumanthraghavendra.schemaguard.api.config.ApiProperties;
 import io.github.hanumanthraghavendra.schemaguard.api.persistence.AnalysisStore;
+import io.github.hanumanthraghavendra.schemaguard.api.persistence.Database;
 import io.github.hanumanthraghavendra.schemaguard.api.persistence.JdbcAnalysisStore;
 import io.github.hanumanthraghavendra.schemaguard.api.persistence.PersistenceConfig;
 import io.github.hanumanthraghavendra.schemaguard.api.persistence.StorageFullException;
 import io.github.hanumanthraghavendra.schemaguard.api.persistence.TestDatabase;
 import com.zaxxer.hikari.HikariDataSource;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -195,7 +200,7 @@ class PermalinksTest {
     void savingStopsWhenTheRoomIsUsedUp() {
         ApiProperties.Persistence tiny =
                 new ApiProperties.Persistence("x", null, null, Duration.ofDays(30), 1024, 2048, 1, Duration.ofSeconds(5));
-        JdbcAnalysisStore full = new JdbcAnalysisStore(dataSource, tiny, Clock.fixed(Instant.now(), ZoneOffset.UTC));
+        JdbcAnalysisStore full = new JdbcAnalysisStore(new Database(dataSource), tiny, Clock.fixed(Instant.now(), ZoneOffset.UTC));
         Instant now = Instant.now();
         AnalysisStore.Saved large =
                 new AnalysisStore.Saved("FullFullFullFullFull01", "diff", "{\"a\":\"" + "x".repeat(3000) + "\"}", "{}", "t", now, now.plusSeconds(60));
@@ -204,7 +209,7 @@ class PermalinksTest {
     }
 
     @Test
-    void theSchemaIsCreatedByTheMigrationAndNothingElse() {
+    void theSchemaIsCreatedByTheMigrationsAndNothingElse() throws IOException {
         List<String> columns =
                 JdbcClient.create(dataSource)
                         .sql("SELECT column_name FROM information_schema.columns WHERE table_name = 'analysis' ORDER BY ordinal_position")
@@ -213,7 +218,12 @@ class PermalinksTest {
         assertThat(columns)
                 .containsExactly(
                         "id", "kind", "request", "result", "engine_version", "size_bytes", "delete_token_hash", "created_at", "expires_at");
-        assertThat(JdbcClient.create(dataSource).sql("SELECT max(version) FROM flyway_schema_history").query(String.class).single())
-                .isEqualTo("1");
+        // Every migration in the folder ran, and nothing else did.
+        long migrations;
+        try (Stream<Path> files = Files.list(Path.of("src/main/resources/db/migration"))) {
+            migrations = files.filter(f -> f.getFileName().toString().matches("V\\d+__\\w+\\.sql")).count();
+        }
+        assertThat(JdbcClient.create(dataSource).sql("SELECT max(version::int) FROM flyway_schema_history").query(Long.class).single())
+                .isEqualTo(migrations);
     }
 }

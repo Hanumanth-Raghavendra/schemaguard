@@ -13,6 +13,7 @@ describe('API client', () => {
         path: '/api/v1/diff',
         body: { before: 'CREATE TABLE a (id int);', after: 'CREATE TABLE b (id int);' },
         token: null,
+        authorization: null,
       },
     ]);
   });

@@ -3,10 +3,13 @@ import { MemoryRouter } from 'react-router';
 import { vi } from 'vitest';
 import type { DiffResponse, LintResponse, ModelResponse, PlanResponse, ReportResponse } from '../api/client.ts';
 import { App } from '../App.tsx';
+import account from './fixtures/account.json';
 import diff from './fixtures/diff.json';
+import emailTaken from './fixtures/emailTaken.json';
 import gone from './fixtures/gone.json';
 import invalid from './fixtures/invalid.json';
 import lint from './fixtures/lint.json';
+import locked from './fixtures/locked.json';
 import model from './fixtures/model.json';
 import plan from './fixtures/plan.json';
 import planDirect from './fixtures/planDirect.json';
@@ -14,8 +17,14 @@ import planRenamed from './fixtures/planRenamed.json';
 import report from './fixtures/report.json';
 import saved from './fixtures/saved.json';
 import savedLint from './fixtures/savedLint.json';
+import session from './fixtures/session.json';
+import sessionEnded from './fixtures/sessionEnded.json';
 import stored from './fixtures/stored.json';
 import storedLint from './fixtures/storedLint.json';
+import tokenRejected from './fixtures/tokenRejected.json';
+import weakPassword from './fixtures/weakPassword.json';
+import wrongLogin from './fixtures/wrongLogin.json';
+import wrongPassword from './fixtures/wrongPassword.json';
 import wrongToken from './fixtures/wrongToken.json';
 
 /** Real API answers for the example (recorded from a local server), served by a fake fetch. */
@@ -33,13 +42,19 @@ export const fixtures = {
   savedLint,
   stored,
   storedLint,
+  session,
+  account,
 };
+
+/** The account the fake API knows, with the password it accepts. */
+export const ACCOUNT = { email: account.email, password: 'correct horse battery staple' };
 
 export interface Sent {
   method: string;
   path: string;
   body: unknown;
   token: string | null;
+  authorization: string | null;
 }
 
 function json(status: number, body: unknown): Response {
@@ -68,17 +83,70 @@ function analyses(method: string, path: string, token: string | null, sharingOff
   return new Response(null, { status: 204 });
 }
 
+interface FakeOptions {
+  invalidSchema?: boolean;
+  sharingOff?: boolean;
+  /** The browser holds a refresh cookie the server accepts. */
+  loggedIn?: boolean;
+  /** The first call with an access token is refused as expired, as after the token's 15 minutes. */
+  expireFirstToken?: boolean;
+}
+
+/** The account endpoints, with the refresh cookie modelled as a flag the server holds. */
+function accounts(
+  method: string,
+  path: string,
+  body: unknown,
+  authorization: string | null,
+  server: { session: boolean; expire: boolean },
+) {
+  const request = (body ?? {}) as { email?: string; password?: string };
+  const start = (status: number) => {
+    server.session = true;
+    return json(status, session);
+  };
+  switch (`${method} ${path}`) {
+    case 'POST /api/v1/auth/signup':
+      if (request.email === ACCOUNT.email) return json(409, emailTaken);
+      if (request.password === 'iloveyou') return json(422, weakPassword);
+      return start(201);
+    case 'POST /api/v1/auth/login':
+      if (request.email === 'locked@example.com') return json(429, locked);
+      if (request.email !== ACCOUNT.email || request.password !== ACCOUNT.password) return json(401, wrongLogin);
+      return start(200);
+    case 'POST /api/v1/auth/refresh':
+      return server.session ? start(200) : json(401, sessionEnded);
+    case 'POST /api/v1/auth/logout':
+      server.session = false;
+      return new Response(null, { status: 204 });
+  }
+  if (authorization !== `Bearer ${session.accessToken}` || server.expire) {
+    server.expire = false;
+    return json(401, tokenRejected);
+  }
+  if (method === 'GET') return json(200, account);
+  if (request.password !== ACCOUNT.password) return json(403, wrongPassword);
+  server.session = false;
+  return new Response(null, { status: 204 });
+}
+
 /** Replaces fetch with one that answers like the API; returns what was sent. */
-export function fakeApi(options: { invalidSchema?: boolean; sharingOff?: boolean } = {}): Sent[] {
+export function fakeApi(options: FakeOptions = {}): Sent[] {
   const sent: Sent[] = [];
+  const server = { session: options.loggedIn ?? false, expire: options.expireFirstToken ?? false };
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: Request) => {
       const path = new URL(input.url).pathname;
       const method = input.method;
-      const body: unknown = method === 'POST' ? await input.json() : null;
+      const text = method === 'GET' ? '' : await input.text();
+      const body: unknown = text === '' ? null : JSON.parse(text);
       const token = input.headers.get('X-Delete-Token');
-      sent.push({ method, path, body, token });
+      const authorization = input.headers.get('Authorization');
+      sent.push({ method, path, body, token, authorization });
+      if (path.startsWith('/api/v1/auth/') || path === '/api/v1/account') {
+        return accounts(method, path, body, authorization, server);
+      }
       if (path.startsWith('/api/v1/analyses/')) return analyses(method, path, token, options.sharingOff ?? false);
       if (options.invalidSchema) return json(422, invalid);
       const request = body as { route?: string; renames?: unknown[] };

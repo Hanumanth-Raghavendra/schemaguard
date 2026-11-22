@@ -1,5 +1,6 @@
 package io.github.hanumanthraghavendra.schemaguard.api.persistence;
 
+import io.github.hanumanthraghavendra.schemaguard.api.auth.AccountStore;
 import io.github.hanumanthraghavendra.schemaguard.api.config.ApiProperties;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -17,8 +18,9 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 
 /**
- * The database for saved analyses, present only when {@code schemaguard.persistence.url} is
- * set. Without it the service runs exactly as before and the permalink endpoints answer 503.
+ * The database for saved analyses and accounts, present only when
+ * {@code schemaguard.persistence.url} is set. Without it the service runs exactly as before and
+ * the permalink and account endpoints answer 503.
  */
 @Configuration(proxyBeanMethods = false)
 @Conditional(PersistenceConfig.UrlIsSet.class)
@@ -29,7 +31,7 @@ public class PersistenceConfig {
 
     /**
      * A pool that never connects before it is used and holds no idle connection for long. A
-     * hosted free-tier database that is asleep is woken by the first permalink request, not
+     * hosted free-tier database that is asleep is woken by the first request that needs it, not
      * by the service starting, and is allowed to fall asleep again.
      */
     @Bean(destroyMethod = "close")
@@ -47,38 +49,53 @@ public class PersistenceConfig {
         config.setMaxLifetime(300_000);
         config.setConnectionTimeout(Math.max(250, settings.connectTimeout().toMillis()));
         config.setInitializationFailTimeout(-1);
-        LOG.info("Saved analyses are on: {}", url);
+        LOG.info("Saved analyses and accounts are on: {}", url);
         return new HikariDataSource(config);
     }
 
     @Bean
-    JdbcAnalysisStore analysisStore(HikariDataSource analysisDataSource, ApiProperties properties) {
-        return new JdbcAnalysisStore(analysisDataSource, properties.persistence(), Clock.systemUTC());
+    Database database(HikariDataSource analysisDataSource) {
+        return new Database(analysisDataSource);
     }
 
     @Bean
-    RetentionJob retentionJob(AnalysisStore analysisStore) {
-        return new RetentionJob(analysisStore);
+    JdbcAnalysisStore analysisStore(Database database, ApiProperties properties) {
+        return new JdbcAnalysisStore(database, properties.persistence(), Clock.systemUTC());
     }
 
-    /** Deletes expired analyses every hour. */
+    @Bean
+    AccountStore accountStore(Database database) {
+        return new AccountStore(database);
+    }
+
+    @Bean
+    RetentionJob retentionJob(AnalysisStore analysisStore, AccountStore accountStore) {
+        return new RetentionJob(analysisStore, accountStore, Clock.systemUTC());
+    }
+
+    /** Deletes expired analyses and refresh tokens every hour. */
     public static class RetentionJob {
 
-        private final AnalysisStore store;
+        private final AnalysisStore analyses;
+        private final AccountStore accounts;
+        private final Clock clock;
 
-        RetentionJob(AnalysisStore store) {
-            this.store = store;
+        RetentionJob(AnalysisStore analyses, AccountStore accounts, Clock clock) {
+            this.analyses = analyses;
+            this.accounts = accounts;
+            this.clock = clock;
         }
 
         @Scheduled(initialDelayString = "PT10M", fixedDelayString = "PT1H")
         public void deleteExpired() {
             try {
-                int deleted = store.deleteExpired();
-                if (deleted > 0) {
-                    LOG.info("Deleted {} expired saved analyses", deleted);
+                int analysesDeleted = analyses.deleteExpired();
+                int tokensDeleted = accounts.deleteExpiredTokens(clock.instant());
+                if (analysesDeleted > 0 || tokensDeleted > 0) {
+                    LOG.info("Deleted {} expired saved analyses and {} expired refresh tokens", analysesDeleted, tokensDeleted);
                 }
             } catch (PersistenceUnavailableException e) {
-                // Already logged by the store; the next run tries again.
+                // Already logged by the database; the next run tries again.
             }
         }
     }

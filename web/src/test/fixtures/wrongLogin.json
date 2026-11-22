@@ -1,0 +1,8 @@
+{
+  "detail": "The email or password is wrong.",
+  "instance": "/api/v1/auth/login",
+  "status": 401,
+  "title": "Unauthorized",
+  "type": "about:blank",
+  "code": "SG-API-401"
+}

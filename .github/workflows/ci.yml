@@ -124,7 +124,7 @@ jobs:
           cache: maven
       - name: Build the API
         run: ./mvnw -B -ntp -DskipTests -pl api -am package
-      - name: Start the API with saving on
+      - name: Start the API with saving and accounts on
         env:
           SCHEMAGUARD_PERSISTENCE_URL: postgresql://postgres:postgres@localhost:5432/postgres
         run: |
@@ -149,7 +149,7 @@ jobs:
         working-directory: web
         # Same origin as in production: vite preview forwards /api to the API on port 8080 (D-090).
         run: npm run build
-      - name: Analyse, share, open and delete in Chromium
+      - name: Analyse and share, and an account from sign-up to deletion, in Chromium
         working-directory: web
         run: npm run test:e2e
       - if: failure()

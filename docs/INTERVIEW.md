@@ -573,3 +573,46 @@ reserved constraint names, release versioning and a changelog.
   failed with Spring's "Invalid CORS request" until the preview origin was allowed.
 - *What about the cold start through a proxy?* The page still pings the API host directly on
   load to wake it, so by the time someone clicks Analyse it is usually up.
+
+## Phase 7.1: accounts
+
+**What it is.** Sign up, log in, stay logged in, log out, delete the account. Spring Security 7.1
+checks short-lived JWT access tokens; an opaque refresh token in an httpOnly cookie renews them
+and rotates on every use. Passwords are Argon2id.
+
+**Likely questions**
+
+- *Why not keep the JWT in localStorage?* Any script on the page can read localStorage, so one
+  cross-site-scripting bug would hand out every session. The access token lives in a JavaScript
+  variable for at most 15 minutes; the long-lived refresh token is a cookie scripts cannot read,
+  sent only to `/api/v1/auth`, only by this site's own pages (SameSite=Strict) (D-092, D-096).
+- *Why is the refresh token not a JWT too?* Its whole value is that it can be revoked and that
+  reuse can be noticed, and both need a database lookup anyway. An opaque random value stored as
+  a hash does that without pretending to be stateless.
+- *What is refresh token rotation with reuse detection?* Every refresh swaps the token for a new
+  one. If an old one ever comes back, two parties hold it and one is not the owner, so the whole
+  session is revoked (RFC 9700). Either the thief or the owner refreshes first; the other one's
+  next refresh ends it for both.
+- *And two tabs refreshing at once?* Both send the same token; without care the second looks
+  like theft and logs the person out. A browser restoring a session with two SchemaGuard tabs
+  does exactly this. The fix: a 30-second grace window on the server and one refresh at a time
+  per tab in the client. A test reproduces both tabs (D-092).
+- *How do you stop password guessing without rate limiting by IP?* Per-account backoff: 5
+  failures in an hour lock the account for a minute, then 2, 4, 8, up to 15 minutes. That caps
+  guessing at a few tries an hour, and a typo costs the owner a minute. Hard lockouts are worse:
+  anyone could lock anyone out. Unknown emails cost the same Argon2 work, so timing does not tell
+  which emails exist (D-094).
+- *Why Argon2id and those numbers?* OWASP's first recommendation: 19 MiB, 2 passes, 1 lane. It
+  is memory-hard on purpose, which on a 512 MB server is also a way to run out of memory, so at
+  most two hashes run at once (D-093).
+- *Why no "one digit, one symbol" rule?* NIST and OWASP both dropped composition rules: they make
+  passwords harder to remember, not to guess. Instead: at least 8 characters and not one of the
+  10,000 most common passwords.
+- *What about CSRF?* The account endpoints need an `Authorization` header, which a browser never
+  sends on its own, so another site cannot forge them. The cookie endpoints (refresh, logout) are
+  protected by SameSite=Strict, and Spring's CORS check refuses any foreign `Origin` with 403
+  before the endpoint runs; a test proves it (D-091).
+- *How do you know it works in production?* The live smoke test signs up a throwaway account,
+  checks the cookie's attributes, rotates it, logs out, logs in and deletes the account, both by
+  curl against the API and by clicking through the real site. It also checks that `Set-Cookie`
+  survives Vercel's rewrite.

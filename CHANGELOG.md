@@ -6,6 +6,14 @@ each release is a git tag (`v0.5.0`) on `main`. Details and reasons: `PROGRESS.m
 
 ## Unreleased (0.6.0)
 
+- **Accounts**: sign up, log in, stay logged in across visits, log out, delete the account
+  (`/signup`, `/login`, `/account`; API `POST /api/v1/auth/signup|login|refresh|logout`,
+  `GET`/`DELETE /api/v1/account`). Short-lived JWT access tokens (RFC 9068) kept in memory; the
+  refresh token is an httpOnly, SameSite=Strict cookie that rotates on every use, and a reused one
+  ends the session. Passwords are hashed with Argon2id and checked against the 10,000 most common;
+  repeated wrong passwords lock the account for a minute, then longer. Analysing and sharing still
+  need no account.
+- The web app reaches the API through its own address (Vercel forwards `/api`).
 - The API's `/actuator/info` reports the real build time again; Maven 3.10's fixed
   reproducible-build timestamp made it read 1980-02-01.
 

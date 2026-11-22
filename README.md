@@ -6,7 +6,7 @@ A PostgreSQL migration-safety platform. Give it two versions of a schema and it 
 what changed, what that change will lock or break in production, and how to ship it safely.
 
 > **Status: live. Web app: https://schemaguard-v1.vercel.app (pick an example, see the risks, the plan
-> and the diagram, share a link). API: [Swagger UI](https://schemaguard-api-c00y.onrender.com/swagger-ui.html).**
+> and the diagram, share a link; accounts are optional). API: [Swagger UI](https://schemaguard-api-c00y.onrender.com/swagger-ui.html).**
 > Free hosting: the first analysis after 15 idle minutes takes about a minute while the API wakes up.
 > See [PROGRESS.md](PROGRESS.md) for the current state and roadmap.
 
@@ -55,16 +55,16 @@ ALTER TABLE app.posts DROP CONSTRAINT posts_body_not_null;
   `pg_dump` afterwards must match the target schema.
 - **Planner, rules and linter are tested against each other**, and the engine is fuzzed with
   broken SQL: any input gives an answer, never a crash.
-- About 1,700 tests; the engine has no runtime dependencies.
+- About 1,900 tests; the engine has no runtime dependencies.
 
 ## Planned shape
 
 | Module | Role | Status |
 | --- | --- | --- |
-| `engine` | Lexer, parser, schema model, diff, rules, planner, linter. Pure Java, no dependencies | Done for v0.1 |
-| `api` | Spring Boot REST service with OpenAPI docs and a Docker image | Done for v0.1 |
+| `engine` | Lexer, parser, schema model, diff, rules, planner, linter, ER model. Pure Java, no dependencies | Done |
+| `api` | Spring Boot REST service: analyses, share links, accounts; OpenAPI docs and a Docker image | Live; projects next |
+| `web` | React + TypeScript app: editors, risks, plan, diagram, examples, sharing, accounts | Live (v0.5.0) |
 | `cli` | Command-line tool built on the engine | Planned |
-| `web` | React + TypeScript front end | Planned |
 | `action` | GitHub Action that reviews migrations on pull requests | Planned |
 
 ## Build
@@ -107,10 +107,14 @@ curl -X POST http://localhost:8080/api/v1/report -H 'Content-Type: application/j
 | `POST /api/v1/analyses/{diff,report,plan,lint}` | Run an analysis and save it for 30 days; returns a shareable id and a delete token |
 | `GET /api/v1/analyses/{id}` | Open a saved analysis exactly as it was computed |
 | `DELETE /api/v1/analyses/{id}` | Delete it early (header `X-Delete-Token`) |
+| `POST /api/v1/auth/signup`, `/login` | Create an account or log in: an access token in the answer, a refresh cookie beside it |
+| `POST /api/v1/auth/refresh`, `/logout` | Renew the session with the refresh cookie (it rotates), or end it |
+| `GET /api/v1/account`, `DELETE /api/v1/account` | The logged-in account (`Authorization: Bearer`); delete it with its password |
 
-Saving needs PostgreSQL: set `SCHEMAGUARD_PERSISTENCE_URL` to a JDBC URL or a connection string
-such as `postgresql://user:password@host/db?sslmode=require`. Without it everything else works
-and the save endpoints answer 503. SchemaGuard lints its own database migrations in its tests.
+Saving and accounts need PostgreSQL: set `SCHEMAGUARD_PERSISTENCE_URL` to a JDBC URL or a connection
+string such as `postgresql://user:password@host/db?sslmode=require`. Without it everything else
+works and those endpoints answer 503. Set `SCHEMAGUARD_AUTH_JWT_SECRET` (32 characters or more) to
+keep access tokens valid across restarts. SchemaGuard lints its own database migrations in its tests.
 
 ## Run the web app
 

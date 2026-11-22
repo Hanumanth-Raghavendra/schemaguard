@@ -50,7 +50,7 @@ jobs:
       - name: Health, docs and rules
         run: |
           curl -fs "$URL/actuator/health" | jq -e '.status == "UP"'
-          curl -fs "$URL/v3/api-docs" | jq -e '.paths | has("/api/v1/report") and has("/api/v1/model") and has("/api/v1/analyses/{id}")'
+          curl -fs "$URL/v3/api-docs" | jq -e '.paths | has("/api/v1/report") and has("/api/v1/model") and has("/api/v1/analyses/{id}") and has("/api/v1/auth/signup") and has("/api/v1/account")'
           test "$(curl -s -o /dev/null -w '%{http_code}' "$URL/swagger-ui/index.html")" = 200
           test "$(curl -fs "$URL/api/v1/rules" | jq length)" -ge 40
           curl -fs "$URL/actuator/info" | jq -r '"Running build " + .build.version + " from " + .build.time' | tee -a "$GITHUB_STEP_SUMMARY"
@@ -89,6 +89,39 @@ jobs:
             if [ "$PERSISTENCE" = required ]; then echo "::error::Saved analyses do not work"; exit 1; fi
           fi
 
+      - name: Accounts
+        run: |
+          # A throwaway account: sign up, use the access token, rotate the refresh cookie, log out,
+          # log in, delete. Accounts need the database, like saved analyses.
+          EMAIL="smoke-$(date +%s)-$RANDOM@example.com"
+          PASSWORD='a long passphrase for the live smoke test'
+          CREDENTIALS=$(jq -n --arg e "$EMAIL" --arg p "$PASSWORD" '{email: $e, password: $p}')
+          json() { curl -s -m 60 -H 'Content-Type: application/json' "$@"; }
+          STATUS=$(json -c jar -D signup.headers -o session.json -w '%{http_code}' -X POST "$URL/api/v1/auth/signup" -d "$CREDENTIALS")
+          if [ "$STATUS" != 201 ]; then
+            echo "Accounts: HTTP $STATUS - $(jq -r '.detail // empty' session.json 2>/dev/null)" | tee -a "$GITHUB_STEP_SUMMARY"
+            if [ "$PERSISTENCE" = required ]; then echo "::error::Accounts do not work"; exit 1; fi
+            exit 0
+          fi
+          grep -i '^set-cookie: __Secure-sg-refresh=' signup.headers | grep -i 'httponly' | grep -i 'secure' \
+            | grep -i 'samesite=strict' | grep -i 'path=/api/v1/auth'
+          ACCESS=$(jq -r .accessToken session.json)
+          curl -fs "$URL/api/v1/account" -H "Authorization: Bearer $ACCESS" | jq -e --arg e "$EMAIL" '.email == $e'
+          test "$(curl -s -o /dev/null -w '%{http_code}' "$URL/api/v1/account")" = 401
+
+          OLD=$(awk '$6 == "__Secure-sg-refresh" {print $7}' jar)
+          test "$(curl -s -b jar -c jar -o /dev/null -w '%{http_code}' -X POST "$URL/api/v1/auth/refresh")" = 200
+          NEW=$(awk '$6 == "__Secure-sg-refresh" {print $7}' jar)
+          test -n "$NEW" && test "$OLD" != "$NEW"
+          test "$(curl -s -b jar -c jar -o /dev/null -w '%{http_code}' -X POST "$URL/api/v1/auth/logout")" = 204
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$URL/api/v1/auth/refresh" -b "__Secure-sg-refresh=$NEW")" = 401
+
+          ACCESS=$(json -f -X POST "$URL/api/v1/auth/login" -d "$CREDENTIALS" | jq -r .accessToken)
+          test "$(json -o /dev/null -w '%{http_code}' -X DELETE "$URL/api/v1/account" -H "Authorization: Bearer $ACCESS" \
+            -d "$(jq -n --arg p "$PASSWORD" '{password: $p}')")" = 204
+          test "$(json -o /dev/null -w '%{http_code}' -X POST "$URL/api/v1/auth/login" -d "$CREDENTIALS")" = 401
+          echo "Accounts: ON (sign up, token, refresh, log out, log in, delete all work)" | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: CORS
         run: |
           ORIGINS=$(curl -s -o /dev/null -D - -X OPTIONS "$URL/api/v1/diff" -H "Origin: $ORIGIN" \
@@ -114,16 +147,20 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - name: The web app forwards /api to the API
+      - name: The web app forwards /api to the API, cookies included
         env:
           WEB: ${{ inputs.web }}
-        run: curl -fs "$WEB/api/v1/rules" | jq -e 'map(.id) | index("SG-R101") != null'
-      - name: Analyse, share, open and delete on the live site
+        run: |
+          curl -fs "$WEB/api/v1/rules" | jq -e 'map(.id) | index("SG-R101") != null'
+          # Logging out without a session still answers with a cookie that clears the refresh cookie:
+          # proof that Set-Cookie survives the Vercel rewrite, without making an account.
+          curl -s -D - -o /dev/null -X POST "$WEB/api/v1/auth/logout" | grep -i '^set-cookie: __Secure-sg-refresh=;'
+      - name: Analyse, share and a whole account on the live site
         env:
           E2E_BASE_URL: ${{ inputs.web }}
         run: |
           npm run test:e2e
-          echo "Live web app at $E2E_BASE_URL: analyse, share, open and delete all work" >> "$GITHUB_STEP_SUMMARY"
+          echo "Live web app at $E2E_BASE_URL: analyse, share, open, delete, and sign up to account deletion all work" >> "$GITHUB_STEP_SUMMARY"
       - if: failure()
         uses: actions/upload-artifact@v7
         with:

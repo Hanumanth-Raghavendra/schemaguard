@@ -1,5 +1,13 @@
 package io.github.hanumanthraghavendra.schemaguard.api.web;
 
+import io.github.hanumanthraghavendra.schemaguard.api.auth.AccountLockedException;
+import io.github.hanumanthraghavendra.schemaguard.api.auth.BusyException;
+import io.github.hanumanthraghavendra.schemaguard.api.auth.EmailTakenException;
+import io.github.hanumanthraghavendra.schemaguard.api.auth.InvalidAccountDetailsException;
+import io.github.hanumanthraghavendra.schemaguard.api.auth.LoginFailedException;
+import io.github.hanumanthraghavendra.schemaguard.api.auth.RefreshCookie;
+import io.github.hanumanthraghavendra.schemaguard.api.auth.SessionEndedException;
+import io.github.hanumanthraghavendra.schemaguard.api.auth.WrongPasswordException;
 import io.github.hanumanthraghavendra.schemaguard.api.persistence.PersistenceUnavailableException;
 import io.github.hanumanthraghavendra.schemaguard.api.persistence.StorageFullException;
 import io.github.hanumanthraghavendra.schemaguard.api.service.AnalysisNotFoundException;
@@ -9,8 +17,10 @@ import io.github.hanumanthraghavendra.schemaguard.api.service.WrongTokenExceptio
 import java.net.URI;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
@@ -55,6 +65,46 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(StorageFullException.class)
     ProblemDetail full(StorageFullException e) {
         return problem(HttpStatus.INSUFFICIENT_STORAGE, "Insufficient Storage", e.getMessage(), "SG-API-507");
+    }
+
+    @ExceptionHandler(InvalidAccountDetailsException.class)
+    ProblemDetail invalidAccount(InvalidAccountDetailsException e) {
+        return problem(HttpStatus.UNPROCESSABLE_CONTENT, "Account details cannot be used", e.getMessage(), "SG-API-422");
+    }
+
+    @ExceptionHandler(EmailTakenException.class)
+    ProblemDetail emailTaken(EmailTakenException e) {
+        return problem(HttpStatus.CONFLICT, "Conflict", e.getMessage(), "SG-API-409");
+    }
+
+    @ExceptionHandler(LoginFailedException.class)
+    ProblemDetail loginFailed(LoginFailedException e) {
+        return problem(HttpStatus.UNAUTHORIZED, "Unauthorized", e.getMessage(), "SG-API-401");
+    }
+
+    /** The session is over, so the browser is told to drop its refresh cookie as well. */
+    @ExceptionHandler(SessionEndedException.class)
+    ResponseEntity<ProblemDetail> sessionEnded(SessionEndedException e) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .header(HttpHeaders.SET_COOKIE, RefreshCookie.clear().toString())
+                .body(problem(HttpStatus.UNAUTHORIZED, "Unauthorized", e.getMessage(), "SG-API-401"));
+    }
+
+    @ExceptionHandler(WrongPasswordException.class)
+    ProblemDetail wrongPassword(WrongPasswordException e) {
+        return problem(HttpStatus.FORBIDDEN, "Forbidden", e.getMessage(), "SG-API-403");
+    }
+
+    @ExceptionHandler(AccountLockedException.class)
+    ResponseEntity<ProblemDetail> locked(AccountLockedException e) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(e.retryAfterSeconds()))
+                .body(problem(HttpStatus.TOO_MANY_REQUESTS, "Too Many Requests", e.getMessage(), "SG-API-429"));
+    }
+
+    @ExceptionHandler(BusyException.class)
+    ProblemDetail busy(BusyException e) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "Service Unavailable", e.getMessage(), "SG-API-503");
     }
 
     @ExceptionHandler(Exception.class)

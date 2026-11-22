@@ -4,6 +4,27 @@
  */
 
 export interface paths {
+    "/api/v1/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The logged-in account */
+        get: operations["getAccount"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete the account
+         * @description Deletes the account and ends all its sessions. Needs the password.
+         */
+        delete: operations["deleteAccount"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analyses/diff": {
         parameters: {
             query?: never;
@@ -85,6 +106,80 @@ export interface paths {
         post?: never;
         /** Delete a saved analysis before it expires */
         delete: operations["delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Log in */
+        post: operations["logIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Log out
+         * @description Ends the session of the refresh cookie and clears it. Access tokens already issued stay valid until they expire, at most the access token lifetime.
+         */
+        post: operations["logOut"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Renew the session
+         * @description Exchanges the refresh cookie for a new one and returns a new access token. A refresh token works once: presenting it again later ends the whole session, because only a stolen copy would.
+         */
+        post: operations["refreshSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create an account and log in */
+        post: operations["signUp"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -196,6 +291,15 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description A SchemaGuard account */
+        Account: {
+            /** Format: date-time */
+            createdAt: string;
+            /** @example you@example.com */
+            email: string;
+            /** Format: uuid */
+            id: string;
+        };
         /** @description One difference between the two schemas */
         Change: {
             /**
@@ -236,6 +340,16 @@ export interface components {
              * @example CREATE TABLE users (id int PRIMARY KEY);
              */
             before: string;
+        };
+        /** @description An email and a password, to sign up or log in */
+        Credentials: {
+            /** @example you@example.com */
+            email: string;
+            /**
+             * Format: password
+             * @description At sign-up: 8 to 256 characters, not one of the 10,000 most common passwords, not the email
+             */
+            password: string;
         };
         /** @description A problem found in one of the SQL inputs */
         Diagnostic: {
@@ -406,6 +520,11 @@ export interface components {
             /** @description NONE, SCAN or REWRITE */
             work: string;
         };
+        /** @description The account's password, typed again to confirm an action */
+        PasswordCheck: {
+            /** Format: password */
+            password: string;
+        };
         /** @description Two versions of a schema and how to plan the way between them */
         PlanRequest: {
             /** @description The schema as it should become */
@@ -505,6 +624,23 @@ export interface components {
              */
             value: number;
         };
+        /** @description A logged-in session. The refresh token travels separately, in an httpOnly cookie the browser keeps and sends to /api/v1/auth only */
+        Session: {
+            /** @description Send as Authorization: Bearer <accessToken>. A JWT (RFC 9068); keep it in memory only */
+            accessToken: string;
+            account: components["schemas"]["Account"];
+            /**
+             * Format: int64
+             * @description Seconds until the access token expires; then call /api/v1/auth/refresh
+             * @example 900
+             */
+            expiresIn: number;
+            /**
+             * @example Bearer
+             * @enum {string}
+             */
+            tokenType: "Bearer";
+        };
         /** @description One statement of a migration plan */
         Step: {
             /** @description Risks the plan could not remove; each needs a decision */
@@ -555,6 +691,102 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The account */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            /** @description No access token, or one that is expired, invalid, or names a deleted account */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Accounts are switched off on this server or the database is unreachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    deleteAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordCheck"];
+            };
+        };
+        responses: {
+            /** @description Deleted; the refresh cookie is cleared */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No access token, or one that is expired, invalid, or names a deleted account */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description The password is wrong */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Too many wrong passwords for this account; the Retry-After header says when to try again */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Accounts are switched off on this server or the database is unreachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
     diff_1: {
         parameters: {
             query?: never;
@@ -803,6 +1035,173 @@ export interface operations {
                 };
             };
             /** @description Saved analyses are switched off on this server or the database is unreachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    logIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Credentials"];
+            };
+        };
+        responses: {
+            /** @description Logged in; the refresh cookie is set */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            /** @description The email or password is wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Too many failed logins for this account; the Retry-After header says when to try again */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Accounts are switched off on this server or the database is unreachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    logOut: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Logged out (also when there was no session) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Accounts are switched off on this server or the database is unreachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    refreshSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Renewed; the refresh cookie is replaced */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            /** @description No session: the cookie is missing, expired, revoked or reused; it is cleared */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Accounts are switched off on this server or the database is unreachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    signUp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Credentials"];
+            };
+        };
+        responses: {
+            /** @description Created and logged in; the refresh cookie is set */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            /** @description An account with this email exists already */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not an email address, or a password that is too short, too long or too common */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Accounts are switched off on this server or the database is unreachable */
             503: {
                 headers: {
                     [name: string]: unknown;
