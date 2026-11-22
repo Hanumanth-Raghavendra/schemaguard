@@ -127,7 +127,6 @@ jobs:
       - name: Start the API with saving on
         env:
           SCHEMAGUARD_PERSISTENCE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-          SCHEMAGUARD_CORS_ALLOWED_ORIGINS: http://localhost:4173
         run: |
           nohup java -jar "$(ls api/target/schemaguard-api-*.jar)" > api.log 2>&1 &
           for i in $(seq 1 60); do
@@ -146,10 +145,9 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium
-      - name: Build the web app against the local API
+      - name: Build the web app
         working-directory: web
-        env:
-          VITE_API_URL: http://localhost:8080
+        # Same origin as in production: vite preview forwards /api to the API on port 8080 (D-090).
         run: npm run build
       - name: Analyse, share, open and delete in Chromium
         working-directory: web

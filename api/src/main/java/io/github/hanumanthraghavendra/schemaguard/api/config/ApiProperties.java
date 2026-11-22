@@ -36,7 +36,7 @@ public record ApiProperties(
             @Min(1) @DefaultValue("2000") int maxStatements) {}
 
     /** @param allowedOrigins origins allowed to call {@code /api/**} from a browser */
-    public record Cors(@NotNull @DefaultValue("http://localhost:5173") List<String> allowedOrigins) {}
+    public record Cors(@NotNull @DefaultValue({"http://localhost:5173", "http://localhost:4173"}) List<String> allowedOrigins) {}
 
     /**
      * Saved analyses (permalinks).

@@ -2,7 +2,7 @@
 
 > **To resume:** read this file, then start at "Next step". Do not re-plan; the plan is fixed below.
 
-- **Current phase:** 7 (accounts, projects, history, trends, API keys), not started. Phase 6 is done: web app live at https://schemaguard-v1.vercel.app (renamed from schemaguard-nu on 2026-11-22), released as `v0.5.0` (tagged by the owner on 2026-11-22). Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
+- **Current phase:** 7 (accounts, projects, history, trends, API keys): 7.0 done (one origin), 7.1 accounts next. Phase 6 is done: web app live at https://schemaguard-v1.vercel.app (renamed from schemaguard-nu on 2026-11-22), released as `v0.5.0` (tagged by the owner on 2026-11-22). Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
 - **Last updated:** 2026-11-22
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
 - **State:** build green; engine 1,714 tests (276 plans run on a real PostgreSQL 16 in CI), API 49 tests (permalinks tested on real PostgreSQL); web 51 tests (Vitest) and 1 end-to-end test (Playwright); line coverage engine 99.3% (gate 85%), API 96.0% (gate 80%); CI builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
@@ -35,13 +35,9 @@ app lives in `web/` (Vite 8, React 19, TypeScript 5.9, Tailwind 4, Monaco; see D
 **Phase 7 scope.** Blueprint tier 3: sign-up and login
 with JWT access and refresh tokens; projects with schema versions on a timeline, a risk trend chart
 and saved reports; per-user API keys for the CLI and CI. Done when a user can save schema versions
-and see the risk trend. Decide first, and record in DECISIONS:
+and see the risk trend. Decided: the refresh token lives in an httpOnly, Secure, SameSite=Strict cookie, first-party
+because the web app reaches the API through its own origin (7.0, D-090). Still to settle:
 
-- **Where the refresh token lives.** The web app (vercel.app) and the API (onrender.com) are
-  different sites, so an httpOnly refresh cookie set by the API is a third-party cookie, which
-  browsers block more and more. The likely answer is to serve the API through the web app's own
-  origin with a Vercel rewrite (`/api/*` to the Render URL), which makes the cookie first-party
-  and removes CORS for the web app. Check Vercel's external rewrites and their limits first.
 - **Libraries.** Spring Security 7 (in the Boot 4.1 BOM) as an OAuth2 resource server for access
   tokens; Argon2id password hashing from spring-security-crypto (its Bouncy Castle dependency);
   refresh tokens random, stored hashed, rotated on use, with reuse detection. Check versions.
@@ -88,6 +84,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 - [x] **6.3** Example gallery and ER diagram. Engine `diagram.ErModel` merges both catalogs into one model and marks every table, column and foreign key added, removed, changed or unchanged from the diff's significant changes (5 tests); `POST /api/v1/model` serves it (status values are enums in the contract, so TypeScript gets a union). The Diagram tab lays tables out left to right with dagre 3.1.3 (referenced tables first) and draws them in SVG: change colours plus words (new, dropped, changed, +, −, ~, old → new type), a curve from each foreign key's column to the referenced column, drag to pan, Ctrl+wheel, buttons or keys to zoom, a fitted view per analysis; the chunk (19 kB gzipped) loads on first open. The gallery (7 scenarios: a typical release, required column, foreign key, int to bigint, rename, index, split a table; each checked against the API) fills both editors and runs the analysis in one click. Fixed duplicate React keys when the same reason or caution appears twice. Live smoke test now checks `/api/v1/model` (2026-11-20)
 - [x] **6.4** End to end and deploy. One Playwright 1.63.0 test (example, risks, changes, diagram, plan with a confirmed rename, share, open in a new page, delete, link gone) runs in the CI job "End to end" against the API jar with PostgreSQL and `vite preview`, and against the live site in the live smoke test's new "browser" job (`E2E_BASE_URL`). Vercel project `schemaguard` (team "blindcoder", root `web/`, production branch `main`) serves https://schemaguard-v1.vercel.app; `web/vercel.json` pins Vite, `npm ci`, `npm run build`, `dist` and the SPA rewrite. `render.yaml` allows that origin plus `http://localhost:5173`; the Blueprint sync redeployed the API. `live-smoke.yml` has inputs `origin` and `web` and fails when the origin is not allowed. First full live run green (2026-11-20)
 - [x] **Audit 2** (2026-11-20). Fixed: a failed download of the editor or diagram chunk blanked the whole page (no error boundary); now the plain editor or a message takes its place. Added a Content-Security-Policy and other security headers on Vercel, tested under the policy with the end-to-end test (which now fails on any CSP block and checks Monaco really loaded), and year-long caching for hashed assets. The parser no longer accepts an unquoted reserved word as a constraint name, matching PostgreSQL 16 (checked with psql). Version 0.5.0 everywhere before the tag, `CHANGELOG.md`, social preview tags and image for shared links, clearer page title, monthly grouped Dependabot updates. Stale known issues removed (licence, reserved names)
+- [x] **7.0** One origin for the web app and the API (D-090): Vercel rewrites `/api/*` to Render (rewrite caching off); Vite dev and preview forward `/api` too, so the CI end-to-end test runs the same way. The page still pings the API host directly to wake it. CORS keeps the Vercel origin (the rewrite forwards `Origin`) and now allows the local preview origin by default. Live smoke test checks the proxy. Also: version 0.6.0-SNAPSHOT, and `/actuator/info` shows the real build time again (Maven 3.10 stamped 1980-02-01) (2026-11-22)
 
 ## Phases
 

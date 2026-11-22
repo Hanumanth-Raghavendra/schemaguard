@@ -28,10 +28,11 @@ services:
         - api/pom.xml
         - api/src/main/**
     envVars:
-      # Browser origins allowed to call /api/**: the web app on Vercel and local development.
+      # Browser origins allowed to call /api/**: the web app on Vercel (its rewrite forwards the
+      # browser's Origin header, so it must stay here; D-090), vite dev and vite preview.
       # Change it here, not only in the dashboard: a Blueprint sync writes this value back.
       - key: SCHEMAGUARD_CORS_ALLOWED_ORIGINS
-        value: https://schemaguard-v1.vercel.app,http://localhost:5173
+        value: https://schemaguard-v1.vercel.app,http://localhost:5173,http://localhost:4173
     # Saved analyses (permalinks) are off until SCHEMAGUARD_PERSISTENCE_URL is added in the
     # dashboard: a PostgreSQL connection string such as Neon's
     # postgresql://user:password@host/db?sslmode=require. It is a secret, so it is not kept here.

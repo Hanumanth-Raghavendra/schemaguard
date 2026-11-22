@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fakeApi, fixtures } from '../test/fakeApi.tsx';
-import { API_URL, ApiError, diff, plan } from './client.ts';
+import { ApiError, diff, plan } from './client.ts';
 
 describe('API client', () => {
   it('posts to the API and returns its answer', async () => {
@@ -39,6 +39,6 @@ describe('API client', () => {
     const error = (await diff('a', 'b').catch((cause: unknown) => cause)) as ApiError;
     expect(error.status).toBe(0);
     expect(error.problem.title).toBe('Cannot reach the SchemaGuard API');
-    expect(error.message).toContain(API_URL);
+    expect(error.message).toContain(window.location.origin);
   });
 });

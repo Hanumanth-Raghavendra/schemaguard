@@ -556,3 +556,20 @@ reserved constraint names, release versioning and a changelog.
 - *Why not add rate limiting now?* Limiting per IP behind Render's proxy depends on which
   `X-Forwarded-For` entry the proxy guarantees; guessing wrong makes the limit spoofable or
   throttles everyone as one client. It is planned for hardening, with a measured answer.
+
+## Phase 7.0: one origin for the web app and the API
+
+**What it is.** The browser talks only to https://schemaguard-v1.vercel.app; Vercel forwards
+`/api/*` to the API on Render. Vite does the same locally.
+
+**Likely questions**
+
+- *Why proxy through Vercel instead of calling Render directly?* Login (Phase 7) keeps the refresh
+  token in an httpOnly cookie. A cookie set by onrender.com for a page on vercel.app is a
+  third-party cookie, which browsers increasingly block. Through the rewrite it is first-party,
+  and the web app needs no CORS preflights (D-090).
+- *Then why does the API still need CORS?* The proxy forwards the browser's `Origin` header, so to
+  Spring a POST through it still looks cross-origin. The test caught it: the first proxied run
+  failed with Spring's "Invalid CORS request" until the preview origin was allowed.
+- *What about the cold start through a proxy?* The page still pings the API host directly on
+  load to wake it, so by the time someone clicks Analyse it is usually up.

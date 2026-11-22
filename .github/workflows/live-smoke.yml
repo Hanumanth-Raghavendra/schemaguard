@@ -114,6 +114,10 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - name: The web app forwards /api to the API
+        env:
+          WEB: ${{ inputs.web }}
+        run: curl -fs "$WEB/api/v1/rules" | jq -e 'map(.id) | index("SG-R101") != null'
       - name: Analyse, share, open and delete on the live site
         env:
           E2E_BASE_URL: ${{ inputs.web }}

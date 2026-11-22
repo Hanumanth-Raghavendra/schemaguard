@@ -123,7 +123,10 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:5173. Checks: `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
+Open http://localhost:5173. The app calls `/api` on its own address and Vite forwards it to the API
+(as Vercel does in production). To use the live API instead of a local one, start it with
+`SCHEMAGUARD_API=https://schemaguard-api-c00y.onrender.com npm run dev` (PowerShell:
+`$env:SCHEMAGUARD_API="https://schemaguard-api-c00y.onrender.com"; npm run dev`). Checks: `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
 The TypeScript types come from `web/openapi.json`, which the API build keeps equal to the API's
 OpenAPI document; after an API change run `npm run gen:api`.
 

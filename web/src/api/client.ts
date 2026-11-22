@@ -37,13 +37,24 @@ export class ApiError extends Error {
   }
 }
 
-/** The live API for a production build, a local one in development; VITE_API_URL overrides both. */
-export const API_URL: string =
-  import.meta.env.VITE_API_URL ??
-  (import.meta.env.PROD ? 'https://schemaguard-api-c00y.onrender.com' : 'http://localhost:8080');
+/**
+ * Where the API is. By default the page's own origin: Vercel forwards /api/* to the API in production
+ * and Vite does the same in development and preview, so the browser only ever talks to one site
+ * (first-party cookies, no CORS; D-090). VITE_API_URL points the app straight at another API.
+ */
+export const API_URL: string = import.meta.env.VITE_API_URL ?? '';
+
+/** The API host itself, pinged directly to wake it (only the free production host sleeps). */
+const WAKE_URL: string | null = import.meta.env.PROD
+  ? 'https://schemaguard-api-c00y.onrender.com/actuator/health/liveness'
+  : null;
+
+function base(): string {
+  return API_URL === '' ? window.location.origin : API_URL;
+}
 
 const client = createClient<paths>({
-  baseUrl: API_URL,
+  baseUrl: base(),
   // Look fetch up on every call, so tests can replace it.
   fetch: (request) => globalThis.fetch(request),
 });
@@ -70,7 +81,7 @@ async function send<T>(request: () => Promise<Answer<T>>): Promise<Answer<T>> {
     if (cause instanceof DOMException && cause.name === 'AbortError') throw cause;
     throw new ApiError(0, {
       title: 'Cannot reach the SchemaGuard API',
-      detail: `No answer from ${API_URL}. Check your connection and try again.`,
+      detail: `No answer from ${base()}. Check your connection and try again.`,
     });
   }
   if (!answer.response.ok) throw new ApiError(answer.response.status, asProblem(answer.error, answer.response.status));
@@ -133,5 +144,6 @@ export async function deleteAnalysis(id: string, token: string): Promise<void> {
 
 /** Starts the sleeping API host early. The answer is opaque (no CORS on /actuator) and not needed. */
 export function wakeApi(): void {
-  void globalThis.fetch(`${API_URL}/actuator/health/liveness`, { mode: 'no-cors' }).catch(() => undefined);
+  if (WAKE_URL === null) return;
+  void globalThis.fetch(WAKE_URL, { mode: 'no-cors' }).catch(() => undefined);
 }
