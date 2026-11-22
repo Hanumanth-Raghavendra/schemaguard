@@ -22,7 +22,9 @@ there, the REST call works):
 (or GitHub > Actions > Live smoke test > Run workflow). It prints the jar's build time, which
 changes only when the jar is rebuilt (Docker layer cache). Both deploy rules were verified on
 2026-11-18: a `pom.xml` change deployed 4 s after CI went green; a docs-only push deployed
-nothing. Render reports each deploy to GitHub (repository > Deployments).
+nothing. Render reports each deploy to GitHub (repository > Deployments). The live smoke test
+also runs a throwaway account end to end and checks the refresh cookie survives the Vercel rewrite
+(first passed on 2026-11-22 for 7.1).
 
 **Phase 6: web UI (v0.5), live.** Requirements (Blueprint, tier 2 "Web app"): analyse without login
 in two code editors, visual diff, risk report, shareable permalink; interactive ER diagram with
@@ -150,6 +152,10 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 - **Web, shared links:** the delete key lives in the sharer's browser only (localStorage); a
   cleared browser cannot delete its links, which then expire after 30 days. Links are not tied
   to accounts yet.
+- **Deploys:** a push that changes `render.yaml` makes Render sync the Blueprint, and that sync
+  deploys at once without waiting for the checks (seen on 2026-11-22: the 7.1 commit went live
+  three minutes before CI finished, then again after it passed). Push `render.yaml` changes on
+  their own, once the code they rely on is live, so a red commit cannot reach production this way.
 - **Accounts:** no email verification and no password reset (both need an email service);
   sign-up therefore says when an email is taken (409). Access tokens stay valid up to 15 minutes
   after logout (they are not looked up per request). A user can only end the current session;
