@@ -30,10 +30,7 @@ changed tables and columns highlighted; example gallery of real-world scenarios,
 sees results in one click; export of the report as Markdown or JSON. All four slices are done (see Done); released as `v0.5.0`. Live at https://schemaguard-v1.vercel.app. The
 app lives in `web/` (Vite 8, React 19, TypeScript 5.9, Tailwind 4, Monaco; see D-075).
 
-**Phase 7: accounts, projects, history, trends, API keys.** First commit of Phase 7, after the tag:
-set the version to `0.6.0-SNAPSHOT` in `pom.xml`, `engine/pom.xml` and `api/pom.xml`, and in
-`web/` run `npm version 0.6.0-SNAPSHOT --no-git-tag-version`, so builds after the tag are not
-mistaken for 0.5.0 (D-087).
+**Phase 7: accounts, projects, history, trends, API keys.** The version is `0.6.0-SNAPSHOT` since 2026-11-22 (D-087).
 
 **Phase 7 scope.** Blueprint tier 3: sign-up and login
 with JWT access and refresh tokens; projects with schema versions on a timeline, a risk trend chart

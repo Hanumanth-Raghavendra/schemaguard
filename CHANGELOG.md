@@ -4,6 +4,11 @@ All notable changes, newest first. Versions follow [Semantic Versioning](https:/
 each release is a git tag (`v0.5.0`) on `main`. Details and reasons: `PROGRESS.md` and
 `docs/DECISIONS.md`.
 
+## Unreleased (0.6.0)
+
+- The API's `/actuator/info` reports the real build time again; Maven 3.10's fixed
+  reproducible-build timestamp made it read 1980-02-01.
+
 ## 0.5.0 (2026-11-20): the web app
 
 Live at https://schemaguard-v1.vercel.app.

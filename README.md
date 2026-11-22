@@ -82,7 +82,7 @@ This compiles the code, runs the tests and enforces the coverage gates.
 
 ```bash
 ./mvnw -B -ntp package -DskipTests
-java -jar api/target/schemaguard-api-0.5.0.jar   # then open http://localhost:8080/swagger-ui.html
+java -jar api/target/schemaguard-api-0.6.0-SNAPSHOT.jar   # then open http://localhost:8080/swagger-ui.html
 ```
 
 Or with Docker: `docker build -t schemaguard-api .` and `docker run -p 8080:8080 schemaguard-api`.
