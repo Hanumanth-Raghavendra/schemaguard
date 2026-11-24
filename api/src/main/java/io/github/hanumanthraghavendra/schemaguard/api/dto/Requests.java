@@ -68,6 +68,9 @@ public final class Requests {
     @Schema(name = "ProjectName", description = "A project's name: 1 to 80 characters on one line, unique in the account")
     public record ProjectName(@NotNull @Schema(example = "shop") String name) {}
 
+    @Schema(name = "KeyName", description = "An API key's name: 1 to 80 characters on one line, such as where it is used")
+    public record KeyName(@NotNull @Schema(example = "GitHub Actions") String name) {}
+
     @Schema(name = "NewVersion", description = "A schema to save as a project's next version")
     public record NewVersion(
             @NotNull @Schema(description = "The whole schema as SQL, such as pg_dump --schema-only prints it") String sql,

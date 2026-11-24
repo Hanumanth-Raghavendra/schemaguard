@@ -8,6 +8,8 @@ import io.github.hanumanthraghavendra.schemaguard.api.auth.LoginFailedException;
 import io.github.hanumanthraghavendra.schemaguard.api.auth.RefreshCookie;
 import io.github.hanumanthraghavendra.schemaguard.api.auth.SessionEndedException;
 import io.github.hanumanthraghavendra.schemaguard.api.auth.WrongPasswordException;
+import io.github.hanumanthraghavendra.schemaguard.api.keys.KeyLimitException;
+import io.github.hanumanthraghavendra.schemaguard.api.keys.KeyNotFoundException;
 import io.github.hanumanthraghavendra.schemaguard.api.persistence.PersistenceUnavailableException;
 import io.github.hanumanthraghavendra.schemaguard.api.projects.ProjectConflictException;
 import io.github.hanumanthraghavendra.schemaguard.api.projects.ProjectLimitException;
@@ -122,6 +124,16 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ProjectLimitException.class)
     ProblemDetail projectLimit(ProjectLimitException e) {
+        return problem(HttpStatus.UNPROCESSABLE_CONTENT, "Unprocessable Content", e.getMessage(), "SG-API-422");
+    }
+
+    @ExceptionHandler(KeyNotFoundException.class)
+    ProblemDetail keyNotFound(KeyNotFoundException e) {
+        return problem(HttpStatus.NOT_FOUND, "Not Found", e.getMessage(), "SG-API-404");
+    }
+
+    @ExceptionHandler(KeyLimitException.class)
+    ProblemDetail keyLimit(KeyLimitException e) {
         return problem(HttpStatus.UNPROCESSABLE_CONTENT, "Unprocessable Content", e.getMessage(), "SG-API-422");
     }
 

@@ -2,6 +2,7 @@ package io.github.hanumanthraghavendra.schemaguard.api.persistence;
 
 import io.github.hanumanthraghavendra.schemaguard.api.auth.AccountStore;
 import io.github.hanumanthraghavendra.schemaguard.api.config.ApiProperties;
+import io.github.hanumanthraghavendra.schemaguard.api.keys.ApiKeyStore;
 import io.github.hanumanthraghavendra.schemaguard.api.projects.ProjectStore;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -50,7 +51,7 @@ public class PersistenceConfig {
         config.setMaxLifetime(300_000);
         config.setConnectionTimeout(Math.max(250, settings.connectTimeout().toMillis()));
         config.setInitializationFailTimeout(-1);
-        LOG.info("Saved analyses, accounts and projects are on: {}", url);
+        LOG.info("Saved analyses, accounts, projects and API keys are on: {}", url);
         return new HikariDataSource(config);
     }
 
@@ -72,6 +73,11 @@ public class PersistenceConfig {
     @Bean
     ProjectStore projectStore(Database database) {
         return new ProjectStore(database);
+    }
+
+    @Bean
+    ApiKeyStore apiKeyStore(Database database) {
+        return new ApiKeyStore(database);
     }
 
     @Bean

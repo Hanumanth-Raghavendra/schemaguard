@@ -27,6 +27,8 @@ export type Project = Schemas['Project'];
 export type VersionSummary = Schemas['VersionSummary'];
 export type Version = Schemas['Version'];
 export type VersionRisk = Schemas['VersionRisk'];
+export type ApiKey = Schemas['ApiKey'];
+export type NewApiKey = Schemas['NewApiKey'];
 export type Route = 'DIRECT' | 'SAFE';
 
 /** RFC 9457 problem as the API sends it; `code` and `diagnostics` are its extension members. */
@@ -180,6 +182,23 @@ export function getAccount(accessToken: string, signal?: AbortSignal): Promise<A
 
 export async function deleteAccount(accessToken: string, password: string): Promise<void> {
   await send(() => client.DELETE('/api/v1/account', { headers: bearer(accessToken), body: { password } }));
+}
+
+// API keys, for the command line and CI. Managing them needs an access token: a key cannot list or make keys.
+
+export function listKeys(accessToken: string, signal?: AbortSignal): Promise<ApiKey[]> {
+  return call(() => client.GET('/api/v1/account/keys', { headers: bearer(accessToken), signal: signal ?? null }));
+}
+
+/** Makes a key; the answer holds its whole value, the only time the API shows it. */
+export function createKey(accessToken: string, name: string): Promise<NewApiKey> {
+  return call(() => client.POST('/api/v1/account/keys', { headers: bearer(accessToken), body: { name } }));
+}
+
+export async function deleteKey(accessToken: string, id: string): Promise<void> {
+  await send(() =>
+    client.DELETE('/api/v1/account/keys/{id}', { headers: bearer(accessToken), params: { path: { id } } }),
+  );
 }
 
 // Projects. Every call needs an access token; pass these through useAuth().withToken.

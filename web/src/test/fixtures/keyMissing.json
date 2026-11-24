@@ -1,0 +1,8 @@
+{
+  "detail": "This account has no such API key.",
+  "instance": "/api/v1/account/keys/00000000-0000-4000-8000-000000000000",
+  "status": 404,
+  "title": "Not Found",
+  "type": "about:blank",
+  "code": "SG-API-404"
+}

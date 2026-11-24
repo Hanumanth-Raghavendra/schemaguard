@@ -92,7 +92,7 @@ jobs:
       - name: Accounts
         run: |
           # A throwaway account: sign up, use the access token, rotate the refresh cookie, log out,
-          # log in, delete. Accounts need the database, like saved analyses.
+          # log in, save versions with a login and an API key, delete. Accounts need the database.
           EMAIL="smoke-$(date +%s)-$RANDOM@example.com"
           PASSWORD='a long passphrase for the live smoke test'
           CREDENTIALS=$(jq -n --arg e "$EMAIL" --arg p "$PASSWORD" '{email: $e, password: $p}')
@@ -128,10 +128,25 @@ jobs:
             | jq -e '.number == 2 and .risk.score > 0 and .label == "wider id"'
           test "$(json -o /dev/null -w '%{http_code}' -H "$AUTH" -X POST "$VERSIONS" -d '{"sql":"CREATE TABLE t (id bigint PRIMARY KEY);"}')" = 409
           curl -fs -H "$AUTH" "$URL/api/v1/projects" | jq -e --arg p "$PROJECT" 'map(select(.id == $p)) | .[0].versionCount == 2'
+
+          # An API key, used as CI would: it lists projects and saves a version, but cannot touch the
+          # account; once deleted it is refused. Its value is masked and never printed.
+          KEY=$(json -f -H "$AUTH" -X POST "$URL/api/v1/account/keys" -d '{"name":"smoke"}' | jq -r .key)
+          echo "::add-mask::$KEY"
+          case "$KEY" in sg_*) ;; *) echo "::error::No API key was made"; exit 1 ;; esac
+          KEY_AUTH="Authorization: Bearer $KEY"
+          curl -fs -H "$KEY_AUTH" "$URL/api/v1/projects" | jq -e --arg p "$PROJECT" 'map(.id) | index($p) != null'
+          json -f -H "$KEY_AUTH" -X POST "$VERSIONS" -d '{"sql":"CREATE TABLE t (id bigint PRIMARY KEY, note text);","label":"from a key"}' \
+            | jq -e '.number == 3 and .label == "from a key"'
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "$KEY_AUTH" "$URL/api/v1/account")" = 403
+          curl -fs -H "$AUTH" "$URL/api/v1/account/keys" | jq -e 'length == 1 and .[0].lastUsedAt != null and (.[0] | has("key") | not)'
+          KEY_ID=$(curl -fs -H "$AUTH" "$URL/api/v1/account/keys" | jq -r '.[0].id')
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "$AUTH" -X DELETE "$URL/api/v1/account/keys/$KEY_ID")" = 204
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "$KEY_AUTH" "$URL/api/v1/projects")" = 401
           test "$(json -o /dev/null -w '%{http_code}' -X DELETE "$URL/api/v1/account" -H "Authorization: Bearer $ACCESS" \
             -d "$(jq -n --arg p "$PASSWORD" '{password: $p}')")" = 204
           test "$(json -o /dev/null -w '%{http_code}' -X POST "$URL/api/v1/auth/login" -d "$CREDENTIALS")" = 401
-          echo "Accounts and projects: ON (sign up, token, refresh, log out, log in, versions, delete all work)" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Accounts, projects and API keys: ON (sign up, token, refresh, log out, log in, versions, keys, delete all work)" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: CORS
         run: |
@@ -166,12 +181,12 @@ jobs:
           # Logging out without a session still answers with a cookie that clears the refresh cookie:
           # proof that Set-Cookie survives the Vercel rewrite, without making an account.
           curl -s -D - -o /dev/null -X POST "$WEB/api/v1/auth/logout" | grep -i '^set-cookie: __Secure-sg-refresh=;'
-      - name: Analyse, share, an account and a project on the live site
+      - name: Analyse, share, an account, a project and an API key on the live site
         env:
           E2E_BASE_URL: ${{ inputs.web }}
         run: |
           npm run test:e2e
-          echo "Live web app at $E2E_BASE_URL: analyse, share, accounts and projects all work" >> "$GITHUB_STEP_SUMMARY"
+          echo "Live web app at $E2E_BASE_URL: analyse, share, accounts, projects and API keys all work" >> "$GITHUB_STEP_SUMMARY"
       - if: failure()
         uses: actions/upload-artifact@v7
         with:

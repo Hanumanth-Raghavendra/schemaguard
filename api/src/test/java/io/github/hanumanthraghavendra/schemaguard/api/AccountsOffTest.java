@@ -65,4 +65,16 @@ class AccountsOffTest {
         assertThat(result.getResponse().getStatus()).isEqualTo(503);
         assertThat(body(result)).contains("Projects are switched off on this server.");
     }
+
+    @Test
+    void apiKeysAreSwitchedOffToo() {
+        String token = tokens.issue(UUID.randomUUID()).value();
+        MvcTestResult list = mvc.get().uri("/api/v1/account/keys").header(HttpHeaders.AUTHORIZATION, "Bearer " + token).exchange();
+        assertThat(list.getResponse().getStatus()).isEqualTo(503);
+        assertThat(body(list)).contains("API keys are switched off on this server.");
+        // A key cannot be checked without the database. The caller did nothing wrong: 503, not 401.
+        MvcTestResult key = mvc.get().uri("/api/v1/projects").header(HttpHeaders.AUTHORIZATION, "Bearer sg_" + "A".repeat(43)).exchange();
+        assertThat(key.getResponse().getStatus()).isEqualTo(503);
+        assertThat(body(key)).contains("\"code\":\"SG-API-503\"", "API keys are switched off on this server.");
+    }
 }

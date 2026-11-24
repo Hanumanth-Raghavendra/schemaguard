@@ -3,10 +3,11 @@ import { Link, Navigate } from 'react-router';
 import { getAccount, type Account } from './api/client.ts';
 import { useAuth } from './auth/AuthContext.ts';
 import { problemMessage } from './auth/returnTo.ts';
+import { ApiKeys } from './components/ApiKeys.tsx';
 import { PasswordField } from './components/Field.tsx';
 import { formatDate } from './dates.ts';
 
-/** The logged-in account: who it is, and deleting it. Logging out is in the header. */
+/** The logged-in account: who it is, its API keys, and deleting it. Logging out is in the header. */
 export function AccountPage() {
   const auth = useAuth();
   const { status, withToken } = auth;
@@ -63,6 +64,7 @@ export function AccountPage() {
           </p>
         )}
       </section>
+      <ApiKeys />
       <DeleteAccount
         onDeleted={() => {
           setDeleted(true);

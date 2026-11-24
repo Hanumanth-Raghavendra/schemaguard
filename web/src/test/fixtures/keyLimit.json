@@ -1,0 +1,8 @@
+{
+  "detail": "This account has 10 API keys, the most it can have. Delete one to make room.",
+  "instance": "/api/v1/account/keys",
+  "status": 422,
+  "title": "Unprocessable Content",
+  "type": "about:blank",
+  "code": "SG-API-422"
+}

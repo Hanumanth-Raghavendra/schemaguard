@@ -47,6 +47,14 @@ class PermalinksDatabaseDownTest {
     }
 
     @Test
+    void anApiKeyCannotBeCheckedAndAnswers503() {
+        MvcTestResult projects = mvc.get().uri("/api/v1/projects").header("Authorization", "Bearer sg_" + "A".repeat(43)).exchange();
+        assertThat(projects.getResponse().getStatus()).isEqualTo(503);
+        String body = new String(projects.getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
+        assertThat(body).contains("API keys are unavailable right now").doesNotContain("topsecret").doesNotContain("127.0.0.1");
+    }
+
+    @Test
     void theRestOfTheServiceKeepsWorking() {
         assertThat(mvc.post().uri("/api/v1/diff").contentType(MediaType.APPLICATION_JSON).content(BODY).exchange().getResponse().getStatus())
                 .isEqualTo(200);

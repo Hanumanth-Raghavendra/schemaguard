@@ -2,11 +2,11 @@
 
 > **To resume:** read this file, then start at "Next step". Do not re-plan; the plan is fixed below.
 
-- **Current phase:** 7 (accounts, projects, history, trends, API keys): 7.0 (one origin), 7.1 (accounts), 7.2 (projects and schema versions) and 7.3 (risk trend and saved reports) done, so Phase 7's goal is met; 7.4 API keys next. Phase 6 is done: web app live at https://schemaguard-v1.vercel.app (renamed from schemaguard-nu on 2026-11-22), released as `v0.5.0` (tagged by the owner on 2026-11-22). Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
+- **Current phase:** 8 (CLI, GitHub Action, dogfooding), not started; 8.1 (the CLI) next. Phase 7 is done (2026-11-24): accounts, projects and schema versions, risk trend and saved reports, API keys, all live. Phase 6 is done: web app live at https://schemaguard-v1.vercel.app (renamed from schemaguard-nu on 2026-11-22), released as `v0.5.0` (tagged by the owner on 2026-11-22). Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
 - **Last updated:** 2026-11-24
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
-- **State:** build green; engine 1,714 tests (276 plans run on a real PostgreSQL 16 in CI), API 125 tests (permalinks, accounts and projects tested on real PostgreSQL); web 87 tests (Vitest) and 3 end-to-end tests (Playwright); line coverage engine 99.3% (gate 85%), API 96.4% (gate 80%); CI builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
-- **Size:** 422 files in 70 folders; 17,512 lines of main Java, 9,396 lines of test Java, 6,471 lines of TypeScript (plus 2,145 generated)
+- **State:** build green; engine 1,714 tests (276 plans run on a real PostgreSQL 16 in CI), API 136 tests (permalinks, accounts, projects and API keys tested on real PostgreSQL); web 94 tests (Vitest) and 4 end-to-end tests (Playwright); line coverage engine 99.3% (gate 85%), API 96.5% (gate 80%); CI builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
+- **Size:** 443 files in 71 folders; 18,153 lines of main Java, 9,718 lines of test Java, 6,988 lines of TypeScript (plus 2,464 generated)
 
 ## Next step
 
@@ -40,9 +40,10 @@ and saved reports; per-user API keys for the CLI and CI. Done when a user can sa
 and see the risk trend. Accounts (7.1) are settled in D-091 to D-096: Spring Security 7.1 resource
 server, RFC 9068 access tokens (HS256, 15 min, memory only in the browser), opaque rotating refresh
 tokens in an httpOnly SameSite=Strict cookie with reuse detection, Argon2id, per-account backoff.
-New endpoints need a token by adding their path to `SecurityConfig` (`/api/v1/account/**` today) and
-`@SecurityRequirement(name = SecurityConfig.BEARER)`; the web app calls them through
-`useAuth().withToken(...)`, which renews an expired token once.
+New endpoints need a token by adding their path to `SecurityConfig` with the authority it needs
+(`SESSION` for a login, `KEY` as well where an API key may call it) and
+`@SecurityRequirement(name = SecurityConfig.BEARER)` (plus `API_KEY` where keys work); the web app
+calls them through `useAuth().withToken(...)`, which renews an expired token once.
 
 - **7.2 projects and schema versions: done** (D-097 to D-100). `/api/v1/projects` (list, create,
   get, rename, delete; save a version, open one, delete the latest), Flyway V3 `project` and
@@ -51,17 +52,35 @@ New endpoints need a token by adding their path to `SecurityConfig` (`/api/v1/ac
   before (`risk_score`, `risk_level`, `risk_reasons`, `changes`, `findings`), which is what 7.3 charts.
 - **7.3 risk trend chart and saved reports: done** (D-101, D-102). Phase 7's goal ("a user can save
   schema versions and see the risk trend") is met and verified live.
-- **7.4 API keys (next).** For the CLI and the GitHub Action of Phase 8, which cannot log in.
-  Flyway V4 `api_key` (id, account_id with ON DELETE CASCADE, name, the first characters shown as
-  a hint, the SHA-256 of the whole key, created_at, last_used_at). A key is `sg_` plus 32 random
-  bytes in base64url, shown once at creation and never again (a recognisable prefix lets secret
-  scanners find leaked keys). Endpoints `GET`/`POST /api/v1/account/keys`, `DELETE
-  /api/v1/account/keys/{id}` (access token only: a key cannot make or list keys). A request with
-  `Authorization: Bearer sg_...` is authenticated by the key's hash (an `AuthenticationManagerResolver`
-  beside the JWT one); a key may read projects and save versions, nothing else (not the account, not
-  other keys). At most 10 keys per account; `last_used_at` written at most once a minute. Web: a
-  "Keys" section on the account page (create with a name, copy once, delete). Check Spring
-  Security 7.1's resolver API before building.
+- **7.4 API keys: done** (D-103 to D-106). Phase 7 is complete.
+
+**Phase 8: CLI, GitHub Action, dogfooding.** Blueprint tier 4: the CLI is "the same engine as a
+runnable jar; works offline"; the GitHub Action "fails the build above a risk threshold and posts
+the report on the pull request"; dogfooding means "SchemaGuard's own migrations are checked by
+SchemaGuard in its own pipeline". Modules `cli` (picocli, depends on `engine` only) and `action`
+(runs the CLI). Done when "the action comments on a test pull request; our own migrations pass our
+own check". Check the current picocli release and how to build one runnable jar before starting.
+
+- **8.1 CLI (next).** New Maven module `cli`: `schemaguard diff|report|plan <before.sql> <after.sql>`
+  and `schemaguard lint <schema.sql> <migration.sql>` on files (or `-` for stdin), offline, the same
+  formatters as the engine's golden files. Options: `--format text|markdown|json`, `--fail-above
+  <score>` (exit code 1 when the risk is above it; 2 for unreadable input), `--route safe|direct`
+  for `plan`, `--pg 16`. A migrations folder mode (`lint --migrations <dir>`): each file in version
+  order against the schema built from the ones before it, which is what `OwnMigrationsTest` does by
+  hand today. `schemaguard save --project <id> <schema.sql>` posts a version with
+  `SCHEMAGUARD_KEY` (7.4) to `--api` (default the live site's `/api`), treating 409 "nothing
+  changed" as success; it is the only command that needs the network. One runnable jar, tested
+  with picocli's `CommandLine.execute` and a smoke run of the built jar in CI; JSON output reuses
+  the engine's report shapes, not the API DTOs.
+- **8.2 GitHub Action.** `action/action.yml`, a composite action: sets up Java, fetches the CLI jar
+  of the tagged release, runs it on the pull request (a migrations folder, or a schema file
+  compared with the base branch), writes the Markdown report as one pull-request comment that is
+  updated on each push (found by a hidden marker; `GITHUB_TOKEN` with `pull-requests: write`),
+  and fails above `fail-above`. Optional `api-key` input to save the schema as a project version
+  on pushes to the default branch.
+- **8.3 Dogfooding.** SchemaGuard's own workflow runs the action on
+  `api/src/main/resources/db/migration` for every pull request; a test pull request that adds a
+  risky migration gets the comment and a red check, then is closed. Our own V1 to V4 must pass.
 
 **Local PostgreSQL.** The Claude build container has PostgreSQL 16 server binaries in
 `/usr/lib/postgresql/16/bin`. Run them as the `postgres` user (`runuser -u postgres -- ...`)
@@ -106,6 +125,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 - [x] **7.1** Accounts (D-091 to D-096). API: `POST /api/v1/auth/signup|login|refresh|logout`, `GET` and `DELETE /api/v1/account`; Spring Security 7.1.2 resource server checking RFC 9068 access tokens (HS256, 15 minutes, key generated by Render); opaque refresh tokens (SHA-256 stored) in an httpOnly, Secure, SameSite=Strict `__Secure-sg-refresh` cookie on `/api/v1/auth`, rotated on every use, reuse after 30 s revokes the session, 30-day idle and 90-day absolute lifetime; Argon2id (Bouncy Castle 1.87, 19 MiB, 2 passes, at most 2 at once); 8 to 256 characters, not among the 10,000 most common, not the email; 5 failures in an hour lock the account for 1 minute, doubling to 15; unknown emails cost the same check; delete needs the password (403). Problem documents for every error, `WWW-Authenticate: Bearer` on 401. Shared `Database` class (lazy Flyway, transactions); Flyway V2 `account` and `refresh_token`, linted by SchemaGuard; the retention job also deletes expired tokens; CORS moved into Spring Security. Web: header links, `/signup`, `/login`, `/account` (details, delete with password); access token in memory, one refresh at a time, renewal on load only for browsers that logged in, logins and logouts followed across tabs. Tests: 60 new API tests (service-level with a moved clock on PostgreSQL: rotation, reuse, two tabs, expiry, 90-day cap, lockout growth, rehash; HTTP-level: cookie attributes, 401/403/409/422/429, foreign origin refused), 13 new Vitest tests, a Playwright test of an account's whole life (sign up, reload, log out, wrong password, log in, delete) in CI and live. Live smoke test runs a throwaway account by curl and checks `Set-Cookie` through the Vercel rewrite (2026-11-22)
 - [x] **7.2** Projects and schema versions (D-097 to D-100). API under `/api/v1/projects` (Bearer, owner-only, another account's project is a 404 like a missing one): list, create, get, rename (PATCH), delete; save a version (whole schema; the risk of the change from the latest is stored as score, level, top reasons and counts; identical schema 409; analysis outside the transaction, then an optimistic check of the latest number under a project row lock), open a version with the SQL before it, delete only the latest. Limits 20 projects, 500 versions, 20 MB per account (422), 200 MB for all (507). Flyway V3 `project` (unique `(account_id, lower(name))`) and `schema_version` (primary key `(project_id, number)`, risk columns null exactly for version 1), linted by SchemaGuard; account deletion cascades. Web: projects list and create, project page (rename, delete, timeline, form for the next version starting from the latest), version page (saved risk, SQL, open the change in the analyser, delete the latest), "Save the new schema to a project" in the analyser; `useAuthed` and `RequireAuth`. Tests: 16 new API tests (HTTP on PostgreSQL incl. isolation, 409s, cascade; service level: limits, 8 parallel writers), 17 new Vitest tests, a Playwright test of a project's life (Monaco input, two versions, the analyser, a refused duplicate) in CI and live; the live smoke test saves two versions by curl (2026-11-24)
 - [x] **7.3** Risk trend and saved reports (D-101, D-102). Project page: a bar per version (score, level colour, lines where Medium, High and Critical start), a sentence naming the latest and the riskiest change, each bar a link to its version, the latest 60 versions; HTML and CSS, no chart library. Version page: download the change's report as Markdown (names the project and version, says the rules are today's) or JSON, share it as a link (a saved analysis), download any version's SQL; one analysis (report, changes, safe plan) serves both downloads. Also fixed: the None level tag had no border (`border-none` is a Tailwind utility, not the colour). Tests: 6 new Vitest tests (chart order and links, 70 versions cut to 60, no chart for one version, downloads analysed once, share, SQL download); the Playwright project test clicks a bar and downloads the report, in CI and live. Web only: no API change, so Render does not redeploy (2026-11-24)
+- [x] **7.4** API keys (D-103 to D-106). API: `GET`/`POST /api/v1/account/keys`, `DELETE /api/v1/account/keys/{id}` (login only). A key is `sg_` and 256 random bits in base64url, shown once; only its SHA-256 is stored, with a 7-character hint; at most 10 per account; last use written at most once a minute; Flyway V4 `api_key` (cascades with the account). Bearer tokens starting with `sg_` go to the key provider through Spring Security's `authenticationManagerResolver`, anything else to the JWT provider; a JWT grants `SESSION`, a key `KEY`, and a key may only read projects and save versions (403 with `insufficient_scope` otherwise, 401 for an unknown or deleted key). Found by the tests: Spring Security 7 rethrows `AuthenticationServiceException` from the bearer filter, so a key checked while the database is down gave 500; the filter now hands it to the entry point, which answers 503. Web: an "API keys" section on the account page (make by name, the value shown once with copy and a curl example, last use, delete after asking). Tests: 11 new API tests (9 HTTP on PostgreSQL: once-only value, hint, read and save with a key, 403 on every other endpoint, 401 after delete, open endpoints, limit, isolation, cascade; 503 switched off and with the database down), 7 new Vitest tests, a Playwright test that makes a key, saves a version with it through the site's `/api`, meets the 403 and the 401 (CI and live); the live smoke test does the same by curl with the key masked (2026-11-24)
 
 ## Phases
 
@@ -118,8 +138,8 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 | 4 | Migration planner, SQL generation, real-database oracle tests, script linter | Done (2026-11-15) |
 | 5 | REST API (Spring Boot), persistence, permalinks, first deploy (v0.1) | Done (2026-11-18); live |
 | 6 | Web UI: editors, diff, report, ER diagram, example gallery (v0.5) | Done (2026-11-20), live; `v0.5.0` released 2026-11-22 |
-| 7 | Auth, projects, history, trends, API keys | Goal met (2026-11-24): 7.0 to 7.3 done; 7.4 API keys next |
-| 8 | CLI, GitHub Action, dogfooding | Not started |
+| 7 | Auth, projects, history, trends, API keys | Done (2026-11-24), live |
+| 8 | CLI, GitHub Action, dogfooding | Next: 8.1 CLI |
 | 9 | Hardening and launch (v1.0) | Not started |
 
 ## Working rules
@@ -174,6 +194,9 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
   sign-up therefore says when an email is taken (409). Access tokens stay valid up to 15 minutes
   after logout (they are not looked up per request). A user can only end the current session;
   "log out everywhere" is not offered yet (deleting the account does end all sessions).
+- **API keys:** a key reaches all of its account's projects (no per-project scope) and never
+  expires; it ends only when deleted. Checking a key costs one indexed query per request (no
+  cache), fine at today's traffic.
 - **API:** no rate limiting yet (one free instance). Per-IP limits need the real client address,
   and which `X-Forwarded-For` entry Render's proxy guarantees is not verified yet; a limit keyed
   on the wrong entry would either be spoofable or throttle every visitor as one. Settle that in

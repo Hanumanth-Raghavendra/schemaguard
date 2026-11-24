@@ -1,0 +1,16 @@
+[
+  {
+    "id": "4ed94a20-5968-45e4-8440-cd7d4249e0a8",
+    "name": "laptop",
+    "hint": "sg_IOor",
+    "createdAt": "2026-11-24T15:11:57.727Z",
+    "lastUsedAt": null
+  },
+  {
+    "id": "d5a7a515-a0ca-4611-9234-537ce669064d",
+    "name": "GitHub Actions",
+    "hint": "sg_KXAS",
+    "createdAt": "2026-11-24T15:11:57.657Z",
+    "lastUsedAt": "2026-11-24T15:11:57.692Z"
+  }
+]

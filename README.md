@@ -6,7 +6,7 @@ A PostgreSQL migration-safety platform. Give it two versions of a schema and it 
 what changed, what that change will lock or break in production, and how to ship it safely.
 
 > **Status: live. Web app: https://schemaguard-v1.vercel.app (pick an example, see the risks, the plan
-> and the diagram, share a link; log in to keep schema versions in projects and watch their risk). API: [Swagger UI](https://schemaguard-api-c00y.onrender.com/swagger-ui.html).**
+> and the diagram, share a link; log in to keep schema versions in projects and watch their risk, or save them from CI with an API key). API: [Swagger UI](https://schemaguard-api-c00y.onrender.com/swagger-ui.html).**
 > Free hosting: the first analysis after 15 idle minutes takes about a minute while the API wakes up.
 > See [PROGRESS.md](PROGRESS.md) for the current state and roadmap.
 
@@ -62,9 +62,9 @@ ALTER TABLE app.posts DROP CONSTRAINT posts_body_not_null;
 | Module | Role | Status |
 | --- | --- | --- |
 | `engine` | Lexer, parser, schema model, diff, rules, planner, linter, ER model. Pure Java, no dependencies | Done |
-| `api` | Spring Boot REST service: analyses, share links, accounts, projects; OpenAPI docs and a Docker image | Live; API keys next |
-| `web` | React + TypeScript app: editors, risks, plan, diagram, examples, sharing, accounts, projects | Live |
-| `cli` | Command-line tool built on the engine | Planned |
+| `api` | Spring Boot REST service: analyses, share links, accounts, projects, API keys; OpenAPI docs and a Docker image | Live |
+| `web` | React + TypeScript app: editors, risks, plan, diagram, examples, sharing, accounts, projects, API keys | Live |
+| `cli` | Command-line tool built on the engine | Next |
 | `action` | GitHub Action that reviews migrations on pull requests | Planned |
 
 ## Build
@@ -112,8 +112,24 @@ curl -X POST http://localhost:8080/api/v1/report -H 'Content-Type: application/j
 | `GET /api/v1/account`, `DELETE /api/v1/account` | The logged-in account (`Authorization: Bearer`); delete it with its password |
 | `GET`, `POST /api/v1/projects`; `GET`, `PATCH`, `DELETE /api/v1/projects/{id}` | The account's projects: list, create, open with its versions, rename, delete |
 | `POST /api/v1/projects/{id}/versions`; `GET`, `DELETE .../versions/{number}` | Save a schema as the next version (the risk of the change is kept with it), open one, delete the latest |
+| `GET`, `POST /api/v1/account/keys`; `DELETE .../keys/{id}` | The account's API keys: list (without their values), make one (its value is shown this once), delete one |
 
-Saving, accounts and projects need PostgreSQL: set `SCHEMAGUARD_PERSISTENCE_URL` to a JDBC URL or a connection
+**API keys** are for scripts and CI. Make one on the account page (or with `POST
+/api/v1/account/keys` and a login), keep it in a secret, and send it like an access token. A key
+may list and read the account's projects and save versions; everything else needs a login.
+
+```bash
+export SCHEMAGUARD_KEY=sg_...   # from the account page
+curl -H "Authorization: Bearer $SCHEMAGUARD_KEY" https://schemaguard-v1.vercel.app/api/v1/projects
+curl -X POST "https://schemaguard-v1.vercel.app/api/v1/projects/$PROJECT/versions" \
+  -H "Authorization: Bearer $SCHEMAGUARD_KEY" -H 'Content-Type: application/json' \
+  --data "$(jq -n --rawfile sql schema.sql '{sql: $sql, label: "from CI"}')"
+```
+
+A schema identical to the latest version answers 409, so saving on every push keeps only real
+changes.
+
+Saving, accounts, projects and API keys need PostgreSQL: set `SCHEMAGUARD_PERSISTENCE_URL` to a JDBC URL or a connection
 string such as `postgresql://user:password@host/db?sslmode=require`. Without it everything else
 works and those endpoints answer 503. Set `SCHEMAGUARD_AUTH_JWT_SECRET` (32 characters or more) to
 keep access tokens valid across restarts. SchemaGuard lints its own database migrations in its tests.

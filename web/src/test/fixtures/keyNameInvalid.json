@@ -1,0 +1,8 @@
+{
+  "detail": "Name the key in 1 to 80 characters, on one line, such as \"GitHub Actions\".",
+  "instance": "/api/v1/account/keys",
+  "status": 422,
+  "title": "Unprocessable Content",
+  "type": "about:blank",
+  "code": "SG-API-422"
+}

@@ -25,6 +25,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/account/keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The account's API keys, newest first, without their values */
+        get: operations["listApiKeys"];
+        put?: never;
+        /**
+         * Make an API key
+         * @description The answer holds the whole key, once: copy it now.
+         */
+        post: operations["createApiKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/keys/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete an API key
+         * @description Anything still using it gets 401 from then on.
+         */
+        delete: operations["deleteApiKey"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analyses/diff": {
         parameters: {
             query?: never;
@@ -378,6 +419,24 @@ export interface components {
             /** Format: uuid */
             id: string;
         };
+        /** @description An API key, without its value */
+        ApiKey: {
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * @description The key's first characters, to tell keys apart
+             * @example sg_Ab3d
+             */
+            hint: string;
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: date-time
+             * @description When a request last used it, to the minute; null if never
+             */
+            lastUsedAt: string | null;
+            name: string;
+        };
         /** @description One difference between the two schemas */
         Change: {
             /**
@@ -493,6 +552,11 @@ export interface components {
             title: string;
             why: string;
         };
+        /** @description An API key's name: 1 to 80 characters on one line, such as where it is used */
+        KeyName: {
+            /** @example GitHub Actions */
+            name: string;
+        };
         /** @description A migration script and the schema it will run on */
         LintRequest: {
             /**
@@ -576,6 +640,17 @@ export interface components {
             name: string;
             /** @example public */
             schema: string;
+        };
+        /** @description A key just made, with its whole value: shown this once, never again */
+        NewApiKey: {
+            /** Format: date-time */
+            createdAt: string;
+            hint: string;
+            /** Format: uuid */
+            id: string;
+            /** @description Send as Authorization: Bearer <key>. Keep it secret, like a password */
+            key: string;
+            name: string;
         };
         /** @description A schema to save as a project's next version */
         NewVersion: {
@@ -885,6 +960,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            /** @description The request came with an API key; the account needs a login */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             /** @description Accounts are switched off on this server or the database is unreachable */
             503: {
                 headers: {
@@ -925,7 +1009,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description The password is wrong */
+            /** @description The request came with an API key; the account needs a login */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -944,6 +1028,169 @@ export interface operations {
                 };
             };
             /** @description Accounts are switched off on this server or the database is unreachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    listApiKeys: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The keys */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKey"][];
+                };
+            };
+            /** @description No access token, or one that is expired or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description The request came with an API key; keys are managed with a login */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description API keys are switched off on this server or the database is unreachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    createApiKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeyName"];
+            };
+        };
+        responses: {
+            /** @description Made; Location names it */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewApiKey"];
+                };
+            };
+            /** @description No access token, or one that is expired or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description The request came with an API key; keys are managed with a login */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description The name cannot be used, or the account has 10 keys already */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description API keys are switched off on this server or the database is unreachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    deleteApiKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No access token, or one that is expired or invalid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description The request came with an API key; keys are managed with a login */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description This account has no such key */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description API keys are switched off on this server or the database is unreachable */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1601,8 +1848,17 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectSummary"][];
                 };
             };
-            /** @description No access token, or one that is expired or invalid */
+            /** @description No access token or API key, or one that is expired, invalid or deleted */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description The request came with an API key, which may only read projects and save versions */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1643,8 +1899,17 @@ export interface operations {
                     "application/json": components["schemas"]["Project"];
                 };
             };
-            /** @description No access token, or one that is expired or invalid */
+            /** @description No access token or API key, or one that is expired, invalid or deleted */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description The request came with an API key, which may only read projects and save versions */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1701,8 +1966,17 @@ export interface operations {
                     "application/json": components["schemas"]["Project"];
                 };
             };
-            /** @description No access token, or one that is expired or invalid */
+            /** @description No access token or API key, or one that is expired, invalid or deleted */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description The request came with an API key, which may only read projects and save versions */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1748,8 +2022,17 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description No access token, or one that is expired or invalid */
+            /** @description No access token or API key, or one that is expired, invalid or deleted */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description The request came with an API key, which may only read projects and save versions */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1801,8 +2084,17 @@ export interface operations {
                     "application/json": components["schemas"]["Project"];
                 };
             };
-            /** @description No access token, or one that is expired or invalid */
+            /** @description No access token or API key, or one that is expired, invalid or deleted */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description The request came with an API key, which may only read projects and save versions */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1872,8 +2164,17 @@ export interface operations {
                     "application/json": components["schemas"]["VersionSummary"];
                 };
             };
-            /** @description No access token, or one that is expired or invalid */
+            /** @description No access token or API key, or one that is expired, invalid or deleted */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description The request came with an API key, which may only read projects and save versions */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1958,8 +2259,17 @@ export interface operations {
                     "application/json": components["schemas"]["Version"];
                 };
             };
-            /** @description No access token, or one that is expired or invalid */
+            /** @description No access token or API key, or one that is expired, invalid or deleted */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description The request came with an API key, which may only read projects and save versions */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2006,8 +2316,17 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description No access token, or one that is expired or invalid */
+            /** @description No access token or API key, or one that is expired, invalid or deleted */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description The request came with an API key, which may only read projects and save versions */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

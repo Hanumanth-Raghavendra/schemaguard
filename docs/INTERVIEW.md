@@ -666,3 +666,33 @@ version's report downloads as Markdown or JSON or is shared as a link.
 - *How is accessibility handled in the chart?* Each bar's link has a full description ("Version 5,
   Release 2.4: risk 95 of 100, critical"), the chart opens with a sentence naming the latest and
   the riskiest change, and colours never carry meaning alone: the height and the text do too.
+
+## Phase 7.4: API keys
+
+**What it is.** Keys for scripts and CI (the CLI and GitHub Action of Phase 8 cannot log in). A
+key is made on the account page, shown once, and sent as `Authorization: Bearer sg_...`. It may
+read projects and save versions, nothing else.
+
+**Likely questions**
+
+- *Why SHA-256 for keys when passwords get Argon2id?* A slow hash protects low-entropy secrets
+  that people choose. A key is 256 random bits: nobody can guess it from its hash, so a slow hash
+  would only add latency to every CI request. The database still never holds a usable key (D-103).
+- *Why the `sg_` prefix?* Secret scanners (and people) can recognise a leaked key, and the server
+  can route a bearer token to the right check without trying to parse it as a JWT first (D-104).
+- *How do two token types share one header?* Spring Security's `authenticationManagerResolver`
+  picks an `AuthenticationManager` per request: keys go to a provider that looks up the hash, the
+  rest to the JWT provider. Each grants an authority (`SESSION` or `KEY`) and the URL rules say
+  which endpoints accept which.
+- *What can a leaked key do?* Read the account's projects and add versions, which the owner can
+  delete. It cannot rename or delete projects, delete versions, see or change the account, or make
+  more keys. That is least privilege for a CI job that only uploads schemas.
+- *Why 403 for a key on the account but 401 for a deleted key?* 401 means "this credential is not
+  valid": fix the key. 403 means "valid, but not allowed here": use a login. The 403 carries RFC
+  6750's `insufficient_scope`, so a client can tell the two apart without reading prose.
+- *What happens when the database is down?* The key cannot be checked, so the answer is 503: a 401
+  would send the owner to replace a perfectly good key. Spring Security 7 rethrows that error by
+  default, which would have been a 500; a test caught it (D-105).
+- *Why write `last_used_at` at most once a minute?* A busy CI job would otherwise write on every
+  request. The update is conditional in SQL (`WHERE last_used_at < now - 1 minute`), so it needs no
+  read first and no lock beyond the row.

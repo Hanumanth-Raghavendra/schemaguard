@@ -6,6 +6,10 @@ each release is a git tag (`v0.5.0`) on `main`. Details and reasons: `PROGRESS.m
 
 ## Unreleased (0.6.0)
 
+- **API keys** for scripts and CI: make one on the account page (its value is shown once), send it
+  as `Authorization: Bearer sg_...`, and it may list projects and save versions, nothing else. The
+  list shows when each key was last used; delete one and it stops working at once. API:
+  `/api/v1/account/keys`.
 - **Risk trend and reports**: a project shows a bar per version, its height the risk of that
   change and its colour the level, each bar opening its version. A version's report (risks,
   changes, safe plan) downloads as Markdown or JSON or is shared as a link; its SQL downloads too.

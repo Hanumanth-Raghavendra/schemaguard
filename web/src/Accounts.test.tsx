@@ -145,8 +145,9 @@ describe('accounts', () => {
     renderApp('/account');
     expect(await screen.findByRole('heading', { name: 'Your account' })).toBeInTheDocument();
     await screen.findByText(ACCOUNT.email, { selector: 'dd' });
+    // The page also lists the API keys; only the account call meets the expired token here.
     await vi.waitFor(() => {
-      expect(calls(sent)).toEqual([
+      expect(calls(sent).filter((call) => !call.includes('/keys'))).toEqual([
         'POST /api/v1/auth/refresh',
         'GET /api/v1/account',
         'POST /api/v1/auth/refresh',

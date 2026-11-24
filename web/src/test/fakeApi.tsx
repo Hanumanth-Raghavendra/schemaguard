@@ -8,6 +8,11 @@ import diff from './fixtures/diff.json';
 import emailTaken from './fixtures/emailTaken.json';
 import gone from './fixtures/gone.json';
 import invalid from './fixtures/invalid.json';
+import keyCreated from './fixtures/keyCreated.json';
+import keyLimit from './fixtures/keyLimit.json';
+import keyMissing from './fixtures/keyMissing.json';
+import keyNameInvalid from './fixtures/keyNameInvalid.json';
+import keys from './fixtures/keys.json';
 import lint from './fixtures/lint.json';
 import locked from './fixtures/locked.json';
 import model from './fixtures/model.json';
@@ -60,6 +65,8 @@ export const fixtures = {
   projects,
   version1,
   version2,
+  keys,
+  keyCreated,
 };
 
 /** The account the fake API knows, with the password it accepts. */
@@ -110,6 +117,24 @@ interface FakeOptions {
   projects?: unknown[];
   /** What opening the recorded project answers; the recording by default. */
   project?: unknown;
+  /** What listing the API keys answers; the recorded list by default. */
+  keys?: unknown[];
+  /** The account has all the keys it may have. */
+  keysFull?: boolean;
+  /** Every key was deleted elsewhere, so deleting one answers 404. */
+  keysGone?: boolean;
+}
+
+/** The key endpoints. A made key gets a new id, so it never clashes with a recorded one. */
+function keyCalls(method: string, path: string, body: unknown, options: FakeOptions): Response {
+  if (path === '/api/v1/account/keys') {
+    if (method === 'GET') return json(200, options.keys ?? keys);
+    const name = ((body ?? {}) as { name?: string }).name ?? '';
+    if (name.trim() === '') return json(422, keyNameInvalid);
+    if (options.keysFull) return json(422, keyLimit);
+    return json(201, { ...keyCreated, id: crypto.randomUUID(), name: name.trim() });
+  }
+  return options.keysGone ? json(404, keyMissing) : new Response(null, { status: 204 });
 }
 
 /** The project endpoints: the recorded project, one freshly created, and nothing else. */
@@ -189,6 +214,10 @@ export function fakeApi(options: FakeOptions = {}): Sent[] {
       const token = input.headers.get('X-Delete-Token');
       const authorization = input.headers.get('Authorization');
       sent.push({ method, path, body, token, authorization });
+      if (path.startsWith('/api/v1/account/keys')) {
+        if (authorization !== `Bearer ${session.accessToken}`) return json(401, tokenRejected);
+        return keyCalls(method, path, body, options);
+      }
       if (path.startsWith('/api/v1/auth/') || path === '/api/v1/account') {
         return accounts(method, path, body, authorization, server);
       }

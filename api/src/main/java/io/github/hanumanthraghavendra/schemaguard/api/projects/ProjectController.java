@@ -1,9 +1,11 @@
 package io.github.hanumanthraghavendra.schemaguard.api.projects;
 
+import io.github.hanumanthraghavendra.schemaguard.api.auth.CurrentAccount;
 import io.github.hanumanthraghavendra.schemaguard.api.auth.SecurityConfig;
 import io.github.hanumanthraghavendra.schemaguard.api.dto.Projects;
 import io.github.hanumanthraghavendra.schemaguard.api.dto.Requests;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -17,8 +19,7 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -28,7 +29,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** The logged-in account's projects and their schema versions. Every endpoint needs an access token. */
+/**
+ * The logged-in account's projects and their schema versions. Every endpoint needs an access token;
+ * reading projects and saving versions also take an API key.
+ */
 @RestController
 @RequestMapping(path = "/api/v1/projects", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(
@@ -37,7 +41,9 @@ import org.springframework.web.bind.annotation.RestController;
                 + " stores the risk of the change from the one before, so the timeline shows how risky each step was."
                 + " Another account's project answers 404, like a missing one.")
 @SecurityRequirement(name = SecurityConfig.BEARER)
-@ApiResponse(responseCode = "401", description = "No access token, or one that is expired or invalid",
+@ApiResponse(responseCode = "401", description = "No access token or API key, or one that is expired, invalid or deleted",
+        content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+@ApiResponse(responseCode = "403", description = "The request came with an API key, which may only read projects and save versions",
         content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
 @ApiResponse(responseCode = "503", description = "Projects are switched off on this server or the database is unreachable",
         content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
@@ -50,10 +56,12 @@ public class ProjectController {
     }
 
     @GetMapping
+    @SecurityRequirement(name = SecurityConfig.BEARER)
+    @SecurityRequirement(name = SecurityConfig.API_KEY)
     @Operation(operationId = "listProjects", summary = "The account's projects, most recently changed first")
     @ApiResponse(responseCode = "200", description = "The projects", useReturnTypeSchema = true)
-    public List<Projects.ProjectSummary> list(@AuthenticationPrincipal Jwt token) {
-        return projects.list(account(token)).stream()
+    public List<Projects.ProjectSummary> list(@Parameter(hidden = true) Authentication authentication) {
+        return projects.list(CurrentAccount.id(authentication)).stream()
                 .map(listing -> new Projects.ProjectSummary(
                         listing.project().id(),
                         listing.project().name(),
@@ -70,18 +78,20 @@ public class ProjectController {
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(responseCode = "422", description = "The name cannot be used, or the account has all the projects it may have",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
-    public ResponseEntity<Projects.Project> create(@AuthenticationPrincipal Jwt token, @Valid @RequestBody Requests.ProjectName body) {
-        ProjectService.Detail created = projects.create(account(token), body.name());
+    public ResponseEntity<Projects.Project> create(@Parameter(hidden = true) Authentication authentication, @Valid @RequestBody Requests.ProjectName body) {
+        ProjectService.Detail created = projects.create(CurrentAccount.id(authentication), body.name());
         return ResponseEntity.created(URI.create("/api/v1/projects/" + created.project().id())).body(project(created));
     }
 
     @GetMapping("/{id}")
+    @SecurityRequirement(name = SecurityConfig.BEARER)
+    @SecurityRequirement(name = SecurityConfig.API_KEY)
     @Operation(operationId = "getProject", summary = "A project with its versions, newest first")
     @ApiResponse(responseCode = "200", description = "The project", useReturnTypeSchema = true)
     @ApiResponse(responseCode = "404", description = "No such project in this account",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
-    public Projects.Project get(@AuthenticationPrincipal Jwt token, @PathVariable UUID id) {
-        return project(projects.get(account(token), id));
+    public Projects.Project get(@Parameter(hidden = true) Authentication authentication, @PathVariable UUID id) {
+        return project(projects.get(CurrentAccount.id(authentication), id));
     }
 
     @PatchMapping(path = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -94,8 +104,8 @@ public class ProjectController {
     @ApiResponse(responseCode = "422", description = "The name cannot be used",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     public Projects.Project rename(
-            @AuthenticationPrincipal Jwt token, @PathVariable UUID id, @Valid @RequestBody Requests.ProjectName body) {
-        return project(projects.rename(account(token), id, body.name()));
+            @Parameter(hidden = true) Authentication authentication, @PathVariable UUID id, @Valid @RequestBody Requests.ProjectName body) {
+        return project(projects.rename(CurrentAccount.id(authentication), id, body.name()));
     }
 
     @DeleteMapping("/{id}")
@@ -103,12 +113,14 @@ public class ProjectController {
     @ApiResponse(responseCode = "204", description = "Deleted")
     @ApiResponse(responseCode = "404", description = "No such project in this account",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
-    public ResponseEntity<Void> delete(@AuthenticationPrincipal Jwt token, @PathVariable UUID id) {
-        projects.delete(account(token), id);
+    public ResponseEntity<Void> delete(@Parameter(hidden = true) Authentication authentication, @PathVariable UUID id) {
+        projects.delete(CurrentAccount.id(authentication), id);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping(path = "/{id}/versions", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @SecurityRequirement(name = SecurityConfig.BEARER)
+    @SecurityRequirement(name = SecurityConfig.API_KEY)
     @Operation(
             operationId = "addVersion",
             summary = "Save a schema as the project's next version",
@@ -127,18 +139,20 @@ public class ProjectController {
     @ApiResponse(responseCode = "507", description = "The service has no room for more versions right now",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<Projects.VersionSummary> addVersion(
-            @AuthenticationPrincipal Jwt token, @PathVariable UUID id, @Valid @RequestBody Requests.NewVersion body) {
-        SavedVersion saved = projects.addVersion(account(token), id, body.sql(), body.label());
+            @Parameter(hidden = true) Authentication authentication, @PathVariable UUID id, @Valid @RequestBody Requests.NewVersion body) {
+        SavedVersion saved = projects.addVersion(CurrentAccount.id(authentication), id, body.sql(), body.label());
         return ResponseEntity.created(URI.create("/api/v1/projects/" + id + "/versions/" + saved.number())).body(summary(saved));
     }
 
     @GetMapping("/{id}/versions/{number}")
+    @SecurityRequirement(name = SecurityConfig.BEARER)
+    @SecurityRequirement(name = SecurityConfig.API_KEY)
     @Operation(operationId = "getVersion", summary = "A version with its SQL and the SQL of the version before it")
     @ApiResponse(responseCode = "200", description = "The version", useReturnTypeSchema = true)
     @ApiResponse(responseCode = "404", description = "No such project in this account, or no such version",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
-    public Projects.Version version(@AuthenticationPrincipal Jwt token, @PathVariable UUID id, @PathVariable int number) {
-        ProjectService.Opened opened = projects.version(account(token), id, number);
+    public Projects.Version version(@Parameter(hidden = true) Authentication authentication, @PathVariable UUID id, @PathVariable int number) {
+        ProjectService.Opened opened = projects.version(CurrentAccount.id(authentication), id, number);
         SavedVersion v = opened.version();
         return new Projects.Version(v.number(), v.label(), v.createdAt(), v.sizeBytes(), risk(v.risk()), opened.sql(), opened.previousSql());
     }
@@ -151,13 +165,9 @@ public class ProjectController {
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(responseCode = "409", description = "Not the latest version",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
-    public ResponseEntity<Void> deleteVersion(@AuthenticationPrincipal Jwt token, @PathVariable UUID id, @PathVariable int number) {
-        projects.deleteVersion(account(token), id, number);
+    public ResponseEntity<Void> deleteVersion(@Parameter(hidden = true) Authentication authentication, @PathVariable UUID id, @PathVariable int number) {
+        projects.deleteVersion(CurrentAccount.id(authentication), id, number);
         return ResponseEntity.noContent().build();
-    }
-
-    private static UUID account(Jwt token) {
-        return UUID.fromString(token.getSubject());
     }
 
     private static Projects.Project project(ProjectService.Detail detail) {
