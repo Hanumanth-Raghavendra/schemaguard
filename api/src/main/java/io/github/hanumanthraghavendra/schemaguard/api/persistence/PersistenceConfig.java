@@ -2,6 +2,7 @@ package io.github.hanumanthraghavendra.schemaguard.api.persistence;
 
 import io.github.hanumanthraghavendra.schemaguard.api.auth.AccountStore;
 import io.github.hanumanthraghavendra.schemaguard.api.config.ApiProperties;
+import io.github.hanumanthraghavendra.schemaguard.api.projects.ProjectStore;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import java.time.Clock;
@@ -18,9 +19,9 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 
 /**
- * The database for saved analyses and accounts, present only when
+ * The database for saved analyses, accounts and projects, present only when
  * {@code schemaguard.persistence.url} is set. Without it the service runs exactly as before and
- * the permalink and account endpoints answer 503.
+ * the permalink, account and project endpoints answer 503.
  */
 @Configuration(proxyBeanMethods = false)
 @Conditional(PersistenceConfig.UrlIsSet.class)
@@ -49,7 +50,7 @@ public class PersistenceConfig {
         config.setMaxLifetime(300_000);
         config.setConnectionTimeout(Math.max(250, settings.connectTimeout().toMillis()));
         config.setInitializationFailTimeout(-1);
-        LOG.info("Saved analyses and accounts are on: {}", url);
+        LOG.info("Saved analyses, accounts and projects are on: {}", url);
         return new HikariDataSource(config);
     }
 
@@ -66,6 +67,11 @@ public class PersistenceConfig {
     @Bean
     AccountStore accountStore(Database database) {
         return new AccountStore(database);
+    }
+
+    @Bean
+    ProjectStore projectStore(Database database) {
+        return new ProjectStore(database);
     }
 
     @Bean

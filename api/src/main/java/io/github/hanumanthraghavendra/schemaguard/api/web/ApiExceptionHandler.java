@@ -9,6 +9,9 @@ import io.github.hanumanthraghavendra.schemaguard.api.auth.RefreshCookie;
 import io.github.hanumanthraghavendra.schemaguard.api.auth.SessionEndedException;
 import io.github.hanumanthraghavendra.schemaguard.api.auth.WrongPasswordException;
 import io.github.hanumanthraghavendra.schemaguard.api.persistence.PersistenceUnavailableException;
+import io.github.hanumanthraghavendra.schemaguard.api.projects.ProjectConflictException;
+import io.github.hanumanthraghavendra.schemaguard.api.projects.ProjectLimitException;
+import io.github.hanumanthraghavendra.schemaguard.api.projects.ProjectNotFoundException;
 import io.github.hanumanthraghavendra.schemaguard.api.persistence.StorageFullException;
 import io.github.hanumanthraghavendra.schemaguard.api.service.AnalysisNotFoundException;
 import io.github.hanumanthraghavendra.schemaguard.api.service.InputRejectedException;
@@ -105,6 +108,21 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(BusyException.class)
     ProblemDetail busy(BusyException e) {
         return problem(HttpStatus.SERVICE_UNAVAILABLE, "Service Unavailable", e.getMessage(), "SG-API-503");
+    }
+
+    @ExceptionHandler(ProjectNotFoundException.class)
+    ProblemDetail projectNotFound(ProjectNotFoundException e) {
+        return problem(HttpStatus.NOT_FOUND, "Not Found", e.getMessage(), "SG-API-404");
+    }
+
+    @ExceptionHandler(ProjectConflictException.class)
+    ProblemDetail projectConflict(ProjectConflictException e) {
+        return problem(HttpStatus.CONFLICT, "Conflict", e.getMessage(), "SG-API-409");
+    }
+
+    @ExceptionHandler(ProjectLimitException.class)
+    ProblemDetail projectLimit(ProjectLimitException e) {
+        return problem(HttpStatus.UNPROCESSABLE_CONTENT, "Unprocessable Content", e.getMessage(), "SG-API-422");
     }
 
     @ExceptionHandler(Exception.class)

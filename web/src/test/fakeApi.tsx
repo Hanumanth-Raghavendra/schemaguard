@@ -14,6 +14,11 @@ import model from './fixtures/model.json';
 import plan from './fixtures/plan.json';
 import planDirect from './fixtures/planDirect.json';
 import planRenamed from './fixtures/planRenamed.json';
+import project from './fixtures/project.json';
+import projectCreated from './fixtures/projectCreated.json';
+import projectMissing from './fixtures/projectMissing.json';
+import projects from './fixtures/projects.json';
+import projectTaken from './fixtures/projectTaken.json';
 import report from './fixtures/report.json';
 import saved from './fixtures/saved.json';
 import savedLint from './fixtures/savedLint.json';
@@ -22,6 +27,13 @@ import sessionEnded from './fixtures/sessionEnded.json';
 import stored from './fixtures/stored.json';
 import storedLint from './fixtures/storedLint.json';
 import tokenRejected from './fixtures/tokenRejected.json';
+import version1 from './fixtures/version1.json';
+import version2 from './fixtures/version2.json';
+import versionInvalid from './fixtures/versionInvalid.json';
+import versionNotLatest from './fixtures/versionNotLatest.json';
+import versionSaved1 from './fixtures/versionSaved1.json';
+import versionSaved2 from './fixtures/versionSaved2.json';
+import versionUnchanged from './fixtures/versionUnchanged.json';
 import weakPassword from './fixtures/weakPassword.json';
 import wrongLogin from './fixtures/wrongLogin.json';
 import wrongPassword from './fixtures/wrongPassword.json';
@@ -44,6 +56,10 @@ export const fixtures = {
   storedLint,
   session,
   account,
+  project,
+  projects,
+  version1,
+  version2,
 };
 
 /** The account the fake API knows, with the password it accepts. */
@@ -90,6 +106,33 @@ interface FakeOptions {
   loggedIn?: boolean;
   /** The first call with an access token is refused as expired, as after the token's 15 minutes. */
   expireFirstToken?: boolean;
+  /** What listing the projects answers; the recorded list by default. */
+  projects?: unknown[];
+}
+
+/** The project endpoints: the recorded project, one freshly created, and nothing else. */
+function projectCalls(method: string, path: string, body: unknown, options: FakeOptions): Response {
+  const request = (body ?? {}) as { name?: string; sql?: string; label?: string };
+  const [, id, versions, number] = /^\/api\/v1\/projects(?:\/([^/]+))?(\/versions)?(?:\/(\d+))?$/.exec(path) ?? [];
+  if (id === undefined) {
+    if (method === 'GET') return json(200, options.projects ?? projects);
+    if (request.name?.toLowerCase() === project.name.toLowerCase()) return json(409, projectTaken);
+    return json(201, { ...projectCreated, name: request.name ?? projectCreated.name });
+  }
+  const known = id === project.id ? project : id === projectCreated.id ? projectCreated : null;
+  if (known === null) return json(404, projectMissing);
+  if (versions === undefined) {
+    if (method === 'GET') return json(200, known);
+    if (method === 'PATCH') return json(200, { ...known, name: request.name });
+    return new Response(null, { status: 204 });
+  }
+  if (number === undefined) {
+    if (request.sql?.trim().endsWith(',')) return json(422, versionInvalid);
+    if (request.sql === version2.sql) return json(409, versionUnchanged);
+    return json(201, known === projectCreated ? versionSaved1 : versionSaved2);
+  }
+  if (method === 'GET') return json(200, number === '1' ? version1 : version2);
+  return number === '2' ? new Response(null, { status: 204 }) : json(409, versionNotLatest);
 }
 
 /** The account endpoints, with the refresh cookie modelled as a flag the server holds. */
@@ -146,6 +189,10 @@ export function fakeApi(options: FakeOptions = {}): Sent[] {
       sent.push({ method, path, body, token, authorization });
       if (path.startsWith('/api/v1/auth/') || path === '/api/v1/account') {
         return accounts(method, path, body, authorization, server);
+      }
+      if (path.startsWith('/api/v1/projects')) {
+        if (authorization !== `Bearer ${session.accessToken}`) return json(401, tokenRejected);
+        return projectCalls(method, path, body, options);
       }
       if (path.startsWith('/api/v1/analyses/')) return analyses(method, path, token, options.sharingOff ?? false);
       if (options.invalidSchema) return json(422, invalid);

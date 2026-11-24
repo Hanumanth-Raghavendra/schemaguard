@@ -6,6 +6,7 @@ import io.github.hanumanthraghavendra.schemaguard.api.auth.RefreshCookie;
 import io.github.hanumanthraghavendra.schemaguard.api.auth.SecurityConfig;
 import io.github.hanumanthraghavendra.schemaguard.api.dto.Accounts;
 import io.github.hanumanthraghavendra.schemaguard.api.dto.Permalinks;
+import io.github.hanumanthraghavendra.schemaguard.api.dto.Projects;
 import io.github.hanumanthraghavendra.schemaguard.api.dto.RenameDto;
 import io.github.hanumanthraghavendra.schemaguard.api.dto.Responses;
 import io.swagger.v3.oas.models.Components;
@@ -43,7 +44,7 @@ public class OpenApiConfig {
 
     /** Every record the API returns. Requests are left alone: their optional fields are really optional. */
     public static List<Class<?>> responseRecords() {
-        return Stream.of(Responses.class, Permalinks.class, Accounts.class)
+        return Stream.of(Responses.class, Permalinks.class, Accounts.class, Projects.class)
                 .flatMap(holder -> Arrays.stream(holder.getDeclaredClasses()))
                 .filter(Class::isRecord)
                 .toList();
@@ -62,7 +63,8 @@ public class OpenApiConfig {
                                                 + " PostgreSQL DDL, such as the output of pg_dump --schema-only. The analysis"
                                                 + " endpoints store nothing; the /api/v1/analyses endpoints save the request and"
                                                 + " its result until they expire, so they can be shared by link. Accounts"
-                                                + " (/api/v1/auth, /api/v1/account) need the server's database.")
+                                                + " (/api/v1/auth, /api/v1/account) and projects (/api/v1/projects) need the"
+                                                + " server's database.")
                                 .license(
                                         new License()
                                                 .name("MIT")

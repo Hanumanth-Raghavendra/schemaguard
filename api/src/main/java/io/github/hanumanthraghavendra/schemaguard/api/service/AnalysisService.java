@@ -74,6 +74,32 @@ public class AnalysisService {
                 ReportFormatter.format(report));
     }
 
+    /**
+     * The risk of turning one saved schema into the next, as a project version stores it.
+     *
+     * @param changes  the significant changes
+     * @param findings how many risks were found
+     */
+    public record VersionRisk(int changes, Responses.Score score, int findings) {}
+
+    /**
+     * Checks that a schema can be analysed on its own, as a project's first version must be.
+     *
+     * @throws InputRejectedException if it has errors
+     */
+    public void check(String schema) {
+        parse("new", schema);
+    }
+
+    /** The risk of the change from a project's latest version to a new one. */
+    public VersionRisk versionRisk(String previous, String next) {
+        Parsed after = parse("new", next);
+        Parsed before = parse("previous", previous);
+        SchemaDiff diff = SchemaDiff.compare(before.catalog(), after.catalog());
+        RiskReport report = RiskAnalyzer.analyze(diff);
+        return new VersionRisk(diff.significant().size(), DtoMapper.score(report.score()), report.findings().size());
+    }
+
     public Responses.Plan plan(Requests.Plan request) {
         Parsed before = parse("before", request.before());
         Parsed after = parse("after", request.after());

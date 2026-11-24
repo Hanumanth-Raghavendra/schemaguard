@@ -1,0 +1,8 @@
+{
+  "detail": "Only the latest version, 2, can be deleted: the versions after 1 are measured against it.",
+  "instance": "/api/v1/projects/78d08f57-9140-413f-9ad5-3af7c51929a2/versions/1",
+  "status": 409,
+  "title": "Conflict",
+  "type": "about:blank",
+  "code": "SG-API-409"
+}

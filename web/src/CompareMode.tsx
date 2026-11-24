@@ -22,6 +22,7 @@ import { ErrorNotice, SkippedNotice, WakingNotice } from './components/Notices.t
 import { PlanView } from './components/PlanView.tsx';
 import { ResultActions } from './components/ResultActions.tsx';
 import { RiskSummary } from './components/RiskSummary.tsx';
+import { SaveToProject } from './components/SaveToProject.tsx';
 import { SqlEditor } from './components/SqlEditor.tsx';
 import { Tabs } from './components/Tabs.tsx';
 import { compareMarkdown, downloadJson, downloadMarkdown } from './export.ts';
@@ -185,6 +186,7 @@ export function CompareMode({ preset }: { preset: { before: string; after: strin
               downloadJson('schemaguard-report.json', { kind: 'compare', ...results });
             }}
           />
+          <SaveToProject key={results.after} schema={results.after} />
           <SkippedNotice warnings={results.diff.warnings} />
           <Tabs
             label="Results"

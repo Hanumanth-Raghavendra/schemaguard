@@ -1,0 +1,8 @@
+{
+  "detail": "This account already has a project named \"Shop\".",
+  "instance": "/api/v1/projects",
+  "status": 409,
+  "title": "Conflict",
+  "type": "about:blank",
+  "code": "SG-API-409"
+}

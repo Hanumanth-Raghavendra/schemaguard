@@ -34,6 +34,9 @@ export function AccountNav() {
 
   return (
     <nav aria-label="Account" className="-ml-3 flex min-w-0 items-center gap-1 text-sm sm:ml-0">
+      <Link to="/projects" className="rounded-md px-3 py-1.5 font-medium text-elephant hover:underline">
+        Projects
+      </Link>
       <Link
         to="/account"
         title={auth.account.email}

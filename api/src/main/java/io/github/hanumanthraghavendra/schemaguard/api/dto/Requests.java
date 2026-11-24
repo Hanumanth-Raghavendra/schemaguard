@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /** The bodies the API accepts. Every SQL input is PostgreSQL DDL. */
 public final class Requests {
@@ -63,6 +64,15 @@ public final class Requests {
             return "PasswordCheck[password hidden]";
         }
     }
+
+    @Schema(name = "ProjectName", description = "A project's name: 1 to 80 characters on one line, unique in the account")
+    public record ProjectName(@NotNull @Schema(example = "shop") String name) {}
+
+    @Schema(name = "NewVersion", description = "A schema to save as a project's next version")
+    public record NewVersion(
+            @NotNull @Schema(description = "The whole schema as SQL, such as pg_dump --schema-only prints it") String sql,
+            @Schema(description = "An optional note of at most 120 characters, such as a release or a commit", example = "Release 2.4")
+                    @Nullable String label) {}
 
     /** Which statements a plan is made of. */
     public enum Route {

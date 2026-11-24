@@ -1,0 +1,21 @@
+{
+  "number": 2,
+  "label": "Release 2.4",
+  "createdAt": "2026-11-24T13:48:52.730Z",
+  "sizeBytes": 351,
+  "risk": {
+    "score": 100,
+    "level": "CRITICAL",
+    "reasons": [
+      "85 SG-R302 Column is dropped with all its values",
+      "60 SG-R201 Column type change rewrites the table",
+      "60 SG-R104 Foreign key is added without NOT VALID",
+      "60 SG-R101 Index is built without CONCURRENTLY",
+      "52 SG-R305 Possible rename would be applied as drop and add"
+    ],
+    "changes": 8,
+    "findings": 6
+  },
+  "sql": "CREATE TABLE customers (\n  id integer PRIMARY KEY,\n  email text NOT NULL,\n  full_name text,\n  created_at timestamptz NOT NULL DEFAULT now()\n);\n\nCREATE TABLE orders (\n  id bigint PRIMARY KEY,\n  customer_id integer NOT NULL REFERENCES customers (id),\n  status text NOT NULL,\n  total numeric(12, 2)\n);\n\nCREATE INDEX orders_status_idx ON orders (status);\n",
+  "previousSql": "CREATE TABLE customers (\n  id integer PRIMARY KEY,\n  email text NOT NULL,\n  name text\n);\n\nCREATE TABLE orders (\n  id integer PRIMARY KEY,\n  customer_id integer NOT NULL,\n  status text NOT NULL,\n  total numeric(10, 2)\n);\n"
+}

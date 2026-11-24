@@ -6,6 +6,10 @@ each release is a git tag (`v0.5.0`) on `main`. Details and reasons: `PROGRESS.m
 
 ## Unreleased (0.6.0)
 
+- **Projects**: keep every version of a schema in a named project and see how risky each change
+  was. Save a version on the project page (starting from the latest one) or straight from the
+  analyser; open any version's change in the analyser. A version that changes nothing is refused.
+  API: `/api/v1/projects` and `/api/v1/projects/{id}/versions`.
 - **Accounts**: sign up, log in, stay logged in across visits, log out, delete the account
   (`/signup`, `/login`, `/account`; API `POST /api/v1/auth/signup|login|refresh|logout`,
   `GET`/`DELETE /api/v1/account`). Short-lived JWT access tokens (RFC 9068) kept in memory; the

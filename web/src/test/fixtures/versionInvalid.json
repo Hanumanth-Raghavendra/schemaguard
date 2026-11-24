@@ -1,0 +1,18 @@
+{
+  "detail": "The new schema has 1 error and cannot be analysed.",
+  "instance": "/api/v1/projects/78d08f57-9140-413f-9ad5-3af7c51929a2/versions",
+  "status": 422,
+  "title": "Input cannot be analysed",
+  "type": "about:blank",
+  "code": "SG-API-422",
+  "diagnostics": [
+    {
+      "input": "new",
+      "severity": "ERROR",
+      "code": "SG-PARSE-002",
+      "message": "Expected a column name but found end of statement",
+      "line": 1,
+      "column": 45
+    }
+  ]
+}

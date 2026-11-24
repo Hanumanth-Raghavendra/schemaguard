@@ -16,6 +16,7 @@ import org.springframework.validation.annotation.Validated;
  * @param persistence where saved analyses and accounts are kept; without a URL, nothing is saved
  *                    and accounts are switched off
  * @param auth        how logins and sessions work
+ * @param projects    how much each account may keep in projects
  */
 @Validated
 @ConfigurationProperties("schemaguard")
@@ -23,7 +24,8 @@ public record ApiProperties(
         @NotNull @DefaultValue Limits limits,
         @NotNull @DefaultValue Cors cors,
         @NotNull @DefaultValue Persistence persistence,
-        @NotNull @DefaultValue Auth auth) {
+        @NotNull @DefaultValue Auth auth,
+        @NotNull @DefaultValue Projects projects) {
 
     /**
      * Limits that keep one request from occupying the service. Linting costs time in
@@ -110,4 +112,19 @@ public record ApiProperties(
                     + ", accessTokenLifetime=" + accessTokenLifetime + ", sessionLifetime=" + sessionLifetime + "]";
         }
     }
+
+    /**
+     * Projects and their schema versions. Each version is also held to {@link Limits#maxInputChars}.
+     *
+     * @param maxProjects     projects per account
+     * @param maxVersions     versions per project
+     * @param maxAccountBytes schema text one account may keep across all its versions
+     * @param maxTotalBytes   schema text all accounts together may keep; beyond it, saving a
+     *                        version is refused until something is deleted
+     */
+    public record Projects(
+            @Min(1) @DefaultValue("20") int maxProjects,
+            @Min(1) @DefaultValue("500") int maxVersions,
+            @Min(1024) @DefaultValue("20000000") long maxAccountBytes,
+            @Min(1024) @DefaultValue("200000000") long maxTotalBytes) {}
 }

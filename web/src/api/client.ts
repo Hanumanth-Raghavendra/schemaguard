@@ -22,6 +22,11 @@ export type SavedAnalysis = Schemas['SavedAnalysis'];
 export type StoredAnalysis = Schemas['StoredAnalysis'];
 export type Session = Schemas['Session'];
 export type Account = Schemas['Account'];
+export type ProjectSummary = Schemas['ProjectSummary'];
+export type Project = Schemas['Project'];
+export type VersionSummary = Schemas['VersionSummary'];
+export type Version = Schemas['Version'];
+export type VersionRisk = Schemas['VersionRisk'];
 export type Route = 'DIRECT' | 'SAFE';
 
 /** RFC 9457 problem as the API sends it; `code` and `diagnostics` are its extension members. */
@@ -175,6 +180,63 @@ export function getAccount(accessToken: string, signal?: AbortSignal): Promise<A
 
 export async function deleteAccount(accessToken: string, password: string): Promise<void> {
   await send(() => client.DELETE('/api/v1/account', { headers: bearer(accessToken), body: { password } }));
+}
+
+// Projects. Every call needs an access token; pass these through useAuth().withToken.
+
+export function listProjects(accessToken: string, signal?: AbortSignal): Promise<ProjectSummary[]> {
+  return call(() => client.GET('/api/v1/projects', { headers: bearer(accessToken), signal: signal ?? null }));
+}
+
+export function createProject(accessToken: string, name: string): Promise<Project> {
+  return call(() => client.POST('/api/v1/projects', { headers: bearer(accessToken), body: { name } }));
+}
+
+export function getProject(accessToken: string, id: string, signal?: AbortSignal): Promise<Project> {
+  return call(() =>
+    client.GET('/api/v1/projects/{id}', {
+      headers: bearer(accessToken),
+      params: { path: { id } },
+      signal: signal ?? null,
+    }),
+  );
+}
+
+export function renameProject(accessToken: string, id: string, name: string): Promise<Project> {
+  return call(() =>
+    client.PATCH('/api/v1/projects/{id}', { headers: bearer(accessToken), params: { path: { id } }, body: { name } }),
+  );
+}
+
+export async function deleteProject(accessToken: string, id: string): Promise<void> {
+  await send(() => client.DELETE('/api/v1/projects/{id}', { headers: bearer(accessToken), params: { path: { id } } }));
+}
+
+/** Saves a schema as the project's next version; a blank label means none. */
+export function addVersion(accessToken: string, id: string, sql: string, label: string): Promise<VersionSummary> {
+  const body = label.trim() === '' ? { sql } : { sql, label };
+  return call(() =>
+    client.POST('/api/v1/projects/{id}/versions', { headers: bearer(accessToken), params: { path: { id } }, body }),
+  );
+}
+
+export function getVersion(accessToken: string, id: string, number: number, signal?: AbortSignal): Promise<Version> {
+  return call(() =>
+    client.GET('/api/v1/projects/{id}/versions/{number}', {
+      headers: bearer(accessToken),
+      params: { path: { id, number } },
+      signal: signal ?? null,
+    }),
+  );
+}
+
+export async function deleteVersion(accessToken: string, id: string, number: number): Promise<void> {
+  await send(() =>
+    client.DELETE('/api/v1/projects/{id}/versions/{number}', {
+      headers: bearer(accessToken),
+      params: { path: { id, number } },
+    }),
+  );
 }
 
 /** Starts the sleeping API host early. The answer is opaque (no CORS on /actuator) and not needed. */

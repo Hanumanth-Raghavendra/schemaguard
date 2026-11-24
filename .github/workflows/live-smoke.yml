@@ -50,7 +50,7 @@ jobs:
       - name: Health, docs and rules
         run: |
           curl -fs "$URL/actuator/health" | jq -e '.status == "UP"'
-          curl -fs "$URL/v3/api-docs" | jq -e '.paths | has("/api/v1/report") and has("/api/v1/model") and has("/api/v1/analyses/{id}") and has("/api/v1/auth/signup") and has("/api/v1/account")'
+          curl -fs "$URL/v3/api-docs" | jq -e '.paths | has("/api/v1/report") and has("/api/v1/model") and has("/api/v1/analyses/{id}") and has("/api/v1/auth/signup") and has("/api/v1/account") and has("/api/v1/projects/{id}/versions")'
           test "$(curl -s -o /dev/null -w '%{http_code}' "$URL/swagger-ui/index.html")" = 200
           test "$(curl -fs "$URL/api/v1/rules" | jq length)" -ge 40
           curl -fs "$URL/actuator/info" | jq -r '"Running build " + .build.version + " from " + .build.time' | tee -a "$GITHUB_STEP_SUMMARY"
@@ -117,10 +117,21 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$URL/api/v1/auth/refresh" -b "__Secure-sg-refresh=$NEW")" = 401
 
           ACCESS=$(json -f -X POST "$URL/api/v1/auth/login" -d "$CREDENTIALS" | jq -r .accessToken)
+          # A project of two versions: the second stores the risk of the change; the same schema
+          # again is refused. Deleting the account below deletes the project with it.
+          AUTH="Authorization: Bearer $ACCESS"
+          PROJECT=$(json -f -H "$AUTH" -X POST "$URL/api/v1/projects" -d '{"name":"smoke"}' | jq -r .id)
+          VERSIONS="$URL/api/v1/projects/$PROJECT/versions"
+          json -f -H "$AUTH" -X POST "$VERSIONS" -d '{"sql":"CREATE TABLE t (id integer PRIMARY KEY);"}' \
+            | jq -e '.number == 1 and .risk == null'
+          json -f -H "$AUTH" -X POST "$VERSIONS" -d '{"sql":"CREATE TABLE t (id bigint PRIMARY KEY);","label":"wider id"}' \
+            | jq -e '.number == 2 and .risk.score > 0 and .label == "wider id"'
+          test "$(json -o /dev/null -w '%{http_code}' -H "$AUTH" -X POST "$VERSIONS" -d '{"sql":"CREATE TABLE t (id bigint PRIMARY KEY);"}')" = 409
+          curl -fs -H "$AUTH" "$URL/api/v1/projects" | jq -e --arg p "$PROJECT" 'map(select(.id == $p)) | .[0].versionCount == 2'
           test "$(json -o /dev/null -w '%{http_code}' -X DELETE "$URL/api/v1/account" -H "Authorization: Bearer $ACCESS" \
             -d "$(jq -n --arg p "$PASSWORD" '{password: $p}')")" = 204
           test "$(json -o /dev/null -w '%{http_code}' -X POST "$URL/api/v1/auth/login" -d "$CREDENTIALS")" = 401
-          echo "Accounts: ON (sign up, token, refresh, log out, log in, delete all work)" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Accounts and projects: ON (sign up, token, refresh, log out, log in, versions, delete all work)" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: CORS
         run: |
@@ -155,12 +166,12 @@ jobs:
           # Logging out without a session still answers with a cookie that clears the refresh cookie:
           # proof that Set-Cookie survives the Vercel rewrite, without making an account.
           curl -s -D - -o /dev/null -X POST "$WEB/api/v1/auth/logout" | grep -i '^set-cookie: __Secure-sg-refresh=;'
-      - name: Analyse, share and a whole account on the live site
+      - name: Analyse, share, an account and a project on the live site
         env:
           E2E_BASE_URL: ${{ inputs.web }}
         run: |
           npm run test:e2e
-          echo "Live web app at $E2E_BASE_URL: analyse, share, open, delete, and sign up to account deletion all work" >> "$GITHUB_STEP_SUMMARY"
+          echo "Live web app at $E2E_BASE_URL: analyse, share, accounts and projects all work" >> "$GITHUB_STEP_SUMMARY"
       - if: failure()
         uses: actions/upload-artifact@v7
         with:

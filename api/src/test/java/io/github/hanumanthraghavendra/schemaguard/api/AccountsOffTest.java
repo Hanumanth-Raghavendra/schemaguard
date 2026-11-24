@@ -57,4 +57,12 @@ class AccountsOffTest {
         assertThat(result.getResponse().getStatus()).isEqualTo(503);
         assertThat(mvc.get().uri("/api/v1/account").exchange().getResponse().getStatus()).isEqualTo(401);
     }
+
+    @Test
+    void projectsAreSwitchedOffToo() {
+        String token = tokens.issue(UUID.randomUUID()).value();
+        MvcTestResult result = mvc.get().uri("/api/v1/projects").header(HttpHeaders.AUTHORIZATION, "Bearer " + token).exchange();
+        assertThat(result.getResponse().getStatus()).isEqualTo(503);
+        assertThat(body(result)).contains("Projects are switched off on this server.");
+    }
 }

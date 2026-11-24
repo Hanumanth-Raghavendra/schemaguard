@@ -1,12 +1,16 @@
 import { Link, Route, Routes, useLocation, useParams } from 'react-router';
 import { AccountPage } from './AccountPage.tsx';
 import { AuthProvider } from './auth/AuthProvider.tsx';
+import { RequireAuth } from './auth/RequireAuth.tsx';
 import { AccountNav } from './components/AccountNav.tsx';
 import { Home } from './Home.tsx';
 import { LoginPage } from './LoginPage.tsx';
+import { ProjectPage } from './ProjectPage.tsx';
+import { ProjectsPage } from './ProjectsPage.tsx';
 import { isPreset } from './presets.ts';
 import { SharedAnalysis } from './SharedAnalysis.tsx';
 import { SignupPage } from './SignupPage.tsx';
+import { VersionPage } from './VersionPage.tsx';
 
 function HomeRoute() {
   const location = useLocation();
@@ -17,6 +21,16 @@ function HomeRoute() {
 function SharedRoute() {
   const { id = '' } = useParams();
   return <SharedAnalysis key={id} />;
+}
+
+function ProjectRoute() {
+  const { id = '' } = useParams();
+  return <ProjectPage key={id} />;
+}
+
+function VersionRoute() {
+  const { id = '', number = '' } = useParams();
+  return <VersionPage key={`${id}/${number}`} />;
 }
 
 function NotFound() {
@@ -63,6 +77,30 @@ function Layout() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/account" element={<AccountPage />} />
+          <Route
+            path="/projects"
+            element={
+              <RequireAuth>
+                <ProjectsPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/projects/:id"
+            element={
+              <RequireAuth>
+                <ProjectRoute />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/projects/:id/versions/:number"
+            element={
+              <RequireAuth>
+                <VersionRoute />
+              </RequireAuth>
+            }
+          />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

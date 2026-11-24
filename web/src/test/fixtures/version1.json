@@ -1,0 +1,9 @@
+{
+  "number": 1,
+  "label": "Initial schema",
+  "createdAt": "2026-11-24T13:48:52.652Z",
+  "sizeBytes": 220,
+  "risk": null,
+  "sql": "CREATE TABLE customers (\n  id integer PRIMARY KEY,\n  email text NOT NULL,\n  name text\n);\n\nCREATE TABLE orders (\n  id integer PRIMARY KEY,\n  customer_id integer NOT NULL,\n  status text NOT NULL,\n  total numeric(10, 2)\n);\n",
+  "previousSql": null
+}

@@ -36,7 +36,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Who may call what. Every analysis, saved analysis and auth endpoint stays public; the account
- * endpoints need an access token ({@code Authorization: Bearer}), checked by Spring Security's
+ * and project endpoints need an access token ({@code Authorization: Bearer}), checked by Spring Security's
  * OAuth 2.0 resource server against this service's own key.
  *
  * <p>No server sessions and no CSRF tokens. Endpoints that act on an account authenticate with
@@ -65,7 +65,8 @@ public class SecurityConfig {
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(requests -> requests
-                        .requestMatchers("/api/v1/account", "/api/v1/account/**").authenticated()
+                        .requestMatchers("/api/v1/account", "/api/v1/account/**", "/api/v1/projects", "/api/v1/projects/**")
+                        .authenticated()
                         .anyRequest().permitAll())
                 .oauth2ResourceServer(server -> server
                         .jwt(Customizer.withDefaults())
@@ -113,6 +114,7 @@ public class SecurityConfig {
         cors.setAllowedOrigins(properties.cors().allowedOrigins());
         cors.addAllowedMethod("GET");
         cors.addAllowedMethod("POST");
+        cors.addAllowedMethod("PATCH");
         cors.addAllowedMethod("DELETE");
         cors.addAllowedHeader("Content-Type");
         cors.addAllowedHeader("Authorization");

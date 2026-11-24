@@ -5,6 +5,8 @@ const INPUT_NAMES: Record<string, string> = {
   after: 'New schema',
   schema: 'Current schema',
   migration: 'Migration',
+  new: 'New version',
+  previous: 'Latest version',
 };
 
 function where(diagnostic: Diagnostic): string {

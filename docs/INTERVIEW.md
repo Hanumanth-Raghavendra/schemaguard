@@ -616,3 +616,33 @@ and rotates on every use. Passwords are Argon2id.
   checks the cookie's attributes, rotates it, logs out, logs in and deletes the account, both by
   curl against the API and by clicking through the real site. It also checks that `Set-Cookie`
   survives Vercel's rewrite.
+
+## Phase 7.2: projects and schema versions
+
+**What it is.** A logged-in user keeps named projects; each is a numbered series of whole schemas.
+Saving a version compares it with the latest and stores how risky that change was, so the project
+page is a timeline of risk. Any version can be opened in the analyser to see every change, the
+diagram and a safe plan.
+
+**Likely questions**
+
+- *Why store only a risk summary, not the whole report?* The timeline (and the trend chart next)
+  needs one small row per version. A stored report would freeze an old JSON shape that the strict
+  OpenAPI contract no longer describes, and fill the free database. The engine is deterministic,
+  so the full report is recomputed on demand with today's rules (D-097).
+- *Two people save a version of the same project at the same moment. What happens?* The slow part,
+  the analysis, runs without any lock. Then a short transaction locks the project row and checks
+  that the latest version is still the one the new one was compared with. If not, 409: "saved at
+  the same moment". Numbers stay unique and gapless; a test fires eight writers at once (D-098).
+  That is optimistic concurrency: no lock is held while the engine works.
+- *How do you stop one user reading another's project?* Every query includes the account id from
+  the token, and someone else's project gets exactly the same 404 as a project that does not exist,
+  so guessing ids reveals nothing. A test tries every endpoint as a stranger (D-098).
+- *Why can only the latest version be deleted?* Each version's risk is measured against the one
+  before it. Deleting a middle version would leave the next one measured against nothing.
+- *Why refuse a version that changes nothing?* A CI job will save the schema on every push (Phase
+  8). With a 409 for "same as version N", only real changes become versions, and the check uses the
+  engine's diff, so comments, case and spacing do not count as changes.
+- *Why is the project name unique "in any case"?* "Shop" and "shop" side by side is a trap. A
+  unique index on `(account_id, lower(name))` enforces it, and creating or renaming locks the
+  account's row so the check and the limit of 20 projects cannot race.

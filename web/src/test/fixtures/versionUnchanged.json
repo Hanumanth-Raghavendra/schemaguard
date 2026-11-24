@@ -1,0 +1,8 @@
+{
+  "detail": "This schema is the same as version 2, so there is nothing new to save.",
+  "instance": "/api/v1/projects/78d08f57-9140-413f-9ad5-3af7c51929a2/versions",
+  "status": 409,
+  "title": "Conflict",
+  "type": "about:blank",
+  "code": "SG-API-409"
+}
