@@ -646,3 +646,23 @@ diagram and a safe plan.
 - *Why is the project name unique "in any case"?* "Shop" and "shop" side by side is a trap. A
   unique index on `(account_id, lower(name))` enforces it, and creating or renaming locks the
   account's row so the check and the limit of 20 projects cannot race.
+
+## Phase 7.3: risk trend and saved reports
+
+**What it is.** The project page charts the risk of each change, one bar per version, and every
+version's report downloads as Markdown or JSON or is shared as a link.
+
+**Likely questions**
+
+- *Why bars and not a line?* Each score belongs to one change, not to a quantity flowing between
+  versions; a line would draw a path that does not exist. Bars also make the riskiest change jump
+  out, which is the point of the chart (D-101).
+- *Why no chart library?* One series of up to 60 bars is a flex row of divs. HTML text keeps its
+  size on a phone (a scaled SVG shrinks it), each bar is an ordinary link for the keyboard and
+  screen readers, and the bundle stays the same size.
+- *The report says "today's rules". Why not the report from the day it was saved?* Only the score
+  summary is stored (D-097). The report is recomputed with the current engine and says so, while
+  the saved score stays the historical record on the timeline (D-102).
+- *How is accessibility handled in the chart?* Each bar's link has a full description ("Version 5,
+  Release 2.4: risk 95 of 100, critical"), the chart opens with a sentence naming the latest and
+  the riskiest change, and colours never carry meaning alone: the height and the text do too.

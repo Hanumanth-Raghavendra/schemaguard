@@ -63,7 +63,7 @@ describe('projects', () => {
   it('shows the timeline newest first, each version with the risk of its change', async () => {
     signedIn();
     renderApp(`/projects/${project.id}`);
-    const timeline = await screen.findByRole('list');
+    const timeline = await screen.findByRole('list', { name: 'Versions, newest first' });
     const items = within(timeline).getAllByRole('link');
     expect(items.map((item) => item.getAttribute('href'))).toEqual([
       `/projects/${project.id}/versions/2`,
@@ -178,6 +178,149 @@ describe('projects', () => {
     fakeApi();
     renderApp('/projects');
     expect(await screen.findByRole('heading', { name: 'Log in' })).toBeInTheDocument();
+  });
+});
+
+describe('the risk chart', () => {
+  const versionsOf = (count: number) =>
+    Array.from({ length: count }, (_, index) => {
+      const number = count - index;
+      const score = number === 1 ? null : (number * 7) % 101;
+      return {
+        number,
+        label: null,
+        createdAt: project.createdAt,
+        sizeBytes: 100,
+        risk:
+          score === null
+            ? null
+            : {
+                score,
+                level:
+                  score >= 75
+                    ? 'CRITICAL'
+                    : score >= 50
+                      ? 'HIGH'
+                      : score >= 25
+                        ? 'MEDIUM'
+                        : score >= 1
+                          ? 'LOW'
+                          : 'NONE',
+                reasons: [],
+                changes: 1,
+                findings: 1,
+              },
+      };
+    });
+
+  it('draws a bar for each version, oldest first, and opens a version from its bar', async () => {
+    signedIn();
+    renderApp(`/projects/${project.id}`);
+    const bars = within(await screen.findByRole('list', { name: 'Versions, oldest first' })).getAllByRole('link');
+    expect(bars.map((bar) => bar.getAttribute('aria-label'))).toEqual([
+      'Version 1, Initial schema: the first version, nothing to compare',
+      'Version 2, Release 2.4: risk 100 of 100, critical',
+    ]);
+    expect(screen.getByText('The latest change, version 2, scored 100 (critical).')).toBeInTheDocument();
+
+    await userEvent.setup().click(bars[1] as HTMLElement);
+    expect(await screen.findByRole('heading', { name: /^Version 2/ })).toBeInTheDocument();
+  });
+
+  it('names the riskiest change when it is not the latest, and keeps to the latest 60 versions', async () => {
+    signedIn({ project: { ...project, versions: versionsOf(70) } });
+    renderApp(`/projects/${project.id}`);
+    const bars = within(await screen.findByRole('list', { name: 'Versions, oldest first' })).getAllByRole('link');
+    expect(bars).toHaveLength(60);
+    expect(bars[0]).toHaveAttribute('aria-label', 'Version 11: risk 77 of 100, critical');
+    // Version 70 scored 70 * 7 % 101 = 86; version 43 scored 301 % 101 = 99, the most of all 70.
+    expect(
+      screen.getByText(
+        'The latest change, version 70, scored 86 (critical). The riskiest was version 43, at 99 (critical).',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('The latest 60 of 70 versions.')).toBeInTheDocument();
+  });
+
+  it('is left out until a second version gives a change to score', async () => {
+    signedIn({ project: { ...project, versions: versionsOf(1) } });
+    renderApp(`/projects/${project.id}`);
+    expect(await screen.findByRole('heading', { name: 'Versions' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Risk of each change' })).not.toBeInTheDocument();
+  });
+});
+
+describe('a version report', () => {
+  /** Catches downloads: each file's name and text. */
+  function downloads() {
+    const files: { name: string; blob: Blob }[] = [];
+    let last: Blob | null = null;
+    vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
+      last = blob as Blob;
+      return 'blob:test';
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      if (last !== null) files.push({ name: this.download, blob: last });
+    });
+    return files;
+  }
+
+  it("downloads the change as Markdown and JSON, analysed once with today's rules", async () => {
+    const sent = signedIn();
+    const files = downloads();
+    renderApp(`/projects/${project.id}/versions/2`);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Download Markdown' }));
+    await user.click(screen.getByRole('button', { name: 'Download JSON' }));
+    await vi.waitFor(() => {
+      expect(files).toHaveLength(2);
+    });
+
+    const [markdown, json] = files;
+    expect(markdown?.name).toBe('shop-v2-report.md');
+    const text = await markdown?.blob.text();
+    expect(text).toContain('# SchemaGuard risk report');
+    expect(text).toContain('Project shop, version 2 (Release 2.4), saved');
+    expect(text).toContain('the change from version 1, analysed with the rules SchemaGuard has today.');
+    expect(text).toContain('## Plan (safe route)');
+    expect(json?.name).toBe('shop-v2-report.json');
+    expect(JSON.parse((await json?.blob.text()) ?? '{}')).toMatchObject({
+      kind: 'version',
+      project: { id: project.id, name: 'shop' },
+      version: { number: 2, label: 'Release 2.4', savedRisk: version2.risk },
+      before: version1.sql,
+      after: version2.sql,
+      report: fixtures.report,
+    });
+    // Both downloads use one analysis.
+    for (const path of ['/api/v1/report', '/api/v1/diff', '/api/v1/plan']) {
+      expect(calls(sent).filter((call) => call === `POST ${path}`)).toHaveLength(1);
+    }
+  });
+
+  it('shares the change as a link', async () => {
+    const sent = signedIn();
+    renderApp(`/projects/${project.id}/versions/2`);
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Share' }));
+    expect(await screen.findByLabelText('Link to this analysis')).toHaveValue(
+      `${window.location.origin}/a/${fixtures.saved.id}`,
+    );
+    const share = sent.find((request) => request.path === '/api/v1/analyses/report');
+    expect(share?.body).toEqual({ before: version1.sql, after: version2.sql });
+    expect(share?.authorization).toBeNull();
+  });
+
+  it("downloads any version's SQL, the first included, which has no report", async () => {
+    signedIn();
+    const files = downloads();
+    renderApp(`/projects/${project.id}/versions/1`);
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Download SQL' }));
+    expect(screen.queryByRole('heading', { name: 'Report' })).not.toBeInTheDocument();
+    await vi.waitFor(() => {
+      expect(files).toHaveLength(1);
+    });
+    expect(files[0]?.name).toBe('shop-v1.sql');
+    expect(await files[0]?.blob.text()).toBe(version1.sql);
   });
 });
 

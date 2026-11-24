@@ -36,7 +36,7 @@ test('save schema versions in a project and follow the risk of each change', asy
   await typeSchema(page, V1);
   await page.getByLabel('Label (optional)').fill('Initial schema');
   await page.getByRole('button', { name: 'Save version', exact: true }).click();
-  const timeline = page.getByRole('list').filter({ hasText: 'Version 1' });
+  const timeline = page.getByRole('list', { name: 'Versions, newest first' });
   await expect(timeline.getByRole('link', { name: /Version 1 Initial schema/ })).toBeVisible();
 
   await page.getByRole('button', { name: 'Save version 2' }).click();
@@ -47,8 +47,15 @@ test('save schema versions in a project and follow the risk of each change', asy
   const second = timeline.getByRole('link', { name: /^Version 2/ });
   await expect(second).toContainText('Index is built without CONCURRENTLY');
 
-  await second.click();
+  // The chart has a bar per version; the second one opens version 2.
+  const bar = page
+    .getByRole('list', { name: 'Versions, oldest first' })
+    .getByRole('link', { name: /^Version 2: risk \d+ of 100/ });
+  await bar.click();
   await expect(page.getByRole('heading', { name: /^Version 2/ })).toBeVisible();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download Markdown' }).click();
+  expect((await download).suggestedFilename()).toBe('shop-v2-report.md');
   await expect(page.getByRole('region', { name: 'Risk of this version' })).toContainText('/ 100');
   await page.getByRole('button', { name: 'Open the change from version 1 in the analyser' }).click();
   await expect(page.getByRole('region', { name: 'Overall risk' })).toContainText('Index is built without CONCURRENTLY');

@@ -108,6 +108,8 @@ interface FakeOptions {
   expireFirstToken?: boolean;
   /** What listing the projects answers; the recorded list by default. */
   projects?: unknown[];
+  /** What opening the recorded project answers; the recording by default. */
+  project?: unknown;
 }
 
 /** The project endpoints: the recorded project, one freshly created, and nothing else. */
@@ -122,7 +124,7 @@ function projectCalls(method: string, path: string, body: unknown, options: Fake
   const known = id === project.id ? project : id === projectCreated.id ? projectCreated : null;
   if (known === null) return json(404, projectMissing);
   if (versions === undefined) {
-    if (method === 'GET') return json(200, known);
+    if (method === 'GET') return json(200, known === project ? (options.project ?? project) : known);
     if (method === 'PATCH') return json(200, { ...known, name: request.name });
     return new Response(null, { status: 204 });
   }

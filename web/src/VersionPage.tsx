@@ -5,7 +5,9 @@ import { useAuth } from './auth/AuthContext.ts';
 import { problemMessage } from './auth/returnTo.ts';
 import { useAuthed } from './auth/useAuthed.ts';
 import { RiskSummary } from './components/RiskSummary.tsx';
+import { VersionReport } from './components/VersionReport.tsx';
 import { formatDate } from './dates.ts';
+import { download, fileName } from './export.ts';
 import type { Preset } from './presets.ts';
 import { plural } from './words.ts';
 
@@ -113,10 +115,23 @@ function VersionView({ project, version }: { project: Project; version: Version 
         )}
       </section>
 
+      {previousSql !== null && <VersionReport project={project} version={version} before={previousSql} />}
+
       <section aria-labelledby="sql-title" className="space-y-2">
-        <h3 id="sql-title" className="font-semibold">
-          Schema
-        </h3>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h3 id="sql-title" className="font-semibold">
+            Schema
+          </h3>
+          <button
+            type="button"
+            className={button}
+            onClick={() => {
+              download(`${fileName(project.name)}-v${String(version.number)}.sql`, version.sql, 'application/sql');
+            }}
+          >
+            Download SQL
+          </button>
+        </div>
         <pre className="max-h-[28rem] overflow-auto rounded-md border border-line bg-paper p-4 font-mono text-sm whitespace-pre">
           {version.sql}
         </pre>

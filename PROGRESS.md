@@ -2,11 +2,11 @@
 
 > **To resume:** read this file, then start at "Next step". Do not re-plan; the plan is fixed below.
 
-- **Current phase:** 7 (accounts, projects, history, trends, API keys): 7.0 (one origin), 7.1 (accounts) and 7.2 (projects and schema versions) done, 7.3 risk trend chart and saved reports next. Phase 6 is done: web app live at https://schemaguard-v1.vercel.app (renamed from schemaguard-nu on 2026-11-22), released as `v0.5.0` (tagged by the owner on 2026-11-22). Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
+- **Current phase:** 7 (accounts, projects, history, trends, API keys): 7.0 (one origin), 7.1 (accounts), 7.2 (projects and schema versions) and 7.3 (risk trend and saved reports) done, so Phase 7's goal is met; 7.4 API keys next. Phase 6 is done: web app live at https://schemaguard-v1.vercel.app (renamed from schemaguard-nu on 2026-11-22), released as `v0.5.0` (tagged by the owner on 2026-11-22). Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
 - **Last updated:** 2026-11-24
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
-- **State:** build green; engine 1,714 tests (276 plans run on a real PostgreSQL 16 in CI), API 125 tests (permalinks, accounts and projects tested on real PostgreSQL); web 81 tests (Vitest) and 3 end-to-end tests (Playwright); line coverage engine 99.3% (gate 85%), API 96.4% (gate 80%); CI builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
-- **Size:** 420 files in 70 folders; 17,512 lines of main Java, 9,396 lines of test Java, 6,042 lines of TypeScript (plus 2,145 generated) (Trackly reference: 249 files, 74 folders, 5,888 Java + 11,781 JS lines)
+- **State:** build green; engine 1,714 tests (276 plans run on a real PostgreSQL 16 in CI), API 125 tests (permalinks, accounts and projects tested on real PostgreSQL); web 87 tests (Vitest) and 3 end-to-end tests (Playwright); line coverage engine 99.3% (gate 85%), API 96.4% (gate 80%); CI builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
+- **Size:** 422 files in 70 folders; 17,512 lines of main Java, 9,396 lines of test Java, 6,471 lines of TypeScript (plus 2,145 generated)
 
 ## Next step
 
@@ -49,16 +49,19 @@ New endpoints need a token by adding their path to `SecurityConfig` (`/api/v1/ac
   `schema_version`, pages `/projects`, `/projects/:id`, `/projects/:id/versions/:n`, and "Save the
   new schema to a project" in the analyser. Each version stores the risk of the change from the one
   before (`risk_score`, `risk_level`, `risk_reasons`, `changes`, `findings`), which is what 7.3 charts.
-- **7.3 risk trend chart and saved reports (next).** On the project page, a chart of each version's
-  risk score (0 to 100) over the version numbers, coloured by level, drawn as SVG like the ER diagram
-  (no chart library needed for one series; check before adding one), with a table of the same numbers
-  for screen readers and a click on a point opening that version. "Saved reports": on a version page,
-  download its report as Markdown or JSON and share it as a link, by reusing `compareMarkdown`, the
-  JSON export and `POST /api/v1/analyses/report` with the version and the one before it (recomputed,
-  so the shared link shows today's rules; say so). Phase 7's goal, "save schema versions and see the
-  risk trend", is met when 7.3 is live.
-- **7.4** API keys (hashed, shown once, revocable) for the CLI and CI; then a version can be saved
-  with a key instead of a login (Phase 8's CLI and GitHub Action use it).
+- **7.3 risk trend chart and saved reports: done** (D-101, D-102). Phase 7's goal ("a user can save
+  schema versions and see the risk trend") is met and verified live.
+- **7.4 API keys (next).** For the CLI and the GitHub Action of Phase 8, which cannot log in.
+  Flyway V4 `api_key` (id, account_id with ON DELETE CASCADE, name, the first characters shown as
+  a hint, the SHA-256 of the whole key, created_at, last_used_at). A key is `sg_` plus 32 random
+  bytes in base64url, shown once at creation and never again (a recognisable prefix lets secret
+  scanners find leaked keys). Endpoints `GET`/`POST /api/v1/account/keys`, `DELETE
+  /api/v1/account/keys/{id}` (access token only: a key cannot make or list keys). A request with
+  `Authorization: Bearer sg_...` is authenticated by the key's hash (an `AuthenticationManagerResolver`
+  beside the JWT one); a key may read projects and save versions, nothing else (not the account, not
+  other keys). At most 10 keys per account; `last_used_at` written at most once a minute. Web: a
+  "Keys" section on the account page (create with a name, copy once, delete). Check Spring
+  Security 7.1's resolver API before building.
 
 **Local PostgreSQL.** The Claude build container has PostgreSQL 16 server binaries in
 `/usr/lib/postgresql/16/bin`. Run them as the `postgres` user (`runuser -u postgres -- ...`)
@@ -102,6 +105,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 - [x] **7.0** One origin for the web app and the API (D-090): Vercel rewrites `/api/*` to Render (rewrite caching off); Vite dev and preview forward `/api` too, so the CI end-to-end test runs the same way. The page still pings the API host directly to wake it. CORS keeps the Vercel origin (the rewrite forwards `Origin`) and now allows the local preview origin by default. Live smoke test checks the proxy. Also: version 0.6.0-SNAPSHOT, and `/actuator/info` shows the real build time again (Maven 3.10 stamped 1980-02-01) (2026-11-22)
 - [x] **7.1** Accounts (D-091 to D-096). API: `POST /api/v1/auth/signup|login|refresh|logout`, `GET` and `DELETE /api/v1/account`; Spring Security 7.1.2 resource server checking RFC 9068 access tokens (HS256, 15 minutes, key generated by Render); opaque refresh tokens (SHA-256 stored) in an httpOnly, Secure, SameSite=Strict `__Secure-sg-refresh` cookie on `/api/v1/auth`, rotated on every use, reuse after 30 s revokes the session, 30-day idle and 90-day absolute lifetime; Argon2id (Bouncy Castle 1.87, 19 MiB, 2 passes, at most 2 at once); 8 to 256 characters, not among the 10,000 most common, not the email; 5 failures in an hour lock the account for 1 minute, doubling to 15; unknown emails cost the same check; delete needs the password (403). Problem documents for every error, `WWW-Authenticate: Bearer` on 401. Shared `Database` class (lazy Flyway, transactions); Flyway V2 `account` and `refresh_token`, linted by SchemaGuard; the retention job also deletes expired tokens; CORS moved into Spring Security. Web: header links, `/signup`, `/login`, `/account` (details, delete with password); access token in memory, one refresh at a time, renewal on load only for browsers that logged in, logins and logouts followed across tabs. Tests: 60 new API tests (service-level with a moved clock on PostgreSQL: rotation, reuse, two tabs, expiry, 90-day cap, lockout growth, rehash; HTTP-level: cookie attributes, 401/403/409/422/429, foreign origin refused), 13 new Vitest tests, a Playwright test of an account's whole life (sign up, reload, log out, wrong password, log in, delete) in CI and live. Live smoke test runs a throwaway account by curl and checks `Set-Cookie` through the Vercel rewrite (2026-11-22)
 - [x] **7.2** Projects and schema versions (D-097 to D-100). API under `/api/v1/projects` (Bearer, owner-only, another account's project is a 404 like a missing one): list, create, get, rename (PATCH), delete; save a version (whole schema; the risk of the change from the latest is stored as score, level, top reasons and counts; identical schema 409; analysis outside the transaction, then an optimistic check of the latest number under a project row lock), open a version with the SQL before it, delete only the latest. Limits 20 projects, 500 versions, 20 MB per account (422), 200 MB for all (507). Flyway V3 `project` (unique `(account_id, lower(name))`) and `schema_version` (primary key `(project_id, number)`, risk columns null exactly for version 1), linted by SchemaGuard; account deletion cascades. Web: projects list and create, project page (rename, delete, timeline, form for the next version starting from the latest), version page (saved risk, SQL, open the change in the analyser, delete the latest), "Save the new schema to a project" in the analyser; `useAuthed` and `RequireAuth`. Tests: 16 new API tests (HTTP on PostgreSQL incl. isolation, 409s, cascade; service level: limits, 8 parallel writers), 17 new Vitest tests, a Playwright test of a project's life (Monaco input, two versions, the analyser, a refused duplicate) in CI and live; the live smoke test saves two versions by curl (2026-11-24)
+- [x] **7.3** Risk trend and saved reports (D-101, D-102). Project page: a bar per version (score, level colour, lines where Medium, High and Critical start), a sentence naming the latest and the riskiest change, each bar a link to its version, the latest 60 versions; HTML and CSS, no chart library. Version page: download the change's report as Markdown (names the project and version, says the rules are today's) or JSON, share it as a link (a saved analysis), download any version's SQL; one analysis (report, changes, safe plan) serves both downloads. Also fixed: the None level tag had no border (`border-none` is a Tailwind utility, not the colour). Tests: 6 new Vitest tests (chart order and links, 70 versions cut to 60, no chart for one version, downloads analysed once, share, SQL download); the Playwright project test clicks a bar and downloads the report, in CI and live. Web only: no API change, so Render does not redeploy (2026-11-24)
 
 ## Phases
 
@@ -114,7 +118,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 | 4 | Migration planner, SQL generation, real-database oracle tests, script linter | Done (2026-11-15) |
 | 5 | REST API (Spring Boot), persistence, permalinks, first deploy (v0.1) | Done (2026-11-18); live |
 | 6 | Web UI: editors, diff, report, ER diagram, example gallery (v0.5) | Done (2026-11-20), live; `v0.5.0` released 2026-11-22 |
-| 7 | Auth, projects, history, trends, API keys | In progress: 7.0 and 7.1 done (2026-11-22), 7.2 done (2026-11-24) |
+| 7 | Auth, projects, history, trends, API keys | Goal met (2026-11-24): 7.0 to 7.3 done; 7.4 API keys next |
 | 8 | CLI, GitHub Action, dogfooding | Not started |
 | 9 | Hardening and launch (v1.0) | Not started |
 

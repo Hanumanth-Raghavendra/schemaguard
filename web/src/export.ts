@@ -1,4 +1,5 @@
 import type { DiffResponse, Finding, LintResponse, PlanResponse, ReportResponse, Score } from './api/client.ts';
+import { formatDate } from './dates.ts';
 import { sentenceCase } from './lock.ts';
 import { owner } from './positions.ts';
 import { splitReason } from './reasons.ts';
@@ -77,6 +78,33 @@ export function compareMarkdown({ report, diff, plan }: CompareExport): string {
     if (plan.unplanned.length > 0) lines.push('');
   }
   return lines.join('\n');
+}
+
+/** Which saved version a report is about. */
+export interface VersionContext {
+  project: string;
+  number: number;
+  label: string | null;
+  savedAt: string;
+}
+
+/** The report of the change a project version made, said to be analysed with today's rules. */
+export function versionMarkdown(context: VersionContext, analysis: CompareExport): string {
+  const [title = '', ...rest] = compareMarkdown(analysis).split('\n');
+  const name = `version ${String(context.number)}${context.label === null ? '' : ` (${context.label})`}`;
+  const about =
+    `Project ${context.project}, ${name}, saved ${formatDate(context.savedAt)}: the change from version ` +
+    `${String(context.number - 1)}, analysed with the rules SchemaGuard has today.`;
+  return [title, '', about, ...rest].join('\n');
+}
+
+/** A name for a downloaded file: lowercase letters, digits and dashes. */
+export function fileName(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug === '' ? 'project' : slug;
 }
 
 /** A checked migration, statement by statement. */

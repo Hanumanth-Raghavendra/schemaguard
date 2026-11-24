@@ -14,6 +14,7 @@ import { problemMessage } from './auth/returnTo.ts';
 import { useAuthed } from './auth/useAuthed.ts';
 import { TextField } from './components/Field.tsx';
 import { ErrorNotice } from './components/Notices.tsx';
+import { RiskChart } from './components/RiskChart.tsx';
 import { RiskTag } from './components/RiskTag.tsx';
 import { SqlEditor } from './components/SqlEditor.tsx';
 import { formatDate } from './dates.ts';
@@ -44,6 +45,7 @@ export function ProjectPage() {
     <div className="max-w-4xl space-y-10">
       <ProjectHeader project={project.data} onRenamed={project.replace} />
       <NewVersion project={project.data} onSaved={project.reload} />
+      <RiskChart project={project.data} />
       <Timeline project={project.data} />
     </div>
   );
@@ -330,7 +332,7 @@ function Timeline({ project }: { project: Project }) {
           No versions yet. Save the schema as it is today; each version after it shows how risky the change was.
         </p>
       ) : (
-        <ol className="space-y-3 border-l-2 border-line pl-5">
+        <ol aria-label="Versions, newest first" className="space-y-3 border-l-2 border-line pl-5">
           {project.versions.map((version) => (
             <li key={version.number} className="relative">
               <span

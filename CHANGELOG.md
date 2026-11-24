@@ -6,6 +6,10 @@ each release is a git tag (`v0.5.0`) on `main`. Details and reasons: `PROGRESS.m
 
 ## Unreleased (0.6.0)
 
+- **Risk trend and reports**: a project shows a bar per version, its height the risk of that
+  change and its colour the level, each bar opening its version. A version's report (risks,
+  changes, safe plan) downloads as Markdown or JSON or is shared as a link; its SQL downloads too.
+- The "None" risk tag has its border again.
 - **Projects**: keep every version of a schema in a named project and see how risky each change
   was. Save a version on the project page (starting from the latest one) or straight from the
   analyser; open any version's change in the analyser. A version that changes nothing is refused.

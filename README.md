@@ -6,7 +6,7 @@ A PostgreSQL migration-safety platform. Give it two versions of a schema and it 
 what changed, what that change will lock or break in production, and how to ship it safely.
 
 > **Status: live. Web app: https://schemaguard-v1.vercel.app (pick an example, see the risks, the plan
-> and the diagram, share a link; log in to keep schema versions in projects). API: [Swagger UI](https://schemaguard-api-c00y.onrender.com/swagger-ui.html).**
+> and the diagram, share a link; log in to keep schema versions in projects and watch their risk). API: [Swagger UI](https://schemaguard-api-c00y.onrender.com/swagger-ui.html).**
 > Free hosting: the first analysis after 15 idle minutes takes about a minute while the API wakes up.
 > See [PROGRESS.md](PROGRESS.md) for the current state and roadmap.
 
@@ -62,7 +62,7 @@ ALTER TABLE app.posts DROP CONSTRAINT posts_body_not_null;
 | Module | Role | Status |
 | --- | --- | --- |
 | `engine` | Lexer, parser, schema model, diff, rules, planner, linter, ER model. Pure Java, no dependencies | Done |
-| `api` | Spring Boot REST service: analyses, share links, accounts, projects; OpenAPI docs and a Docker image | Live; risk trend next |
+| `api` | Spring Boot REST service: analyses, share links, accounts, projects; OpenAPI docs and a Docker image | Live; API keys next |
 | `web` | React + TypeScript app: editors, risks, plan, diagram, examples, sharing, accounts, projects | Live |
 | `cli` | Command-line tool built on the engine | Planned |
 | `action` | GitHub Action that reviews migrations on pull requests | Planned |
