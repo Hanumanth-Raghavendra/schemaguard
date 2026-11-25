@@ -38,6 +38,15 @@ jobs:
       PERSISTENCE: ${{ inputs.persistence }}
       ORIGIN: ${{ inputs.origin }}
     steps:
+      # The CLI's save command is tried against the live site below.
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Build the CLI
+        run: ./mvnw -B -ntp -q -pl cli -am -DskipTests -Djacoco.skip=true package
       - name: Wake the service
         run: |
           # A free Render service sleeps after 15 idle minutes and needs up to a minute to start.
@@ -140,6 +149,13 @@ jobs:
             | jq -e '.number == 3 and .label == "from a key"'
           test "$(curl -s -o /dev/null -w '%{http_code}' -H "$KEY_AUTH" "$URL/api/v1/account")" = 403
           curl -fs -H "$AUTH" "$URL/api/v1/account/keys" | jq -e 'length == 1 and .[0].lastUsedAt != null and (.[0] | has("key") | not)'
+          # The CLI saves the next version with the key through the web app's /api, as CI would;
+          # the same schema again is "nothing saved", which is not an error.
+          printf 'CREATE TABLE t (id bigint PRIMARY KEY, note text, done boolean);\n' > schema.sql
+          cli() { SCHEMAGUARD_KEY="$KEY" java -jar cli/target/schemaguard-cli-*-SNAPSHOT.jar "$@"; }
+          cli save --project "$PROJECT" --label "from the CLI" --api "$ORIGIN" schema.sql | tee cli.out
+          grep -q '^Saved version 4\. The change from version 3 scores ' cli.out
+          cli save --project "$PROJECT" --api "$ORIGIN" schema.sql | grep -qx 'Nothing saved: the schema is the same as the project.s latest version\.'
           KEY_ID=$(curl -fs -H "$AUTH" "$URL/api/v1/account/keys" | jq -r '.[0].id')
           test "$(curl -s -o /dev/null -w '%{http_code}' -H "$AUTH" -X DELETE "$URL/api/v1/account/keys/$KEY_ID")" = 204
           test "$(curl -s -o /dev/null -w '%{http_code}' -H "$KEY_AUTH" "$URL/api/v1/projects")" = 401

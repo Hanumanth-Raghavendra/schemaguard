@@ -64,8 +64,8 @@ ALTER TABLE app.posts DROP CONSTRAINT posts_body_not_null;
 | `engine` | Lexer, parser, schema model, diff, rules, planner, linter, ER model. Pure Java, no dependencies | Done |
 | `api` | Spring Boot REST service: analyses, share links, accounts, projects, API keys; OpenAPI docs and a Docker image | Live |
 | `web` | React + TypeScript app: editors, risks, plan, diagram, examples, sharing, accounts, projects, API keys | Live |
-| `cli` | Command-line tool built on the engine | Next |
-| `action` | GitHub Action that reviews migrations on pull requests | Planned |
+| `cli` | The engine on the command line, offline, as one runnable jar | Done |
+| `action` | GitHub Action that reviews migrations on pull requests | Next |
 
 ## Build
 
@@ -133,6 +133,47 @@ Saving, accounts, projects and API keys need PostgreSQL: set `SCHEMAGUARD_PERSIS
 string such as `postgresql://user:password@host/db?sslmode=require`. Without it everything else
 works and those endpoints answer 503. Set `SCHEMAGUARD_AUTH_JWT_SECRET` (32 characters or more) to
 keep access tokens valid across restarts. SchemaGuard lints its own database migrations in its tests.
+
+## Use the CLI
+
+The same engine on the command line. Every analysis runs offline; only `save` uses the network.
+Requires Java 21 or newer.
+
+```bash
+./mvnw -B -ntp -pl cli -am package -DskipTests          # Windows: mvnw.cmd -B -ntp -pl cli -am package -DskipTests
+java -jar cli/target/schemaguard-cli-0.6.0-SNAPSHOT.jar --help
+```
+
+```bash
+schemaguard() { java -jar cli/target/schemaguard-cli-0.6.0-SNAPSHOT.jar "$@"; }
+
+schemaguard diff before.sql after.sql                    # every change, with likely renames
+schemaguard report before.sql after.sql --fail-above medium
+schemaguard plan before.sql after.sql --route safe       # the migration, as a psql script
+schemaguard lint schema.sql migration.sql --format markdown > check.md
+schemaguard lint --migrations src/main/resources/db/migration V7__orders.sql --fail-above high
+pg_dump --schema-only mydb | schemaguard report - schema.sql   # the database now, against the schema wanted
+```
+
+| Option | Does |
+| --- | --- |
+| `--format text\|markdown\|json` | Text is the engine's report; Markdown is the web app's download layout, ready for a pull-request comment; JSON is the API's response body, field for field |
+| `--fail-above <limit>` | Exit with 1 when the risk is above a score (0 to 100) or a level (`none`, `low`, `medium`, `high`). For `lint`, a statement PostgreSQL would refuse fails too |
+| `lint --migrations <folder> [files...]` | Each file against the schema the files before it build. Flyway's `V<version>__` files run in version order; other names in name order |
+
+Exit codes: 0 done, 1 risk above the limit, 2 bad usage or input, 3 the API refused or could not
+be reached, 4 a bug. Results go to standard output; warnings and errors go to standard error as
+`file:line:column: severity: message [code]`.
+
+`save` keeps a schema as a project's next version on the site, as CI might after each release. It
+reads an [API key](#run-the-api) from `SCHEMAGUARD_KEY` and never takes one as an option:
+
+```bash
+SCHEMAGUARD_KEY=sg_... schemaguard save --project 3f9c2a1e-8b7d-4c6e-9f10-2a3b4c5d6e7f --label "Release 2.4" schema.sql
+```
+
+A schema identical to the latest version prints "Nothing saved" and exits 0. `SCHEMAGUARD_API`
+points it at another SchemaGuard site; `SCHEMAGUARD_TIMEOUT` changes the 120-second wait.
 
 ## Run the web app
 

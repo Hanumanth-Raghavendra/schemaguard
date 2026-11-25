@@ -31,6 +31,7 @@
   <modules>
     <module>engine</module>
     <module>api</module>
+    <module>cli</module>
   </modules>
 
   <properties>
@@ -50,6 +51,9 @@
     <springdoc.version>3.2.0</springdoc.version>
     <!-- Verified against Maven Central on 2026-11-22. -->
     <bouncycastle.version>1.87</bouncycastle.version>
+    <!-- Verified against Maven Central on 2026-11-25. -->
+    <picocli.version>4.7.7</picocli.version>
+    <maven-shade-plugin.version>3.6.2</maven-shade-plugin.version>
     <!-- Filled by JaCoCo's prepare-agent; empty when JaCoCo is skipped. -->
     <argLine></argLine>
   </properties>

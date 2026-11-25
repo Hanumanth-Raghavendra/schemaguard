@@ -6,6 +6,11 @@ each release is a git tag (`v0.5.0`) on `main`. Details and reasons: `PROGRESS.m
 
 ## Unreleased (0.6.0)
 
+- **CLI**: the engine on the command line, offline, as one runnable jar (`cli/`).
+  `schemaguard diff|report|plan|lint` print text, Markdown (the web app's report layout) or JSON
+  (the API's response bodies); `--fail-above` sets the exit code for CI; `lint --migrations` checks
+  a folder of migrations, each against the schema the ones before it build. `schemaguard save`
+  keeps a schema as a project version with an API key.
 - **API keys** for scripts and CI: make one on the account page (its value is shown once), send it
   as `Authorization: Bearer sg_...`, and it may list projects and save versions, nothing else. The
   list shows when each key was last used; delete one and it stops working at once. API:

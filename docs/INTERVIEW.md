@@ -696,3 +696,34 @@ read projects and save versions, nothing else.
 - *Why write `last_used_at` at most once a minute?* A busy CI job would otherwise write on every
   request. The update is conditional in SQL (`WHERE last_used_at < now - 1 minute`), so it needs no
   read first and no lock beyond the row.
+
+## Phase 8.1: the CLI
+
+**What it is.** The engine as one runnable jar: `diff`, `report`, `plan`, `lint` (one script, or a
+folder of migrations) offline, and `save` to keep a schema as a project version with an API key.
+Text, Markdown or JSON output, and exit codes a CI step can branch on.
+
+**Likely questions**
+
+- *Why does the CLI not reuse the API's JSON classes?* The Blueprint keeps `cli` on the engine
+  alone, and the API's records carry Spring, Jackson and springdoc annotations. The CLI has its own
+  records with the same names and a small JSON writer; a contract test compares every field, type
+  and nullability with the OpenAPI document the API writes, so the two cannot drift (D-107). I
+  mutation-checked that test: renaming a record or dropping a nullable makes it fail.
+- *Why hand-write JSON instead of using Jackson?* One writer and a reader of about 100 lines each,
+  against a dependency that would triple a 1 MB jar that CI downloads on every run. Reflection over
+  record components gives field order for free.
+- *How are exit codes chosen?* Each failure a pipeline might treat differently gets its own: risk
+  above the limit (1) is a judgement, bad input (2) is the caller's mistake, an API failure (3) may
+  be worth a retry, 4 is our bug (D-108).
+- *How does the migrations folder work?* Files run in Flyway's order (version parts compared as
+  numbers, so `V1.10` follows `V1.9`). Each file is linted against the catalog the linter produced
+  for the files before it, so line numbers stay per file and a pull request can check only its new
+  migration against everything already deployed (D-109).
+- *How is the API key protected?* Only from an environment variable (options land in shell history
+  and process lists), only over https (localhost excepted), no redirects followed, never printed:
+  every `save` test asserts the key appears nowhere in the output (D-110).
+- *How do you test a command that calls the network?* Against a real HTTP server started in the
+  test (the JDK's own), answering as the API does: success, first version, 409, refusals, a body
+  that is not JSON, a slow answer past a one-second timeout, a closed port. And live: the smoke
+  test saves a version through the real site with a throwaway account's key.

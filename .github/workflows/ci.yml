@@ -48,6 +48,27 @@ jobs:
           PGPASSWORD: postgres
           # psql and pg_dump of exactly the server's version: the ones in its own container.
           SG_PG_EXEC: docker exec -i -e PGUSER=postgres ${{ job.services.postgres.id }}
+      - name: Run the CLI jar as a user would
+        # The runnable jar on the engine's reviewed fixture, and on SchemaGuard's own migrations.
+        run: |
+          set -euo pipefail
+          cli() { java -jar cli/target/schemaguard-cli-*-SNAPSHOT.jar "$@"; }
+          g=engine/src/test/resources/golden/evolution
+          cli --version
+          cli report $g/before_pg_dump_16.sql $g/after_pg_dump_16.sql | diff - $g/expected-report.txt
+          cli report $g/before_pg_dump_16.sql $g/after_pg_dump_16.sql --format json | jq -e '.score.value == 100'
+          cli report $g/before_pg_dump_16.sql $g/after_pg_dump_16.sql --format markdown | head -1 | grep -qx '# SchemaGuard risk report'
+          code=0; cli report $g/before_pg_dump_16.sql $g/after_pg_dump_16.sql --fail-above high > /dev/null || code=$?
+          test "$code" = 1
+          code=0; cli diff no-such.sql $g/before.sql 2> /dev/null || code=$?
+          test "$code" = 2
+          cli lint --migrations api/src/main/resources/db/migration --fail-above low
+      - name: Keep the CLI jar
+        uses: actions/upload-artifact@v7
+        with:
+          name: schemaguard-cli
+          path: cli/target/schemaguard-cli-*-SNAPSHOT.jar
+          if-no-files-found: error
 
   docker:
     name: Docker image

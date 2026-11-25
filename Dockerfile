@@ -7,6 +7,8 @@ COPY mvnw pom.xml ./
 COPY .mvn .mvn
 COPY engine/pom.xml engine/pom.xml
 COPY api/pom.xml api/pom.xml
+# The parent pom lists every module, so each pom must exist even if only the API is built.
+COPY cli/pom.xml cli/pom.xml
 RUN ./mvnw -B -ntp -q dependency:go-offline -pl api -am || true
 COPY engine/src engine/src
 COPY api/src api/src
