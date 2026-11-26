@@ -2,11 +2,11 @@
 
 > **To resume:** read this file, then start at "Next step". Do not re-plan; the plan is fixed below.
 
-- **Current phase:** 9 (hardening and launch), not started; 9.1 (rate limits) next. Phase 8 is done (2026-11-26): the CLI, the GitHub Action with its release workflow, and SchemaGuard checking its own migrations on every pull request (seen working on pull request #4). Phase 7 is done (2026-11-24): accounts, projects and schema versions, risk trend and saved reports, API keys, all live. Phase 6 is done: web app live at https://schemaguard-v1.vercel.app (renamed from schemaguard-nu on 2026-11-22), released as `v0.5.0` (tagged by the owner on 2026-11-22). Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
-- **Last updated:** 2026-11-24
+- **Current phase:** 9 (hardening and launch), in progress: 9.1 (rate limits) done and live (2026-11-26); 9.2 (migrations over a direct connection) next. Phase 8 is done (2026-11-26): the CLI, the GitHub Action with its release workflow, and SchemaGuard checking its own migrations on every pull request (seen working on pull request #4). Phase 7 is done (2026-11-24): accounts, projects and schema versions, risk trend and saved reports, API keys, all live. Phase 6 is done: web app live at https://schemaguard-v1.vercel.app (renamed from schemaguard-nu on 2026-11-22), released as `v0.5.0` (tagged by the owner on 2026-11-22). Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
+- **Last updated:** 2026-11-26
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
-- **State:** build green; engine 1,714 tests (276 plans run on a real PostgreSQL 16 in CI), API 136 tests (permalinks, accounts, projects and API keys tested on real PostgreSQL); CLI 82 tests (its JSON checked against the API contract); GitHub Action 34 script tests plus two real runs in CI, and it checks this repository's own pull requests; web 94 tests (Vitest) and 4 end-to-end tests (Playwright); line coverage engine 99.3% (gate 85%), API 96.5% (gate 80%), CLI 96.4% (gate 85%); CI runs the CLI jar and builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
-- **Size:** 479 files in 78 folders; 19,924 lines of main Java, 10,804 lines of test Java, 6,988 lines of TypeScript (plus 2,464 generated), 599 lines of Bash (the action and its tests)
+- **State:** build green; engine 1,714 tests (276 plans run on a real PostgreSQL 16 in CI), API 163 tests (permalinks, accounts, projects and API keys tested on real PostgreSQL; rate limits on a real server); CLI 82 tests (its JSON checked against the API contract); GitHub Action 34 script tests plus two real runs in CI, and it checks this repository's own pull requests; web 95 tests (Vitest) and 4 end-to-end tests (Playwright); line coverage engine 99.3% (gate 85%), API 96.9% (gate 80%), CLI 96.4% (gate 85%); CI runs the CLI jar and builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
+- **Size:** 491 files in 81 folders; 20,502 lines of main Java, 11,269 lines of test Java, 7,002 lines of TypeScript (plus 2,536 generated), 599 lines of Bash (the action and its tests)
 
 ## Next step
 
@@ -16,7 +16,7 @@ Render builds the `Dockerfile` from `main` after the CI checks pass, and only wh
 what goes into the image (`render.yaml`: `autoDeployTrigger: checksPass`, `buildFilter`). Neon's
 connection string is the dashboard secret `SCHEMAGUARD_PERSISTENCE_URL` (never in the repository).
 After any deploy, run the live smoke test (manual workflow `live-smoke.yml`; checks health, docs,
-all analyses, save/open/delete, CORS). From the Claude container (`gh workflow run` is blocked
+all analyses, save/open/delete, the visitor's rate limit through Vercel, CORS). From the Claude container (`gh workflow run` is blocked
 there, the REST call works):
 `gh api -X POST repos/Hanumanth-Raghavendra/schemaguard/actions/workflows/live-smoke.yml/dispatches -f ref=main -f 'inputs[persistence]=required'`
 (or GitHub > Actions > Live smoke test > Run workflow). It prints the jar's build time, which
@@ -71,12 +71,8 @@ own check". Check the current picocli release and how to build one runnable jar 
 **Phase 9: hardening and launch.** Blueprint: "rate limits, caching, docs, README with diagrams,
 demo video, resume and portfolio updated; version 1.0 tagged". Slices, each tested and live:
 
-- **9.1 Rate limits (in progress: a temporary probe, `ForwardedProbeController` and `probe.yml`, is measuring the address chain live; both go in this slice).** First settle the client address. Requests come either straight to
-  Render or through Vercel's `/api` rewrite, so check live which `X-Forwarded-For` entries Render
-  and Vercel add, by adding a temporary log of the header chain (no other request data) and calling
-  both ways from the live smoke workflow. Then Bucket4j (the Blueprint's choice; check its current
-  release) per client address: analyses, saving, sign-up and login, with 429 and `Retry-After`
-  as a problem document, limits in `ApiProperties`, tests for each limit and for a spoofed header.
+- **9.1 Rate limits: done** (D-116, D-117). Package `api/.../ratelimit`; settings
+  `schemaguard.rate-limits`; the live smoke test checks the visitor is counted through Vercel.
 - **9.2 Migrations over a direct connection (D-115).** Ask the owner whether the Render secret's
   host contains `-pooler` (he reads it in the Render dashboard; the value is never shared). If it
   does, add an optional direct URL used only by Flyway with
@@ -150,6 +146,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 - [x] **8.1** CLI (D-107 to D-110). New module `cli` (picocli 4.7.7; one 1 MB runnable jar, maven-shade-plugin 3.6.2): `schemaguard diff|report|plan <before.sql> <after.sql>`, `lint <schema.sql> <migration.sql>`, `lint --migrations <folder> [files...]` (each file against the schema the earlier ones build; Flyway version order, `R__`/`U` skipped, other names in natural order), `save --project <id> <schema.sql>` (key from `SCHEMAGUARD_KEY`, https only, 409 is "Nothing saved", 120 s for the free host to wake). Every analysis runs offline. `--format text|markdown|json`: text is the engine's golden output, Markdown the web app's download layout, JSON the API's response bodies field for field (checked against `web/openapi.json` by `ContractTest`, mutation-checked). `--fail-above <score or level>`; exit codes 0 done, 1 risk above the limit (or a statement PostgreSQL would refuse), 2 bad input, 3 API failure, 4 bug; diagnostics on standard error as `file:line:column: severity: message [code]`. One input may be `-` (standard input); files must be UTF-8 (a byte order mark is dropped). The Dockerfile copies `cli/pom.xml` (the parent lists every module). Tests: 82 (golden output byte for byte, every format, thresholds, folders, the contract, `save` against a real HTTP server incl. timeout and refused connection, the key never printed); CI runs the built jar on the golden fixture and on SchemaGuard's own migrations (`--fail-above low`) and keeps it as an artifact; the live smoke test saves a version through the live site with the CLI and the throwaway account's key. Found by the tests: adding a column without `lock_timeout` scores 10 (SG-R111), so a test's "safe" migration was not (2026-11-25)
 - [x] **8.2** GitHub Action and release workflow (D-111 to D-113). `action/action.yml` (composite) runs `action/schemaguard.sh`: inputs `migrations` or `schema`, `files` (changed or all), `fail-above` (default high), `comment`, `cli-version`/`cli-jar`, `api-key` + `project` (save the schema on pushes to the default branch); outputs `score`, `level`, `exit-code`, `report`. Inputs arrive only as environment variables; Java 21 from the PATH or the runner's `JAVA_HOME_21_*` (the job's JAVA_HOME is left alone); the jar is the release in the action's tag, checked against its SHA-256. On a pull request: fetches only the base commit, checks the migrations it adds or changes (directly in the folder, not `R__`/`U`), turns diagnostics into annotations, writes the report to the job summary and to one comment found by a hidden marker and updated on each push (cut at 60,000 characters; a fork's read-only token gives a warning, not a failure). Release workflow: on publishing a release (or by hand), checks tag = pom version, builds and tests the CLI, attaches the jar and `.sha256`. Tests: `action/test/test.sh` (34 cases on throwaway git repositories with the real jar and stand-ins for `gh` and `curl`: comments posted, updated across pages, corrected, skipped; annotations; long reports; pushes; schema files; saving; downloads and checksums; Java selection; input mistakes), shellcheck-clean; CI runs it, then the action itself on our migrations (passes) and on a risky fixture (fails with 1/60/HIGH). The comment on a real pull request is 8.3's test (2026-11-26)
 - [x] **8.3** Dogfooding (D-114, D-115). `.github/workflows/schemaguard.yml` runs on every pull request: builds the CLI from it and runs `./action` on `api/src/main/resources/db/migration` with `fail-above: low`. Seen working on pull request #4 (closed unmerged): a `CHECK` constraint added without `NOT VALID` got the report as a comment from github-actions and a failed check (64/100); the fix the report advises (`NOT VALID` under a lock timeout, `VALIDATE CONSTRAINT` in a second migration) turned the same comment into a pass (0/100), with CI green, Flyway applying both on PostgreSQL. Found on the way: Flyway's default transactional lock makes `CREATE INDEX CONCURRENTLY` (SG-R101's advice) wait forever (reproduced; `pg_locks` showed the build waiting on Flyway's own transaction), so SG-R101's advice now names `postgresql.transactional.lock=false` and the direct connection it needs; SchemaGuard's own Flyway keeps the default until 9.2. Also found: the jar pattern `*-SNAPSHOT.jar` in CI would have failed on a release version (now `schemaguard-cli-*.jar`). And a reminder: removing a migration from `src` leaves Maven's copy in `target/classes`, which Flyway still applies (2026-11-26)
+- [x] **9.1** Rate limits (D-116, D-117). First the client address, measured live: a temporary hidden endpoint (`ForwardedProbeController`) and workflow (`probe.yml`) echoed the address headers for calls made directly and through Vercel, each also with forged values; both are removed. Findings: Render's proxies append the real caller as the last `X-Forwarded-For` entry after anything the caller sent; through Vercel the connecting address is Vercel's (changing AWS addresses) and `X-Vercel-Forwarded-For` names the visitor, overwriting a forged one, but a forged one sent straight to Render passes through; Cloudflare refuses a forged `CF-Connecting-IP` (403). Then a filter that runs before all others (before the body is read): analyses (five endpoints plus saving a project version) 60 a minute, saved analyses 30 an hour, sign-ups 20 an hour, logins 30 per 10 minutes. Bucket4j 8.23.0 token buckets (greedy refill) in a bounded Caffeine cache (100,000, an hour after last use); each request takes from the visitor's bucket and from the connecting address's bucket at 10 times the rate, which holds forged visitor headers to 10x; a refusal by the cap is not charged to the visitor. Keys: IPv4 canonical, IPv6 per /64, IPv4-mapped as IPv4, never resolved as host names; the decoded path is matched (`/api/v1/%64iff` counts). Answers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`; 429 with `Retry-After` and a problem document (`SG-API-429`) saying how long to wait. Settings as `60/1m` (bad values stop startup with a clear message; env vars such as `SCHEMAGUARD_RATE_LIMITS_ANALYSES` work). OpenAPI lists the 429s; `GET /rules` moved to `RulesController` so it no longer claims 400/413/422. Tests: 27 new API tests (rates, address parsing with the measured header shapes, buckets on a hand-moved clock, a real server with small limits, forged Vercel headers, encoded paths, and a check that every POST endpoint is limited or named as needing no limit); tests switch limits off in `src/test/resources/config/application.properties`. Web: a recorded 429 fixture and a test that the wait is shown. Live smoke test: a save direct and one through Vercel from the same runner, the second must report fewer left (2026-11-26)
 
 ## Phases
 
@@ -164,7 +161,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 | 6 | Web UI: editors, diff, report, ER diagram, example gallery (v0.5) | Done (2026-11-20), live; `v0.5.0` released 2026-11-22 |
 | 7 | Auth, projects, history, trends, API keys | Done (2026-11-24), live |
 | 8 | CLI, GitHub Action, dogfooding | Done (2026-11-26): seen working on pull request #4 |
-| 9 | Hardening and launch (v1.0) | Next: 9.1 rate limits |
+| 9 | Hardening and launch (v1.0) | In progress: 9.1 done (2026-11-26), live; next 9.2 |
 
 ## Working rules
 
@@ -231,12 +228,11 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 - **API keys:** a key reaches all of its account's projects (no per-project scope) and never
   expires; it ends only when deleted. Checking a key costs one indexed query per request (no
   cache), fine at today's traffic.
-- **API:** no rate limiting yet (one free instance). Per-IP limits need the real client address,
-  and which `X-Forwarded-For` entry Render's proxy guarantees is not verified yet; a limit keyed
-  on the wrong entry would either be spoofable or throttle every visitor as one. Settle that in
-  Phase 9 (hardening). Meanwhile saving is the abusable part: storage is capped at 200 MB in
-  total, so abuse fills it and saving answers 507 until analyses expire. Sign-up has no rate
-  limit either (accounts are a few hundred bytes each). The API's coverage gate counts the
+- **API:** rate limits are kept in memory, per instance: a restart forgets the counts, and a
+  second instance would count separately (there is one). The web app's visitors share Vercel's
+  connecting addresses, so a very busy day could reach the 10x connecting cap for one of them;
+  Vercel spreads requests over many addresses, and the factor is a setting. Storage stays capped
+  at 200 MB in total besides (507 beyond it). The API's coverage gate counts the
   permalink and account tests, which need `SG_PG_ORACLE=1` and a PostgreSQL server; without
   them `verify` on `api` can fall under 80%. The Docker image is verified in CI only (no Docker on the
   development machine).

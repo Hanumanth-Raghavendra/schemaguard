@@ -129,6 +129,12 @@ curl -X POST "https://schemaguard-v1.vercel.app/api/v1/projects/$PROJECT/version
 A schema identical to the latest version answers 409, so saving on every push keeps only real
 changes.
 
+**Rate limits** per client address: analyses (saving a version runs one) 60 a minute, saved
+analyses 30 an hour, sign-ups 20 an hour, logins 30 per 10 minutes. Limited endpoints answer
+`X-RateLimit-Limit` and `X-RateLimit-Remaining`; past the limit the answer is 429 with
+`Retry-After` in seconds. Change them under `schemaguard.rate-limits` (for example
+`SCHEMAGUARD_RATE_LIMITS_ANALYSES=120/1m`, or `SCHEMAGUARD_RATE_LIMITS_ENABLED=false`).
+
 Saving, accounts, projects and API keys need PostgreSQL: set `SCHEMAGUARD_PERSISTENCE_URL` to a JDBC URL or a connection
 string such as `postgresql://user:password@host/db?sslmode=require`. Without it everything else
 works and those endpoints answer 503. Set `SCHEMAGUARD_AUTH_JWT_SECRET` (32 characters or more) to

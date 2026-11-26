@@ -52,6 +52,8 @@ public class PermalinkController {
     @PostMapping(path = "/diff", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Compute a diff and save it")
     @ApiResponse(responseCode = "201", description = "Saved", useReturnTypeSchema = true)
+    @ApiResponse(responseCode = "429", description = "Too many saved analyses from this address; Retry-After says when to try again",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<Permalinks.Saved> diff(@Valid @RequestBody Requests.Compare request) {
         return created(request, service::saveDiff);
     }
@@ -59,6 +61,8 @@ public class PermalinkController {
     @PostMapping(path = "/report", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Compute a risk report and save it")
     @ApiResponse(responseCode = "201", description = "Saved", useReturnTypeSchema = true)
+    @ApiResponse(responseCode = "429", description = "Too many saved analyses from this address; Retry-After says when to try again",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<Permalinks.Saved> report(@Valid @RequestBody Requests.Compare request) {
         return created(request, service::saveReport);
     }
@@ -66,6 +70,8 @@ public class PermalinkController {
     @PostMapping(path = "/plan", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Compute a migration plan and save it")
     @ApiResponse(responseCode = "201", description = "Saved", useReturnTypeSchema = true)
+    @ApiResponse(responseCode = "429", description = "Too many saved analyses from this address; Retry-After says when to try again",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<Permalinks.Saved> plan(@Valid @RequestBody Requests.Plan request) {
         return created(request, service::savePlan);
     }
@@ -73,6 +79,8 @@ public class PermalinkController {
     @PostMapping(path = "/lint", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Lint a migration script and save the result")
     @ApiResponse(responseCode = "201", description = "Saved", useReturnTypeSchema = true)
+    @ApiResponse(responseCode = "429", description = "Too many saved analyses from this address; Retry-After says when to try again",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<Permalinks.Saved> lint(@Valid @RequestBody Requests.Lint request) {
         return created(request, service::saveLint);
     }

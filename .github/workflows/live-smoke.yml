@@ -98,6 +98,33 @@ jobs:
             if [ "$PERSISTENCE" = required ]; then echo "::error::Saved analyses do not work"; exit 1; fi
           fi
 
+      - name: Rate limits follow the visitor through Vercel
+        run: |
+          # A save sent straight to Render and one sent through the web app's Vercel rewrite come from
+          # this runner, so both must draw on its count (D-116, D-117): the second has fewer left.
+          # Saving refills one every two minutes, so nothing comes back in between; counted by
+          # Vercel's own address instead, the second would start from a fresh count. IPv4 for both,
+          # so the runner has one address. Without a database saving answers 503, counted all the same.
+          COMPARE='{"before":"CREATE TABLE t (a int);","after":"CREATE TABLE t (a int, b int);"}'
+          header() { grep -i "^$1:" "$2" | tail -1 | cut -d: -f2 | tr -d ' \r'; }
+          save() {
+            curl -4 -s -m 60 -D "$2.headers" -o "$2.json" -X POST "$1/api/v1/analyses/diff" \
+              -H 'Content-Type: application/json' -d "$COMPARE" > /dev/null
+            ID=$(jq -r '.id // empty' "$2.json" 2>/dev/null || true)
+            if [ -n "$ID" ]; then
+              curl -4 -s -o /dev/null -X DELETE "$1/api/v1/analyses/$ID" -H "X-Delete-Token: $(jq -r .deleteToken "$2.json")"
+            fi
+          }
+          save "$URL" direct
+          save "$ORIGIN" vercel
+          LIMIT=$(header x-ratelimit-limit direct.headers)
+          DIRECT=$(header x-ratelimit-remaining direct.headers)
+          VIA=$(header x-ratelimit-remaining vercel.headers)
+          echo "Rate limits: ${LIMIT:-?} saves an hour; ${DIRECT:-?} left after a direct save, ${VIA:-?} after one through Vercel" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+          test -n "$DIRECT" && test -n "$VIA" || { echo "::error::No X-RateLimit-Remaining header on a save"; exit 1; }
+          test "$VIA" -lt "$DIRECT" || { echo "::error::A save through Vercel was not counted against the runner's own address"; exit 1; }
+
       - name: Accounts
         run: |
           # A throwaway account: sign up, use the access token, rotate the refresh cookie, log out,

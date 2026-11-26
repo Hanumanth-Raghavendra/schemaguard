@@ -133,6 +133,9 @@ public class ProjectController {
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(responseCode = "413", description = "The schema is longer than the service accepts",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "429",
+            description = "Too many analyses from this address (saving a version runs one); Retry-After says when to try again",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(responseCode = "422",
             description = "The schema has errors (diagnostics say where), the label cannot be used, or the project or account is full",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))

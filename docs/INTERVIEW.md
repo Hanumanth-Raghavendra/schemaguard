@@ -555,7 +555,7 @@ reserved constraint names, release versioning and a changelog.
   The test fails on any "Refused to" console error and checks the editor really loaded (D-086).
 - *Why not add rate limiting now?* Limiting per IP behind Render's proxy depends on which
   `X-Forwarded-For` entry the proxy guarantees; guessing wrong makes the limit spoofable or
-  throttles everyone as one client. It is planned for hardening, with a measured answer.
+  throttles everyone as one client. It waited for a measured answer, which came in Phase 9.1.
 
 ## Phase 7.0: one origin for the web app and the API
 
@@ -783,3 +783,42 @@ the advised fix turned the same comment green.
 - *Anything else the step caught?* The CI looked for `schemaguard-cli-*-SNAPSHOT.jar`, which would
   have failed exactly on the release commit. And a classic: deleting a migration from `src` leaves
   Maven's copy in `target/classes`, which Flyway still applies.
+
+## Phase 9.1: rate limits
+
+**What it is.** Per-address limits on what costs the service something: analyses 60 a minute,
+saved analyses 30 an hour, sign-ups 20 an hour, logins 30 per 10 minutes. Refusals are 429 with
+`Retry-After`; limited endpoints report `X-RateLimit-Limit` and `X-RateLimit-Remaining`.
+
+**Likely questions**
+
+- *Which IP do you limit, behind Cloudflare, Render and Vercel?* I measured it instead of guessing:
+  a temporary hidden endpoint echoed the headers while a workflow called it directly and through
+  Vercel, each time also sending forged values. Render's proxies append the real caller as the
+  last `X-Forwarded-For` entry, so that is the connecting address; anything before it is the
+  caller's own text. Through Vercel the connecting address is Vercel's, and Vercel writes the
+  browser's address into `X-Vercel-Forwarded-For`, overwriting a forged one (D-116).
+- *But anyone can send `X-Vercel-Forwarded-For` straight to Render.* Yes, it passed through
+  untouched in the probe. So each request takes from two buckets: the visitor's at the normal
+  rate and the connecting address's at ten times the rate. Forging a new visitor per request
+  still hits the forger's own connecting address, capped at 10x; real web visitors share Vercel's
+  addresses, so the factor gives them room (D-117).
+- *Why the last entry and not `True-Client-IP`, which Cloudflare also sets?* Both were right in
+  the probe, but the last entry is what any appending proxy guarantees, while `True-Client-IP` is
+  only safe while Cloudflare overwrites it. And if the last entry is unreadable I fall back to the
+  TCP peer, never to the entry before it, which the caller wrote.
+- *IPv6?* One subscriber usually gets a /64, so counting single IPv6 addresses would hand out
+  2^64 fresh counts. Keys are cut to the /64; IPv4 is written canonically; an IPv4 address written
+  as IPv6 counts as itself. The parser never falls back to a DNS lookup on odd input.
+- *Why in memory, not Redis?* One instance on a free plan; a restart only forgets counts. The
+  cache is bounded (100,000 buckets, dropped an hour after last use, when they are full again), so
+  an attacker inventing addresses cannot grow the heap.
+- *Why a filter before everything else?* A refused request should cost nothing: it is answered
+  before Spring Security, before the body is read, before JSON parsing. The path it checks is the
+  decoded one, so `/api/v1/%64iff` counts as `/api/v1/diff`; a test proves it.
+- *How do you know a new endpoint will not slip through?* A test lists every POST mapping in the
+  application and fails unless each is limited or named as needing no limit (the four unlimited
+  ones need a session and are capped per account).
+- *How do you know it works behind the real proxies?* The live smoke test saves once straight to
+  Render and once through the Vercel site from the same runner, and requires the second answer to
+  report fewer left. Counted by Vercel's address instead, it would start from a fresh count.

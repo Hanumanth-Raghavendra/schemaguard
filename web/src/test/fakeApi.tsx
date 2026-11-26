@@ -24,6 +24,7 @@ import projectCreated from './fixtures/projectCreated.json';
 import projectMissing from './fixtures/projectMissing.json';
 import projects from './fixtures/projects.json';
 import projectTaken from './fixtures/projectTaken.json';
+import rateLimited from './fixtures/rateLimited.json';
 import report from './fixtures/report.json';
 import saved from './fixtures/saved.json';
 import savedLint from './fixtures/savedLint.json';
@@ -108,6 +109,8 @@ function analyses(method: string, path: string, token: string | null, sharingOff
 
 interface FakeOptions {
   invalidSchema?: boolean;
+  /** The address has run all the analyses it may for now (429). */
+  rateLimited?: boolean;
   sharingOff?: boolean;
   /** The browser holds a refresh cookie the server accepts. */
   loggedIn?: boolean;
@@ -227,6 +230,7 @@ export function fakeApi(options: FakeOptions = {}): Sent[] {
       }
       if (path.startsWith('/api/v1/analyses/')) return analyses(method, path, token, options.sharingOff ?? false);
       if (options.invalidSchema) return json(422, invalid);
+      if (options.rateLimited) return json(429, rateLimited);
       const request = body as { route?: string; renames?: unknown[] };
       switch (path) {
         case '/api/v1/diff':

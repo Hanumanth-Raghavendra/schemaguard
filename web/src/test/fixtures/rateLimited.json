@@ -1,0 +1,7 @@
+{
+  "type": "about:blank",
+  "title": "Too Many Requests",
+  "status": 429,
+  "detail": "Too many analyses from your address: at most 60 per minute. Try again in 1 second.",
+  "code": "SG-API-429"
+}

@@ -1,5 +1,6 @@
 package io.github.hanumanthraghavendra.schemaguard.api.config;
 
+import io.github.hanumanthraghavendra.schemaguard.api.ratelimit.RateLimitFilter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ReadListener;
 import jakarta.servlet.ServletException;
@@ -12,7 +13,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -25,7 +25,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * no further.
  */
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE)
+@Order(RateLimitFilter.ORDER + 1)
 public class BodySizeFilter extends OncePerRequestFilter {
 
     private final long maxBytes;

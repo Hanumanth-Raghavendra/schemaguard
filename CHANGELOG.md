@@ -6,6 +6,12 @@ each release is a git tag (`v0.5.0`) on `main`. Details and reasons: `PROGRESS.m
 
 ## Unreleased (0.6.0)
 
+- **Rate limits** per client address: analyses (and saving a project version) 60 a minute, saved
+  analyses 30 an hour, sign-ups 20 an hour, logins 30 per 10 minutes. A refusal is
+  `429 Too Many Requests` with `Retry-After` and a message saying how long to wait; limited
+  endpoints report `X-RateLimit-Limit` and `X-RateLimit-Remaining`. Requests through the web app
+  are counted for the visitor, not for Vercel. The OpenAPI document lists the 429 answers, and
+  `GET /api/v1/rules` no longer claims error answers it cannot give.
 - **Rule SG-R101** (index built without `CONCURRENTLY`): its advice now warns that under Flyway's
   default transactional lock a `CREATE INDEX CONCURRENTLY` migration waits forever, and names the
   setting and connection that avoid it. Found by running SchemaGuard on its own migrations, which

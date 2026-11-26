@@ -9,16 +9,14 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import java.util.List;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** The analyses. All are stateless: the answer depends on the request alone. */
+/** The analyses. All are stateless: the answer depends on the request alone. The rules are in {@link RulesController}. */
 @RestController
 @RequestMapping(path = "/api/v1", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Analysis", description = "Diff, risk report, migration plan and lint")
@@ -29,6 +27,8 @@ import org.springframework.web.bind.annotation.RestController;
 @ApiResponse(responseCode = "413", description = "An input is larger than the service accepts",
         content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
 @ApiResponse(responseCode = "422", description = "A schema does not parse, or PostgreSQL would refuse it; see diagnostics",
+        content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+@ApiResponse(responseCode = "429", description = "Too many analyses from this address; Retry-After says when to try again",
         content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
 public class AnalysisController {
 
@@ -66,11 +66,5 @@ public class AnalysisController {
     @Operation(summary = "A hand-written migration script, judged statement by statement against its schema")
     public Responses.Lint lint(@Valid @RequestBody Requests.Lint request) {
         return service.lint(request);
-    }
-
-    @GetMapping("/rules")
-    @Operation(summary = "Every rule: what it checks, why it matters and the safer alternative")
-    public List<Responses.Rule> rules() {
-        return service.rules();
     }
 }

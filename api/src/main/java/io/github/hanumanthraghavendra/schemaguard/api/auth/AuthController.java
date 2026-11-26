@@ -47,6 +47,8 @@ public class AuthController {
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(responseCode = "422", description = "Not an email address, or a password that is too short, too long or too common",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "429", description = "Too many sign-ups from this address; Retry-After says when to try again",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<Accounts.Session> signUp(
             @Valid @RequestBody Requests.Credentials credentials,
             @Parameter(hidden = true) @CookieValue(name = RefreshCookie.NAME, required = false) @Nullable String previous) {
@@ -59,7 +61,8 @@ public class AuthController {
     @ApiResponse(responseCode = "401", description = "The email or password is wrong",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(responseCode = "429",
-            description = "Too many failed logins for this account; the Retry-After header says when to try again",
+            description = "Too many failed logins for this account, or too many login attempts from this address;"
+                    + " Retry-After says when to try again",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<Accounts.Session> logIn(
             @Valid @RequestBody Requests.Credentials credentials,

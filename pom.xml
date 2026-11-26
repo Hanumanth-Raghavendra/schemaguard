@@ -54,6 +54,8 @@
     <!-- Verified against Maven Central on 2026-11-25. -->
     <picocli.version>4.7.7</picocli.version>
     <maven-shade-plugin.version>3.6.2</maven-shade-plugin.version>
+    <!-- Verified against Maven Central on 2026-11-26. -->
+    <bucket4j.version>8.23.0</bucket4j.version>
     <!-- Filled by JaCoCo's prepare-agent; empty when JaCoCo is skipped. -->
     <argLine></argLine>
   </properties>

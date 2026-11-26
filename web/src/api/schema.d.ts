@@ -1232,6 +1232,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            /** @description Too many saved analyses from this address; Retry-After says when to try again */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             /** @description Saved analyses are switched off on this server or the database is unreachable */
             503: {
                 headers: {
@@ -1267,6 +1276,15 @@ export interface operations {
             };
             /** @description No saved analysis has this id, or it has expired */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Too many saved analyses from this address; Retry-After says when to try again */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1316,6 +1334,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            /** @description Too many saved analyses from this address; Retry-After says when to try again */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             /** @description Saved analyses are switched off on this server or the database is unreachable */
             503: {
                 headers: {
@@ -1351,6 +1378,15 @@ export interface operations {
             };
             /** @description No saved analysis has this id, or it has expired */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Too many saved analyses from this address; Retry-After says when to try again */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1490,7 +1526,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description Too many failed logins for this account; the Retry-After header says when to try again */
+            /** @description Too many failed logins for this account, or too many login attempts from this address; Retry-After says when to try again */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -1615,6 +1651,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            /** @description Too many sign-ups from this address; Retry-After says when to try again */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             /** @description Accounts are switched off on this server or the database is unreachable */
             503: {
                 headers: {
@@ -1675,6 +1720,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            /** @description Too many analyses from this address; Retry-After says when to try again */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
         };
     };
     lint: {
@@ -1719,6 +1773,15 @@ export interface operations {
             };
             /** @description A schema does not parse, or PostgreSQL would refuse it; see diagnostics */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Too many analyses from this address; Retry-After says when to try again */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1777,6 +1840,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            /** @description Too many analyses from this address; Retry-After says when to try again */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
         };
     };
     plan: {
@@ -1821,6 +1893,15 @@ export interface operations {
             };
             /** @description A schema does not parse, or PostgreSQL would refuse it; see diagnostics */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Too many analyses from this address; Retry-After says when to try again */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2218,6 +2299,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            /** @description Too many analyses from this address (saving a version runs one); Retry-After says when to try again */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             /** @description Projects are switched off on this server or the database is unreachable */
             503: {
                 headers: {
@@ -2412,6 +2502,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            /** @description Too many analyses from this address; Retry-After says when to try again */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
         };
     };
     rules: {
@@ -2423,40 +2522,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The result */
+            /** @description The rules */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["Rule"][];
-                };
-            };
-            /** @description The body is not valid JSON or a required field is missing */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetail"];
-                };
-            };
-            /** @description An input is larger than the service accepts */
-            413: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetail"];
-                };
-            };
-            /** @description A schema does not parse, or PostgreSQL would refuse it; see diagnostics */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };

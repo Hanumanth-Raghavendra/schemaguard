@@ -1,5 +1,6 @@
 package io.github.hanumanthraghavendra.schemaguard.api.config;
 
+import io.github.hanumanthraghavendra.schemaguard.api.ratelimit.Rate;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import java.time.Duration;
@@ -17,6 +18,7 @@ import org.springframework.validation.annotation.Validated;
  *                    and accounts are switched off
  * @param auth        how logins and sessions work
  * @param projects    how much each account may keep in projects
+ * @param rateLimits  how many costly requests one client address may make
  */
 @Validated
 @ConfigurationProperties("schemaguard")
@@ -25,7 +27,8 @@ public record ApiProperties(
         @NotNull @DefaultValue Cors cors,
         @NotNull @DefaultValue Persistence persistence,
         @NotNull @DefaultValue Auth auth,
-        @NotNull @DefaultValue Projects projects) {
+        @NotNull @DefaultValue Projects projects,
+        @NotNull @DefaultValue RateLimits rateLimits) {
 
     /**
      * Limits that keep one request from occupying the service. Linting costs time in
@@ -127,4 +130,27 @@ public record ApiProperties(
             @Min(1) @DefaultValue("500") int maxVersions,
             @Min(1024) @DefaultValue("20000000") long maxAccountBytes,
             @Min(1024) @DefaultValue("200000000") long maxTotalBytes) {}
+    /**
+     * Limits per client address (D-117), each written {@code requests/period}, such as
+     * {@code 60/1m}. Which address counts is explained in D-116.
+     *
+     * @param enabled          false switches all of them off
+     * @param analyses         analyses run, including the one behind saving a project version
+     * @param shares           analyses saved under a public link
+     * @param signups          accounts created
+     * @param logins           login attempts, on top of the lock after failed logins per account
+     * @param connectingFactor how many times each rate one connecting address may use for all the
+     *                         visitors it names together: the web app's visitors arrive through
+     *                         Vercel's few addresses, and a made-up visitor address is still held
+     *                         to this
+     * @param maxTracked       how many address counts are kept at most; the oldest unused go first
+     */
+    public record RateLimits(
+            @DefaultValue("true") boolean enabled,
+            @NotNull @DefaultValue("60/1m") Rate analyses,
+            @NotNull @DefaultValue("30/1h") Rate shares,
+            @NotNull @DefaultValue("20/1h") Rate signups,
+            @NotNull @DefaultValue("30/10m") Rate logins,
+            @Min(1) @DefaultValue("10") int connectingFactor,
+            @Min(100) @DefaultValue("100000") int maxTracked) {}
 }

@@ -109,6 +109,16 @@ describe('Compare two schemas', () => {
     expect(screen.getByLabelText('Current schema')).toHaveAttribute('aria-invalid', 'true');
   });
 
+  it('says how long to wait when the address has run too many analyses', async () => {
+    fakeApi({ rateLimited: true });
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(screen.getByRole('button', { name: /^A typical release/ }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Too Many Requests');
+    expect(alert).toHaveTextContent('Too many analyses from your address: at most 60 per minute. Try again in 1 second.');
+  });
+
   it('needs a new schema before it can analyse', () => {
     fakeApi();
     renderApp();

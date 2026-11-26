@@ -60,3 +60,12 @@ schemaguard:
     refresh-token-lifetime: 30d
     session-lifetime: 90d
     refresh-reuse-grace: 30s
+  # Per client address (D-116, D-117): requests/period, refilled gradually. A connecting address
+  # (Vercel's, or a caller's own) may use connecting-factor times each rate for all it forwards.
+  rate-limits:
+    enabled: true
+    analyses: 60/1m
+    shares: 30/1h
+    signups: 20/1h
+    logins: 30/10m
+    connecting-factor: 10
