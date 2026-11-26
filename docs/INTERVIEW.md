@@ -727,3 +727,34 @@ Text, Markdown or JSON output, and exit codes a CI step can branch on.
   test (the JDK's own), answering as the API does: success, first version, 409, refusals, a body
   that is not JSON, a slow answer past a one-second timeout, a closed port. And live: the smoke
   test saves a version through the real site with a throwaway account's key.
+
+## Phase 8.2: the GitHub Action
+
+**What it is.** A composite action that runs the CLI on the migrations a pull request adds,
+posts the report as one comment that later pushes update, annotates refused statements on the
+diff, and fails the check above a limit. A release workflow attaches the CLI jar it downloads.
+
+**Likely questions**
+
+- *Why a composite action in Bash, not JavaScript?* The work is "find files, run a jar, post a
+  comment": git, the CLI and `gh` already do each part. A JavaScript action would add a build
+  step and a `node_modules` to keep patched for no gain.
+- *How do you stop script injection?* No `${{ inputs.* }}` appears in the script; every input
+  arrives as an environment variable. A branch name or input like `$(curl evil)` stays a string
+  (D-111).
+- *Why not just call `actions/setup-java`?* It would change `JAVA_HOME` for the rest of the
+  caller's job, maybe breaking their Java 17 build. The action finds a Java 21 the runner already
+  has and leaves theirs alone.
+- *How does it find the pull request's migrations in a shallow clone?* It fetches only the base
+  commit and diffs the two trees: `git diff --name-only --diff-filter=d <base> HEAD -- <folder>`.
+  No history needed.
+- *Why one comment, and how is it found again?* A hidden HTML marker naming the folder starts the
+  comment; the action searches every page of comments for it and edits that comment. Two folders
+  checked in one workflow get two comments that never overwrite each other (D-112).
+- *What about forks?* Their token is read-only, so commenting fails. That becomes a warning: the
+  job summary has the report and the check still passes or fails on the risk.
+- *How did you test a GitHub Action without GitHub?* A test script builds throwaway git
+  repositories with a base commit and a change, runs the real script with the real jar, and puts
+  small `gh` and `curl` stand-ins first on the PATH that record every call. 34 cases, then CI runs
+  the action itself twice: on our migrations (passes) and on a risky fixture (fails with exit code
+  1, score 60).

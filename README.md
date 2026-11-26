@@ -65,7 +65,7 @@ ALTER TABLE app.posts DROP CONSTRAINT posts_body_not_null;
 | `api` | Spring Boot REST service: analyses, share links, accounts, projects, API keys; OpenAPI docs and a Docker image | Live |
 | `web` | React + TypeScript app: editors, risks, plan, diagram, examples, sharing, accounts, projects, API keys | Live |
 | `cli` | The engine on the command line, offline, as one runnable jar | Done |
-| `action` | GitHub Action that reviews migrations on pull requests | Next |
+| `action` | GitHub Action that reviews migrations on pull requests | Done |
 
 ## Build
 
@@ -174,6 +174,23 @@ SCHEMAGUARD_KEY=sg_... schemaguard save --project 3f9c2a1e-8b7d-4c6e-9f10-2a3b4c
 
 A schema identical to the latest version prints "Nothing saved" and exits 0. `SCHEMAGUARD_API`
 points it at another SchemaGuard site; `SCHEMAGUARD_TIMEOUT` changes the 120-second wait.
+
+## Check pull requests with the GitHub Action
+
+The [action](action/README.md) runs the CLI on the migrations a pull request adds, comments with
+the report (one comment, updated on every push), annotates lines PostgreSQL would refuse, and
+fails the check above a limit:
+
+```yaml
+- uses: actions/checkout@v7
+- uses: Hanumanth-Raghavendra/schemaguard/action@v0.6.0   # releases carry the CLI from v0.6.0
+  with:
+    migrations: src/main/resources/db/migration
+    fail-above: medium
+```
+
+The workflow needs `pull-requests: write` for the comment. Publishing a GitHub release attaches the
+CLI jar the action downloads (`.github/workflows/release.yml`).
 
 ## Run the web app
 

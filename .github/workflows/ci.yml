@@ -63,6 +63,38 @@ jobs:
           code=0; cli diff no-such.sql $g/before.sql 2> /dev/null || code=$?
           test "$code" = 2
           cli lint --migrations api/src/main/resources/db/migration --fail-above low
+      - name: Lint and test the GitHub Action's script
+        run: |
+          shellcheck action/schemaguard.sh action/test/test.sh
+          action/test/test.sh cli/target/schemaguard-cli-*-SNAPSHOT.jar
+      - name: Find the CLI jar
+        id: jar
+        run: echo "path=$(ls cli/target/schemaguard-cli-*-SNAPSHOT.jar)" >> "$GITHUB_OUTPUT"
+      - name: Run the action on SchemaGuard's own migrations
+        uses: ./action
+        with:
+          migrations: api/src/main/resources/db/migration
+          files: all
+          fail-above: low
+          comment: 'false'
+          cli-jar: ${{ steps.jar.outputs.path }}
+      - name: Run the action on a risky migration
+        id: risky
+        continue-on-error: true
+        uses: ./action
+        with:
+          migrations: action/test/risky
+          files: all
+          fail-above: medium
+          comment: 'false'
+          cli-jar: ${{ steps.jar.outputs.path }}
+      - name: The risky migration failed the check
+        env:
+          OUTCOME: ${{ steps.risky.outcome }}
+          EXIT_CODE: ${{ steps.risky.outputs.exit-code }}
+          SCORE: ${{ steps.risky.outputs.score }}
+          LEVEL: ${{ steps.risky.outputs.level }}
+        run: test "$OUTCOME/$EXIT_CODE/$SCORE/$LEVEL" = failure/1/60/HIGH
       - name: Keep the CLI jar
         uses: actions/upload-artifact@v7
         with:

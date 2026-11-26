@@ -1,0 +1,102 @@
+name: SchemaGuard
+description: Check PostgreSQL migrations on pull requests, comment with the risk of each change, and fail above a limit.
+author: Hanumanth Raghavendra
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  migrations:
+    description: >-
+      A folder of migrations, relative to the repository root (for Flyway, src/main/resources/db/migration).
+      Each file is checked against the schema the files before it build. Give this or schema.
+    required: false
+    default: ''
+  schema:
+    description: >-
+      A schema file kept in the repository (pg_dump --schema-only output), relative to the repository root.
+      On a pull request, the base branch's version is compared with the pull request's. Give this or migrations.
+    required: false
+    default: ''
+  files:
+    description: >-
+      Which migrations to check: changed (on a pull request, the files it adds or changes; otherwise all of them)
+      or all.
+    required: false
+    default: changed
+  fail-above:
+    description: Fail when the risk is above this, a score from 0 to 100 or one of none, low, medium, high.
+    required: false
+    default: high
+  comment:
+    description: >-
+      Post the report on the pull request as one comment, updated on every push. The workflow needs
+      "pull-requests: write"; a pull request from a fork gets a read-only token, so the report then goes only
+      to the job summary.
+    required: false
+    default: 'true'
+  cli-version:
+    description: >-
+      The SchemaGuard CLI release to download, such as 0.6.0. By default, the version in this action's tag
+      (uses: Hanumanth-Raghavendra/schemaguard/action@v0.6.0).
+    required: false
+    default: ''
+  cli-jar:
+    description: A SchemaGuard CLI jar already on the runner, used instead of downloading one.
+    required: false
+    default: ''
+  api-key:
+    description: >-
+      A SchemaGuard API key (keep it in a secret). With project and schema, a push to the default branch saves
+      the schema as the project's next version on the SchemaGuard site.
+    required: false
+    default: ''
+  project:
+    description: The id of the project to save into, with api-key.
+    required: false
+    default: ''
+  github-token:
+    description: The token used to comment on the pull request.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  score:
+    description: The risk score, 0 to 100 (empty when nothing needed checking).
+    value: ${{ steps.check.outputs.score }}
+  level:
+    description: The risk level, NONE, LOW, MEDIUM, HIGH or CRITICAL (empty when nothing needed checking).
+    value: ${{ steps.check.outputs.level }}
+  exit-code:
+    description: The CLI's exit code, 0 when within the limit and 1 when above it.
+    value: ${{ steps.check.outputs.exit-code }}
+  report:
+    description: The path of the Markdown report (the comment's text).
+    value: ${{ steps.check.outputs.report }}
+
+runs:
+  using: composite
+  steps:
+    - id: check
+      shell: bash
+      # Inputs reach the script as environment variables only, never pasted into its text.
+      run: bash "$GITHUB_ACTION_PATH/schemaguard.sh"
+      env:
+        SG_MIGRATIONS: ${{ inputs.migrations }}
+        SG_SCHEMA: ${{ inputs.schema }}
+        SG_FILES: ${{ inputs.files }}
+        SG_FAIL_ABOVE: ${{ inputs.fail-above }}
+        SG_COMMENT: ${{ inputs.comment }}
+        SG_CLI_VERSION: ${{ inputs.cli-version }}
+        SG_CLI_JAR: ${{ inputs.cli-jar }}
+        SG_API_KEY: ${{ inputs.api-key }}
+        SG_PROJECT: ${{ inputs.project }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        SG_ACTION_REF: ${{ github.action_ref }}
+        SG_EVENT: ${{ github.event_name }}
+        SG_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        SG_PUSH_BEFORE: ${{ github.event.before }}
+        SG_PR: ${{ github.event.pull_request.number }}
+        SG_REPO: ${{ github.repository }}
+        SG_REF: ${{ github.ref }}
+        SG_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}

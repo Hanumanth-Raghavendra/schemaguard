@@ -2,11 +2,11 @@
 
 > **To resume:** read this file, then start at "Next step". Do not re-plan; the plan is fixed below.
 
-- **Current phase:** 8 (CLI, GitHub Action, dogfooding): 8.1 (the CLI) done; 8.2 (the GitHub Action) next. Phase 7 is done (2026-11-24): accounts, projects and schema versions, risk trend and saved reports, API keys, all live. Phase 6 is done: web app live at https://schemaguard-v1.vercel.app (renamed from schemaguard-nu on 2026-11-22), released as `v0.5.0` (tagged by the owner on 2026-11-22). Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
+- **Current phase:** 8 (CLI, GitHub Action, dogfooding): 8.1 (the CLI) and 8.2 (the GitHub Action, release workflow) done; 8.3 (dogfooding) next. Phase 7 is done (2026-11-24): accounts, projects and schema versions, risk trend and saved reports, API keys, all live. Phase 6 is done: web app live at https://schemaguard-v1.vercel.app (renamed from schemaguard-nu on 2026-11-22), released as `v0.5.0` (tagged by the owner on 2026-11-22). Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
 - **Last updated:** 2026-11-24
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
-- **State:** build green; engine 1,714 tests (276 plans run on a real PostgreSQL 16 in CI), API 136 tests (permalinks, accounts, projects and API keys tested on real PostgreSQL); CLI 82 tests (its JSON checked against the API contract); web 94 tests (Vitest) and 4 end-to-end tests (Playwright); line coverage engine 99.3% (gate 85%), API 96.5% (gate 80%), CLI 96.4% (gate 85%); CI runs the CLI jar and builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
-- **Size:** 471 files in 75 folders; 19,922 lines of main Java, 10,804 lines of test Java, 6,988 lines of TypeScript (plus 2,464 generated)
+- **State:** build green; engine 1,714 tests (276 plans run on a real PostgreSQL 16 in CI), API 136 tests (permalinks, accounts, projects and API keys tested on real PostgreSQL); CLI 82 tests (its JSON checked against the API contract); GitHub Action 34 script tests plus two real runs in CI; web 94 tests (Vitest) and 4 end-to-end tests (Playwright); line coverage engine 99.3% (gate 85%), API 96.5% (gate 80%), CLI 96.4% (gate 85%); CI runs the CLI jar and builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
+- **Size:** 478 files in 78 folders; 19,922 lines of main Java, 10,804 lines of test Java, 6,988 lines of TypeScript (plus 2,464 generated), 599 lines of Bash (the action and its tests)
 
 ## Next step
 
@@ -64,26 +64,25 @@ own check". Check the current picocli release and how to build one runnable jar 
 - **8.1 CLI: done** (D-107 to D-110). `cli/target/schemaguard-cli-<version>.jar`, built by
   `./mvnw -B -ntp -pl cli -am package -DskipTests`; usage in the README. CI runs the jar and keeps it
   as the artifact `schemaguard-cli`.
-- **8.2 GitHub Action (next).** `action/action.yml`, a composite action in this repository
-  (`uses: Hanumanth-Raghavendra/schemaguard/action@<tag>`). Inputs: `migrations` (a folder) or
-  `before`/`after` (schema files, `before` read from the base branch with `git show`), `fail-above`
-  (default `high`), `comment` (default true), `cli-version`, and optional `api-key` + `project` to
-  `save` the schema on pushes to the default branch. Steps: set up Java 21; get the CLI jar (the
-  release asset `schemaguard-cli-<version>.jar`, downloaded with `gh release download`, or a jar
-  path given as input, which is how this repository tests the action on its own code); on a pull
-  request, find the changed migration files with `git diff --name-only <base>...HEAD -- <folder>`
-  (nothing changed: say so and pass); run `lint --migrations <folder> <changed files> --format
-  markdown`, then post it as one comment found again by a hidden `<!-- schemaguard -->` marker and
-  updated on every push (`gh api`, `GITHUB_TOKEN` with `pull-requests: write`; a pull request from a
-  fork gets a read-only token, so there the report goes to the job summary instead); write the
-  report to `$GITHUB_STEP_SUMMARY` too; exit with the CLI's code. A release workflow
-  (`.github/workflows/release.yml`, on pushing a `v*` tag, `contents: write`) builds the jar and
-  attaches it to the GitHub release, so the owner's tag is the only manual step. Test the action in
-  CI with the local jar on a fixture folder: a safe change passes, a risky one fails with exit 1,
-  and the Markdown is what the comment would say.
-- **8.3 Dogfooding.** SchemaGuard's own workflow runs the action on
-  `api/src/main/resources/db/migration` for every pull request; a test pull request that adds a
-  risky migration gets the comment and a red check, then is closed. Our own V1 to V4 must pass.
+- **8.2 GitHub Action: done** (D-111 to D-113). `action/` (usage in `action/README.md`) and
+  `.github/workflows/release.yml`.
+- **8.3 Dogfooding (next).** A workflow `.github/workflows/schemaguard.yml`: on every pull
+  request (`permissions: contents: read, pull-requests: write`), build the CLI jar and run
+  `uses: ./action` with `migrations: api/src/main/resources/db/migration`, `fail-above: low`
+  (our own bar: V1 to V4 score 0) and `cli-jar`. Then the Blueprint's test: open a pull request
+  from a branch that adds a risky `V5__demo_index.sql` (an index built without `CONCURRENTLY`),
+  see the comment and the red check, push a fix (`CREATE INDEX CONCURRENTLY` with a lock timeout)
+  and see the same comment turn green, then close the pull request without merging and delete the
+  branch. Done when "the action comments on a test pull request; our own migrations pass our own
+  check". `OwnMigrationsTest` stays as the fast unit-level guard. Then Phase 9 (hardening and
+  launch); a `v0.6.0` release (see Releasing) makes the action usable from other repositories.
+
+**Releasing** (D-113). 1. Claude commits the release: every version without `-SNAPSHOT` (`pom.xml`
+files, `web/package.json` and its lock file), the CHANGELOG section dated. 2. The owner publishes
+the release on GitHub: Releases, Draft a new release, tag `v<version>` created on publish from
+`main`, title `SchemaGuard <version>`, notes from the CHANGELOG, Publish. 3. The Release workflow
+attaches `schemaguard-cli-<version>.jar` and its `.sha256` (about 3 minutes); if the version and
+tag differ it fails and says so. 4. Claude moves every version to the next `-SNAPSHOT`.
 
 **Local PostgreSQL.** The Claude build container has PostgreSQL 16 server binaries in
 `/usr/lib/postgresql/16/bin`. Run them as the `postgres` user (`runuser -u postgres -- ...`)
@@ -130,6 +129,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 - [x] **7.3** Risk trend and saved reports (D-101, D-102). Project page: a bar per version (score, level colour, lines where Medium, High and Critical start), a sentence naming the latest and the riskiest change, each bar a link to its version, the latest 60 versions; HTML and CSS, no chart library. Version page: download the change's report as Markdown (names the project and version, says the rules are today's) or JSON, share it as a link (a saved analysis), download any version's SQL; one analysis (report, changes, safe plan) serves both downloads. Also fixed: the None level tag had no border (`border-none` is a Tailwind utility, not the colour). Tests: 6 new Vitest tests (chart order and links, 70 versions cut to 60, no chart for one version, downloads analysed once, share, SQL download); the Playwright project test clicks a bar and downloads the report, in CI and live. Web only: no API change, so Render does not redeploy (2026-11-24)
 - [x] **7.4** API keys (D-103 to D-106). API: `GET`/`POST /api/v1/account/keys`, `DELETE /api/v1/account/keys/{id}` (login only). A key is `sg_` and 256 random bits in base64url, shown once; only its SHA-256 is stored, with a 7-character hint; at most 10 per account; last use written at most once a minute; Flyway V4 `api_key` (cascades with the account). Bearer tokens starting with `sg_` go to the key provider through Spring Security's `authenticationManagerResolver`, anything else to the JWT provider; a JWT grants `SESSION`, a key `KEY`, and a key may only read projects and save versions (403 with `insufficient_scope` otherwise, 401 for an unknown or deleted key). Found by the tests: Spring Security 7 rethrows `AuthenticationServiceException` from the bearer filter, so a key checked while the database is down gave 500; the filter now hands it to the entry point, which answers 503. Web: an "API keys" section on the account page (make by name, the value shown once with copy and a curl example, last use, delete after asking). Tests: 11 new API tests (9 HTTP on PostgreSQL: once-only value, hint, read and save with a key, 403 on every other endpoint, 401 after delete, open endpoints, limit, isolation, cascade; 503 switched off and with the database down), 7 new Vitest tests, a Playwright test that makes a key, saves a version with it through the site's `/api`, meets the 403 and the 401 (CI and live); the live smoke test does the same by curl with the key masked (2026-11-24)
 - [x] **8.1** CLI (D-107 to D-110). New module `cli` (picocli 4.7.7; one 1 MB runnable jar, maven-shade-plugin 3.6.2): `schemaguard diff|report|plan <before.sql> <after.sql>`, `lint <schema.sql> <migration.sql>`, `lint --migrations <folder> [files...]` (each file against the schema the earlier ones build; Flyway version order, `R__`/`U` skipped, other names in natural order), `save --project <id> <schema.sql>` (key from `SCHEMAGUARD_KEY`, https only, 409 is "Nothing saved", 120 s for the free host to wake). Every analysis runs offline. `--format text|markdown|json`: text is the engine's golden output, Markdown the web app's download layout, JSON the API's response bodies field for field (checked against `web/openapi.json` by `ContractTest`, mutation-checked). `--fail-above <score or level>`; exit codes 0 done, 1 risk above the limit (or a statement PostgreSQL would refuse), 2 bad input, 3 API failure, 4 bug; diagnostics on standard error as `file:line:column: severity: message [code]`. One input may be `-` (standard input); files must be UTF-8 (a byte order mark is dropped). The Dockerfile copies `cli/pom.xml` (the parent lists every module). Tests: 82 (golden output byte for byte, every format, thresholds, folders, the contract, `save` against a real HTTP server incl. timeout and refused connection, the key never printed); CI runs the built jar on the golden fixture and on SchemaGuard's own migrations (`--fail-above low`) and keeps it as an artifact; the live smoke test saves a version through the live site with the CLI and the throwaway account's key. Found by the tests: adding a column without `lock_timeout` scores 10 (SG-R111), so a test's "safe" migration was not (2026-11-25)
+- [x] **8.2** GitHub Action and release workflow (D-111 to D-113). `action/action.yml` (composite) runs `action/schemaguard.sh`: inputs `migrations` or `schema`, `files` (changed or all), `fail-above` (default high), `comment`, `cli-version`/`cli-jar`, `api-key` + `project` (save the schema on pushes to the default branch); outputs `score`, `level`, `exit-code`, `report`. Inputs arrive only as environment variables; Java 21 from the PATH or the runner's `JAVA_HOME_21_*` (the job's JAVA_HOME is left alone); the jar is the release in the action's tag, checked against its SHA-256. On a pull request: fetches only the base commit, checks the migrations it adds or changes (directly in the folder, not `R__`/`U`), turns diagnostics into annotations, writes the report to the job summary and to one comment found by a hidden marker and updated on each push (cut at 60,000 characters; a fork's read-only token gives a warning, not a failure). Release workflow: on publishing a release (or by hand), checks tag = pom version, builds and tests the CLI, attaches the jar and `.sha256`. Tests: `action/test/test.sh` (34 cases on throwaway git repositories with the real jar and stand-ins for `gh` and `curl`: comments posted, updated across pages, corrected, skipped; annotations; long reports; pushes; schema files; saving; downloads and checksums; Java selection; input mistakes), shellcheck-clean; CI runs it, then the action itself on our migrations (passes) and on a risky fixture (fails with 1/60/HIGH). The comment on a real pull request is 8.3's test (2026-11-26)
 
 ## Phases
 
@@ -143,7 +143,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 | 5 | REST API (Spring Boot), persistence, permalinks, first deploy (v0.1) | Done (2026-11-18); live |
 | 6 | Web UI: editors, diff, report, ER diagram, example gallery (v0.5) | Done (2026-11-20), live; `v0.5.0` released 2026-11-22 |
 | 7 | Auth, projects, history, trends, API keys | Done (2026-11-24), live |
-| 8 | CLI, GitHub Action, dogfooding | In progress: 8.1 CLI done (2026-11-25); 8.2 GitHub Action next |
+| 8 | CLI, GitHub Action, dogfooding | In progress: 8.1 CLI (2026-11-25) and 8.2 GitHub Action (2026-11-26) done; 8.3 dogfooding next |
 | 9 | Hardening and launch (v1.0) | Not started |
 
 ## Working rules
@@ -198,6 +198,10 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
   sign-up therefore says when an email is taken (409). Access tokens stay valid up to 15 minutes
   after logout (they are not looked up per request). A user can only end the current session;
   "log out everywhere" is not offered yet (deleting the account does end all sessions).
+- **GitHub Action:** Linux and macOS runners only (Bash). It cannot comment on a pull request
+  from a fork (read-only token); the summary and the pass or fail still work. It is in a
+  subfolder, so it cannot be listed on the GitHub Marketplace (that needs `action.yml` at a
+  repository's root); a separate repository could do that in Phase 9.
 - **CLI:** `plan` cannot confirm renames yet (the web app can; a rename stays a drop and an add
   with a caution). Rules know PostgreSQL 16 only, so there is no `--pg` option. `save` takes a
   whole schema, not a migration. Identifiers with non-ASCII letters may show as `?` on a Windows

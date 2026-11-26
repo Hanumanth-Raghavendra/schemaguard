@@ -1,0 +1,55 @@
+name: Release
+
+# Attaches the CLI jar, and its SHA-256, to a GitHub release when the owner publishes one; the
+# GitHub Action downloads it from there. Run it by hand to attach the jar to an existing release.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The release's tag, such as v0.6.0
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.release.tag_name || inputs.tag }}
+
+jobs:
+  jar:
+    name: Attach the CLI jar
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Check the tag names the version being built
+        run: |
+          version=$(./mvnw -B -ntp -q help:evaluate -Dexpression=project.version -DforceStdout)
+          if [[ "$TAG" != "v$version" ]]; then
+            echo "::error::The tag $TAG does not match the version in pom.xml ($version). Set every version to ${TAG#v}, without -SNAPSHOT, then tag that commit."
+            exit 1
+          fi
+      - name: Build and test the CLI
+        run: ./mvnw -B -ntp -pl cli -am verify
+      - name: Attach the jar and its checksum
+        run: |
+          version=${TAG#v}
+          name="schemaguard-cli-$version.jar"
+          mkdir dist
+          cp "cli/target/$name" dist/
+          java -jar "dist/$name" --version | head -n 1 | grep -qx "SchemaGuard $version"
+          (cd dist && sha256sum "$name" > "$name.sha256")
+          gh release upload "$TAG" "dist/$name" "dist/$name.sha256" --clobber
+          echo "Attached $name and $name.sha256 to $TAG" >> "$GITHUB_STEP_SUMMARY"

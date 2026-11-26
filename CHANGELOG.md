@@ -6,6 +6,10 @@ each release is a git tag (`v0.5.0`) on `main`. Details and reasons: `PROGRESS.m
 
 ## Unreleased (0.6.0)
 
+- **GitHub Action** (`action/`): checks the migrations a pull request adds, comments with the
+  report (one comment, updated on every push), annotates statements PostgreSQL would refuse, and
+  fails above `fail-above`. Publishing a release now attaches the CLI jar and its SHA-256, which
+  the action downloads.
 - **CLI**: the engine on the command line, offline, as one runnable jar (`cli/`).
   `schemaguard diff|report|plan|lint` print text, Markdown (the web app's report layout) or JSON
   (the API's response bodies); `--fail-above` sets the exit code for CI; `lint --migrations` checks
