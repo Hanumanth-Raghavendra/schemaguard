@@ -758,3 +758,28 @@ diff, and fails the check above a limit. A release workflow attaches the CLI jar
   small `gh` and `curl` stand-ins first on the PATH that record every call. 34 cases, then CI runs
   the action itself twice: on our migrations (passes) and on a risky fixture (fails with exit code
   1, score 60).
+
+## Phase 8.3: dogfooding
+
+**What it is.** SchemaGuard's own pull requests run SchemaGuard's own action on SchemaGuard's own
+Flyway migrations. Proven on pull request #4: a risky migration got the report and a red check;
+the advised fix turned the same comment green.
+
+**Likely questions**
+
+- *What did dogfooding find?* That SchemaGuard's own advice could hang a deploy. SG-R101 says
+  "use `CREATE INDEX CONCURRENTLY`", but under Flyway's default transactional advisory lock that
+  build waits forever: Flyway's connection sits idle in its transaction, and a concurrent index
+  build waits for every older transaction to finish. `pg_locks` showed it waiting on Flyway's
+  `virtualxid`. The advice now names `postgresql.transactional.lock=false` (D-115).
+- *Why not flip that setting in SchemaGuard's own deploy right away?* A session lock breaks behind
+  a transaction-mode pooler (PgBouncer, Neon's `-pooler` endpoint): the unlock can land on another
+  server connection and leave the lock stuck, blocking every later migration. I did not know which
+  kind of URL the live service uses, so the change waits for a deliberate, tested step (9.2)
+  rather than a guess on production.
+- *Why build the checker from the pull request instead of a released version?* In this repository
+  the pull request may change the engine, the CLI or the action themselves; running them as changed
+  tests them on the change.
+- *Anything else the step caught?* The CI looked for `schemaguard-cli-*-SNAPSHOT.jar`, which would
+  have failed exactly on the release commit. And a classic: deleting a migration from `src` leaves
+  Maven's copy in `target/classes`, which Flyway still applies.

@@ -6,6 +6,10 @@ each release is a git tag (`v0.5.0`) on `main`. Details and reasons: `PROGRESS.m
 
 ## Unreleased (0.6.0)
 
+- **Rule SG-R101** (index built without `CONCURRENTLY`): its advice now warns that under Flyway's
+  default transactional lock a `CREATE INDEX CONCURRENTLY` migration waits forever, and names the
+  setting and connection that avoid it. Found by running SchemaGuard on its own migrations, which
+  every SchemaGuard pull request now does.
 - **GitHub Action** (`action/`): checks the migrations a pull request adds, comments with the
   report (one comment, updated on every push), annotates statements PostgreSQL would refuse, and
   fails above `fail-above`. Publishing a release now attaches the CLI jar and its SHA-256, which

@@ -2,11 +2,11 @@
 
 > **To resume:** read this file, then start at "Next step". Do not re-plan; the plan is fixed below.
 
-- **Current phase:** 8 (CLI, GitHub Action, dogfooding): 8.1 (the CLI) and 8.2 (the GitHub Action, release workflow) done; 8.3 (dogfooding) in progress: the workflow is on `main`, the test pull request is next. Phase 7 is done (2026-11-24): accounts, projects and schema versions, risk trend and saved reports, API keys, all live. Phase 6 is done: web app live at https://schemaguard-v1.vercel.app (renamed from schemaguard-nu on 2026-11-22), released as `v0.5.0` (tagged by the owner on 2026-11-22). Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
+- **Current phase:** 9 (hardening and launch), not started; 9.1 (rate limits) next. Phase 8 is done (2026-11-26): the CLI, the GitHub Action with its release workflow, and SchemaGuard checking its own migrations on every pull request (seen working on pull request #4). Phase 7 is done (2026-11-24): accounts, projects and schema versions, risk trend and saved reports, API keys, all live. Phase 6 is done: web app live at https://schemaguard-v1.vercel.app (renamed from schemaguard-nu on 2026-11-22), released as `v0.5.0` (tagged by the owner on 2026-11-22). Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
 - **Last updated:** 2026-11-24
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
-- **State:** build green; engine 1,714 tests (276 plans run on a real PostgreSQL 16 in CI), API 136 tests (permalinks, accounts, projects and API keys tested on real PostgreSQL); CLI 82 tests (its JSON checked against the API contract); GitHub Action 34 script tests plus two real runs in CI; web 94 tests (Vitest) and 4 end-to-end tests (Playwright); line coverage engine 99.3% (gate 85%), API 96.5% (gate 80%), CLI 96.4% (gate 85%); CI runs the CLI jar and builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
-- **Size:** 478 files in 78 folders; 19,922 lines of main Java, 10,804 lines of test Java, 6,988 lines of TypeScript (plus 2,464 generated), 599 lines of Bash (the action and its tests)
+- **State:** build green; engine 1,714 tests (276 plans run on a real PostgreSQL 16 in CI), API 136 tests (permalinks, accounts, projects and API keys tested on real PostgreSQL); CLI 82 tests (its JSON checked against the API contract); GitHub Action 34 script tests plus two real runs in CI, and it checks this repository's own pull requests; web 94 tests (Vitest) and 4 end-to-end tests (Playwright); line coverage engine 99.3% (gate 85%), API 96.5% (gate 80%), CLI 96.4% (gate 85%); CI runs the CLI jar and builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
+- **Size:** 479 files in 78 folders; 19,924 lines of main Java, 10,804 lines of test Java, 6,988 lines of TypeScript (plus 2,464 generated), 599 lines of Bash (the action and its tests)
 
 ## Next step
 
@@ -66,16 +66,35 @@ own check". Check the current picocli release and how to build one runnable jar 
   as the artifact `schemaguard-cli`.
 - **8.2 GitHub Action: done** (D-111 to D-113). `action/` (usage in `action/README.md`) and
   `.github/workflows/release.yml`.
-- **8.3 Dogfooding (in progress; D-114, D-115).** Done: `.github/workflows/schemaguard.yml` as below, SG-R101's advice names Flyway's lock trap (found by this step), jar globs that survive a release version. Left: the test pull request, then the docs. A workflow `.github/workflows/schemaguard.yml`: on every pull
-  request (`permissions: contents: read, pull-requests: write`), build the CLI jar and run
-  `uses: ./action` with `migrations: api/src/main/resources/db/migration`, `fail-above: low`
-  (our own bar: V1 to V4 score 0) and `cli-jar`. Then the Blueprint's test: open a pull request
-  from a branch that adds a risky `V5__demo_index.sql` (an index built without `CONCURRENTLY`),
-  see the comment and the red check, push a fix (`CREATE INDEX CONCURRENTLY` with a lock timeout)
-  and see the same comment turn green, then close the pull request without merging and delete the
-  branch. Done when "the action comments on a test pull request; our own migrations pass our own
-  check". `OwnMigrationsTest` stays as the fast unit-level guard. Then Phase 9 (hardening and
-  launch); a `v0.6.0` release (see Releasing) makes the action usable from other repositories.
+- **8.3 Dogfooding: done** (D-114, D-115). Phase 8 is complete.
+
+**Phase 9: hardening and launch.** Blueprint: "rate limits, caching, docs, README with diagrams,
+demo video, resume and portfolio updated; version 1.0 tagged". Slices, each tested and live:
+
+- **9.1 Rate limits (next).** First settle the client address. Requests come either straight to
+  Render or through Vercel's `/api` rewrite, so check live which `X-Forwarded-For` entries Render
+  and Vercel add, by adding a temporary log of the header chain (no other request data) and calling
+  both ways from the live smoke workflow. Then Bucket4j (the Blueprint's choice; check its current
+  release) per client address: analyses, saving, sign-up and login, with 429 and `Retry-After`
+  as a problem document, limits in `ApiProperties`, tests for each limit and for a spoofed header.
+- **9.2 Migrations over a direct connection (D-115).** Ask the owner whether the Render secret's
+  host contains `-pooler` (he reads it in the Render dashboard; the value is never shared). If it
+  does, add an optional direct URL used only by Flyway with
+  `postgresql.transactional.lock=false`; if not, switch the lock on the one URL. Test that a
+  `CREATE INDEX CONCURRENTLY` migration applies (it hangs today: see D-115), with
+  `lock_timeout` set so a regression fails fast instead of hanging.
+- **9.3 Caching.** `Cache-Control` and `ETag` for what never changes once written (saved
+  analyses, schema versions, `/api/v1/rules`, the OpenAPI document), checked through Vercel.
+- **9.4 Docs.** README rewritten for a first-time reader: what it catches (a real example), a
+  Mermaid diagram of the modules and the data flow, another of the deployment (Vercel, Render,
+  Neon), quick starts for the site, the CLI and the action, screenshots taken from the live site.
+- **9.5 Demo video.** A scripted walk through the live site recorded with Playwright (paste,
+  risks, plan, diagram, share, account, project and trend), plus the pull-request comment; a short
+  MP4 and a GIF for the README.
+- **9.6 Resume and portfolio.** Resume bullets and a portfolio entry (his personal website)
+  written from `docs/INTERVIEW.md` and the numbers here, for the owner to place.
+- **9.7 Release 1.0.** The Releasing steps below with `1.0.0`; then the action is used as
+  `@v1.0.0`. Optional: a small repository holding only the action, for the GitHub Marketplace.
 
 **Releasing** (D-113). 1. Claude commits the release: every version without `-SNAPSHOT` (`pom.xml`
 files, `web/package.json` and its lock file), the CHANGELOG section dated. 2. The owner publishes
@@ -130,6 +149,7 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 - [x] **7.4** API keys (D-103 to D-106). API: `GET`/`POST /api/v1/account/keys`, `DELETE /api/v1/account/keys/{id}` (login only). A key is `sg_` and 256 random bits in base64url, shown once; only its SHA-256 is stored, with a 7-character hint; at most 10 per account; last use written at most once a minute; Flyway V4 `api_key` (cascades with the account). Bearer tokens starting with `sg_` go to the key provider through Spring Security's `authenticationManagerResolver`, anything else to the JWT provider; a JWT grants `SESSION`, a key `KEY`, and a key may only read projects and save versions (403 with `insufficient_scope` otherwise, 401 for an unknown or deleted key). Found by the tests: Spring Security 7 rethrows `AuthenticationServiceException` from the bearer filter, so a key checked while the database is down gave 500; the filter now hands it to the entry point, which answers 503. Web: an "API keys" section on the account page (make by name, the value shown once with copy and a curl example, last use, delete after asking). Tests: 11 new API tests (9 HTTP on PostgreSQL: once-only value, hint, read and save with a key, 403 on every other endpoint, 401 after delete, open endpoints, limit, isolation, cascade; 503 switched off and with the database down), 7 new Vitest tests, a Playwright test that makes a key, saves a version with it through the site's `/api`, meets the 403 and the 401 (CI and live); the live smoke test does the same by curl with the key masked (2026-11-24)
 - [x] **8.1** CLI (D-107 to D-110). New module `cli` (picocli 4.7.7; one 1 MB runnable jar, maven-shade-plugin 3.6.2): `schemaguard diff|report|plan <before.sql> <after.sql>`, `lint <schema.sql> <migration.sql>`, `lint --migrations <folder> [files...]` (each file against the schema the earlier ones build; Flyway version order, `R__`/`U` skipped, other names in natural order), `save --project <id> <schema.sql>` (key from `SCHEMAGUARD_KEY`, https only, 409 is "Nothing saved", 120 s for the free host to wake). Every analysis runs offline. `--format text|markdown|json`: text is the engine's golden output, Markdown the web app's download layout, JSON the API's response bodies field for field (checked against `web/openapi.json` by `ContractTest`, mutation-checked). `--fail-above <score or level>`; exit codes 0 done, 1 risk above the limit (or a statement PostgreSQL would refuse), 2 bad input, 3 API failure, 4 bug; diagnostics on standard error as `file:line:column: severity: message [code]`. One input may be `-` (standard input); files must be UTF-8 (a byte order mark is dropped). The Dockerfile copies `cli/pom.xml` (the parent lists every module). Tests: 82 (golden output byte for byte, every format, thresholds, folders, the contract, `save` against a real HTTP server incl. timeout and refused connection, the key never printed); CI runs the built jar on the golden fixture and on SchemaGuard's own migrations (`--fail-above low`) and keeps it as an artifact; the live smoke test saves a version through the live site with the CLI and the throwaway account's key. Found by the tests: adding a column without `lock_timeout` scores 10 (SG-R111), so a test's "safe" migration was not (2026-11-25)
 - [x] **8.2** GitHub Action and release workflow (D-111 to D-113). `action/action.yml` (composite) runs `action/schemaguard.sh`: inputs `migrations` or `schema`, `files` (changed or all), `fail-above` (default high), `comment`, `cli-version`/`cli-jar`, `api-key` + `project` (save the schema on pushes to the default branch); outputs `score`, `level`, `exit-code`, `report`. Inputs arrive only as environment variables; Java 21 from the PATH or the runner's `JAVA_HOME_21_*` (the job's JAVA_HOME is left alone); the jar is the release in the action's tag, checked against its SHA-256. On a pull request: fetches only the base commit, checks the migrations it adds or changes (directly in the folder, not `R__`/`U`), turns diagnostics into annotations, writes the report to the job summary and to one comment found by a hidden marker and updated on each push (cut at 60,000 characters; a fork's read-only token gives a warning, not a failure). Release workflow: on publishing a release (or by hand), checks tag = pom version, builds and tests the CLI, attaches the jar and `.sha256`. Tests: `action/test/test.sh` (34 cases on throwaway git repositories with the real jar and stand-ins for `gh` and `curl`: comments posted, updated across pages, corrected, skipped; annotations; long reports; pushes; schema files; saving; downloads and checksums; Java selection; input mistakes), shellcheck-clean; CI runs it, then the action itself on our migrations (passes) and on a risky fixture (fails with 1/60/HIGH). The comment on a real pull request is 8.3's test (2026-11-26)
+- [x] **8.3** Dogfooding (D-114, D-115). `.github/workflows/schemaguard.yml` runs on every pull request: builds the CLI from it and runs `./action` on `api/src/main/resources/db/migration` with `fail-above: low`. Seen working on pull request #4 (closed unmerged): a `CHECK` constraint added without `NOT VALID` got the report as a comment from github-actions and a failed check (64/100); the fix the report advises (`NOT VALID` under a lock timeout, `VALIDATE CONSTRAINT` in a second migration) turned the same comment into a pass (0/100), with CI green, Flyway applying both on PostgreSQL. Found on the way: Flyway's default transactional lock makes `CREATE INDEX CONCURRENTLY` (SG-R101's advice) wait forever (reproduced; `pg_locks` showed the build waiting on Flyway's own transaction), so SG-R101's advice now names `postgresql.transactional.lock=false` and the direct connection it needs; SchemaGuard's own Flyway keeps the default until 9.2. Also found: the jar pattern `*-SNAPSHOT.jar` in CI would have failed on a release version (now `schemaguard-cli-*.jar`). And a reminder: removing a migration from `src` leaves Maven's copy in `target/classes`, which Flyway still applies (2026-11-26)
 
 ## Phases
 
@@ -143,8 +163,8 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
 | 5 | REST API (Spring Boot), persistence, permalinks, first deploy (v0.1) | Done (2026-11-18); live |
 | 6 | Web UI: editors, diff, report, ER diagram, example gallery (v0.5) | Done (2026-11-20), live; `v0.5.0` released 2026-11-22 |
 | 7 | Auth, projects, history, trends, API keys | Done (2026-11-24), live |
-| 8 | CLI, GitHub Action, dogfooding | In progress: 8.1 CLI (2026-11-25) and 8.2 GitHub Action (2026-11-26) done; 8.3 dogfooding next |
-| 9 | Hardening and launch (v1.0) | Not started |
+| 8 | CLI, GitHub Action, dogfooding | Done (2026-11-26): seen working on pull request #4 |
+| 9 | Hardening and launch (v1.0) | Next: 9.1 rate limits |
 
 ## Working rules
 
@@ -206,6 +226,8 @@ Lock facts: `scripts/measure-locks.sh operations|types|conflicts|functions` (usa
   with a caution). Rules know PostgreSQL 16 only, so there is no `--pg` option. `save` takes a
   whole schema, not a migration. Identifiers with non-ASCII letters may show as `?` on a Windows
   console that is not set to UTF-8 (the engine's own text is ASCII).
+- **Flyway (D-115):** SchemaGuard's own migrations cannot use `CREATE INDEX CONCURRENTLY` yet: under
+  Flyway's default transactional lock it waits forever. Phase 9.2.
 - **API keys:** a key reaches all of its account's projects (no per-project scope) and never
   expires; it ends only when deleted. Checking a key costs one indexed query per request (no
   cache), fine at today's traffic.

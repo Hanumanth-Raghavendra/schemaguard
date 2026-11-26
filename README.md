@@ -190,7 +190,9 @@ fails the check above a limit:
 ```
 
 The workflow needs `pull-requests: write` for the comment. Publishing a GitHub release attaches the
-CLI jar the action downloads (`.github/workflows/release.yml`).
+CLI jar the action downloads (`.github/workflows/release.yml`). SchemaGuard runs it on its own
+migrations in every pull request (`.github/workflows/schemaguard.yml`); pull request #4 shows a
+risky migration failing and its fix passing in the same comment.
 
 ## Run the web app
 
