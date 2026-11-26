@@ -65,7 +65,7 @@ line 30: CREATE INDEX posts_status_idx ON app.posts (status) WHERE status <> 'ar
   HIGH     SG-R101  Index is built without CONCURRENTLY  [locking, score 60]
       Building index posts_status_idx blocks every write to app.posts until the build ends.
       Lock: CREATE INDEX takes SHARE on app.posts (blocks writes, reads continue), held while every row is read
-      Safer: Use CREATE INDEX CONCURRENTLY. It builds the index without blocking writes. It cannot run inside a transaction, and if it fails it leaves an invalid index that has to be dropped before trying again.
+      Safer: Use CREATE INDEX CONCURRENTLY. It builds the index without blocking writes. It cannot run inside a transaction, and if it fails it leaves an invalid index that has to be dropped before trying again. With Flyway, set postgresql.transactional.lock=false and connect directly, not through a transaction pooler: under Flyway's default lock the build waits forever for Flyway's own open transaction.
 
 line 31: DROP INDEX app.posts_title_idx
   MEDIUM   SG-R102  Index is dropped without CONCURRENTLY  [locking, score 30]
@@ -77,7 +77,7 @@ line 32: CREATE INDEX posts_lower_title_idx ON app.posts (lower(title))
   HIGH     SG-R101  Index is built without CONCURRENTLY  [locking, score 60]
       Building index posts_lower_title_idx blocks every write to app.posts until the build ends.
       Lock: CREATE INDEX takes SHARE on app.posts (blocks writes, reads continue), held while every row is read
-      Safer: Use CREATE INDEX CONCURRENTLY. It builds the index without blocking writes. It cannot run inside a transaction, and if it fails it leaves an invalid index that has to be dropped before trying again.
+      Safer: Use CREATE INDEX CONCURRENTLY. It builds the index without blocking writes. It cannot run inside a transaction, and if it fails it leaves an invalid index that has to be dropped before trying again. With Flyway, set postgresql.transactional.lock=false and connect directly, not through a transaction pooler: under Flyway's default lock the build waits forever for Flyway's own open transaction.
 
 line 35: ALTER TABLE app.audit_log RENAME TO activity_log
   HIGH     SG-R510  Table, column or enum value is renamed in one step  [compatibility, score 60]

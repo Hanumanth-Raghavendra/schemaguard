@@ -31,7 +31,9 @@ public final class IndexAddedWithoutConcurrently extends ChangeRule<Change.Index
                                 + "minutes or hours.",
                         "Use CREATE INDEX CONCURRENTLY. It builds the index without blocking writes. It "
                                 + "cannot run inside a transaction, and if it fails it leaves an invalid index that has "
-                                + "to be dropped before trying again."));
+                                + "to be dropped before trying again. With Flyway, set postgresql.transactional.lock=false "
+                                + "and connect directly, not through a transaction pooler: under Flyway's default lock the "
+                                + "build waits forever for Flyway's own open transaction."));
     }
 
     @Override

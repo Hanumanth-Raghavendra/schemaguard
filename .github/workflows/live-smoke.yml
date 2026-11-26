@@ -152,7 +152,7 @@ jobs:
           # The CLI saves the next version with the key through the web app's /api, as CI would;
           # the same schema again is "nothing saved", which is not an error.
           printf 'CREATE TABLE t (id bigint PRIMARY KEY, note text, done boolean);\n' > schema.sql
-          cli() { SCHEMAGUARD_KEY="$KEY" java -jar cli/target/schemaguard-cli-*-SNAPSHOT.jar "$@"; }
+          cli() { SCHEMAGUARD_KEY="$KEY" java -jar cli/target/schemaguard-cli-*.jar "$@"; }
           cli save --project "$PROJECT" --label "from the CLI" --api "$ORIGIN" schema.sql | tee cli.out
           grep -q '^Saved version 4\. The change from version 3 scores ' cli.out
           cli save --project "$PROJECT" --api "$ORIGIN" schema.sql | grep -qx 'Nothing saved: the schema is the same as the project.s latest version\.'

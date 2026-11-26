@@ -52,7 +52,7 @@ jobs:
         # The runnable jar on the engine's reviewed fixture, and on SchemaGuard's own migrations.
         run: |
           set -euo pipefail
-          cli() { java -jar cli/target/schemaguard-cli-*-SNAPSHOT.jar "$@"; }
+          cli() { java -jar cli/target/schemaguard-cli-*.jar "$@"; }
           g=engine/src/test/resources/golden/evolution
           cli --version
           cli report $g/before_pg_dump_16.sql $g/after_pg_dump_16.sql | diff - $g/expected-report.txt
@@ -66,10 +66,10 @@ jobs:
       - name: Lint and test the GitHub Action's script
         run: |
           shellcheck action/schemaguard.sh action/test/test.sh
-          action/test/test.sh cli/target/schemaguard-cli-*-SNAPSHOT.jar
+          action/test/test.sh cli/target/schemaguard-cli-*.jar
       - name: Find the CLI jar
         id: jar
-        run: echo "path=$(ls cli/target/schemaguard-cli-*-SNAPSHOT.jar)" >> "$GITHUB_OUTPUT"
+        run: echo "path=$(ls cli/target/schemaguard-cli-*.jar)" >> "$GITHUB_OUTPUT"
       - name: Run the action on SchemaGuard's own migrations
         uses: ./action
         with:
@@ -99,7 +99,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: schemaguard-cli
-          path: cli/target/schemaguard-cli-*-SNAPSHOT.jar
+          path: cli/target/schemaguard-cli-*.jar
           if-no-files-found: error
 
   docker:

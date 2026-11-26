@@ -1,0 +1,39 @@
+name: SchemaGuard
+
+# SchemaGuard checks its own database migrations (D-114): a pull request that adds or changes one
+# gets the report as a comment, updated on every push, and a red check when the risk is above low,
+# the bar SchemaGuard's own migrations meet. The CLI and the action are built from the pull request.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: schemaguard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  migrations:
+    name: Check the migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Build the CLI
+        run: ./mvnw -B -ntp -q -pl cli -am package -DskipTests -Djacoco.skip=true
+      - name: Find the CLI jar
+        id: jar
+        run: echo "path=$(ls cli/target/schemaguard-cli-*.jar)" >> "$GITHUB_OUTPUT"
+      - name: Check the migrations this pull request changes
+        uses: ./action
+        with:
+          migrations: api/src/main/resources/db/migration
+          fail-above: low
+          cli-jar: ${{ steps.jar.outputs.path }}

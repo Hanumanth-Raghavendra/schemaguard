@@ -60,7 +60,7 @@ The change holds a lock that makes the application's queries wait.
 
 Why: CREATE INDEX takes a SHARE lock on the table for the whole build. Reads continue, but every INSERT, UPDATE and DELETE waits, and on a large table the build takes minutes or hours.
 
-Safer: Use CREATE INDEX CONCURRENTLY. It builds the index without blocking writes. It cannot run inside a transaction, and if it fails it leaves an invalid index that has to be dropped before trying again.
+Safer: Use CREATE INDEX CONCURRENTLY. It builds the index without blocking writes. It cannot run inside a transaction, and if it fails it leaves an invalid index that has to be dropped before trying again. With Flyway, set postgresql.transactional.lock=false and connect directly, not through a transaction pooler: under Flyway's default lock the build waits forever for Flyway's own open transaction.
 
 ### SG-R102 index-dropped-without-concurrently
 

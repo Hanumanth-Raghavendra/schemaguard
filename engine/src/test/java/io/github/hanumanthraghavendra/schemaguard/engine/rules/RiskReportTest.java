@@ -217,7 +217,7 @@ class RiskReportTest {
                           HIGH     SG-R101  Index is built without CONCURRENTLY  [locking, score 60]
                               Building index t_a_idx blocks every write to public.t until the build ends.
                               Direct route: CREATE INDEX takes SHARE on public.t (blocks writes, reads continue), held while every row is read
-                              Safer: Use CREATE INDEX CONCURRENTLY. It builds the index without blocking writes. It cannot run inside a transaction, and if it fails it leaves an invalid index that has to be dropped before trying again.
+                              Safer: Use CREATE INDEX CONCURRENTLY. It builds the index without blocking writes. It cannot run inside a transaction, and if it fails it leaves an invalid index that has to be dropped before trying again. With Flyway, set postgresql.transactional.lock=false and connect directly, not through a transaction pooler: under Flyway's default lock the build waits forever for Flyway's own open transaction.
                         """);
     }
 

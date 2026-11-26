@@ -2,7 +2,7 @@
 
 > **To resume:** read this file, then start at "Next step". Do not re-plan; the plan is fixed below.
 
-- **Current phase:** 8 (CLI, GitHub Action, dogfooding): 8.1 (the CLI) and 8.2 (the GitHub Action, release workflow) done; 8.3 (dogfooding) next. Phase 7 is done (2026-11-24): accounts, projects and schema versions, risk trend and saved reports, API keys, all live. Phase 6 is done: web app live at https://schemaguard-v1.vercel.app (renamed from schemaguard-nu on 2026-11-22), released as `v0.5.0` (tagged by the owner on 2026-11-22). Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
+- **Current phase:** 8 (CLI, GitHub Action, dogfooding): 8.1 (the CLI) and 8.2 (the GitHub Action, release workflow) done; 8.3 (dogfooding) in progress: the workflow is on `main`, the test pull request is next. Phase 7 is done (2026-11-24): accounts, projects and schema versions, risk trend and saved reports, API keys, all live. Phase 6 is done: web app live at https://schemaguard-v1.vercel.app (renamed from schemaguard-nu on 2026-11-22), released as `v0.5.0` (tagged by the owner on 2026-11-22). Phases 1 to 5 are complete; v0.1 is live at https://schemaguard-api-c00y.onrender.com (Render free tier, Singapore; saved analyses in Neon).
 - **Last updated:** 2026-11-24
 - **Build command (repo root):** `./mvnw -B -ntp verify` (Windows: `mvnw.cmd -B -ntp verify`)
 - **State:** build green; engine 1,714 tests (276 plans run on a real PostgreSQL 16 in CI), API 136 tests (permalinks, accounts, projects and API keys tested on real PostgreSQL); CLI 82 tests (its JSON checked against the API contract); GitHub Action 34 script tests plus two real runs in CI; web 94 tests (Vitest) and 4 end-to-end tests (Playwright); line coverage engine 99.3% (gate 85%), API 96.5% (gate 80%), CLI 96.4% (gate 85%); CI runs the CLI jar and builds the Docker image, starts it and calls it; the live smoke test passes against the deployed service
@@ -66,7 +66,7 @@ own check". Check the current picocli release and how to build one runnable jar 
   as the artifact `schemaguard-cli`.
 - **8.2 GitHub Action: done** (D-111 to D-113). `action/` (usage in `action/README.md`) and
   `.github/workflows/release.yml`.
-- **8.3 Dogfooding (next).** A workflow `.github/workflows/schemaguard.yml`: on every pull
+- **8.3 Dogfooding (in progress; D-114, D-115).** Done: `.github/workflows/schemaguard.yml` as below, SG-R101's advice names Flyway's lock trap (found by this step), jar globs that survive a release version. Left: the test pull request, then the docs. A workflow `.github/workflows/schemaguard.yml`: on every pull
   request (`permissions: contents: read, pull-requests: write`), build the CLI jar and run
   `uses: ./action` with `migrations: api/src/main/resources/db/migration`, `fail-above: low`
   (our own bar: V1 to V4 score 0) and `cli-jar`. Then the Blueprint's test: open a pull request
