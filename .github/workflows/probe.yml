@@ -32,4 +32,6 @@ jobs:
             probe "$site + X-Real-IP" -H 'X-Real-IP: 203.0.113.8' "$site/api/v1/probe/forwarded"
             probe "$site + True-Client-IP" -H 'True-Client-IP: 203.0.113.9' "$site/api/v1/probe/forwarded"
             probe "$site + CF-Connecting-IP" -H 'CF-Connecting-IP: 203.0.113.10' "$site/api/v1/probe/forwarded"
+            probe "$site + X-Vercel-Forwarded-For" -H 'X-Vercel-Forwarded-For: 203.0.113.11' -H 'X-Vercel-Proxied-For: 203.0.113.12' "$site/api/v1/probe/forwarded"
+            probe "$site + Forwarded" -H 'Forwarded: for=203.0.113.13' "$site/api/v1/probe/forwarded"
           done
