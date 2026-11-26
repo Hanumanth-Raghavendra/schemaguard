@@ -19,10 +19,17 @@ jobs:
           web=https://schemaguard-v1.vercel.app
           echo "This runner's public address: $(curl -fsS https://api.ipify.org)"
           for i in $(seq 1 30); do curl -fsS -m 10 -o /dev/null "$api/actuator/health" && break; sleep 5; done
-          spoof=(-H 'X-Forwarded-For: 203.0.113.7' -H 'X-Real-IP: 203.0.113.8' -H 'True-Client-IP: 203.0.113.9' -H 'CF-Connecting-IP: 203.0.113.10')
+          probe() {  # <label> [curl options...]: status, then the body
+            local label=$1 code
+            shift
+            code=$(curl -sS -o body.txt -w '%{http_code}' "$@" || true)
+            echo "== $label: HTTP $code"
+            if [[ $code == 200 ]]; then jq -c . body.txt; else head -c 300 body.txt; echo; fi
+          }
           for site in "$api" "$web"; do
-            echo "== $site"
-            curl -fsS "$site/api/v1/probe/forwarded" | jq .
-            echo "== $site, with made-up address headers"
-            curl -fsS "${spoof[@]}" "$site/api/v1/probe/forwarded" | jq .
+            probe "$site" "$site/api/v1/probe/forwarded"
+            probe "$site + X-Forwarded-For" -H 'X-Forwarded-For: 203.0.113.7' "$site/api/v1/probe/forwarded"
+            probe "$site + X-Real-IP" -H 'X-Real-IP: 203.0.113.8' "$site/api/v1/probe/forwarded"
+            probe "$site + True-Client-IP" -H 'True-Client-IP: 203.0.113.9' "$site/api/v1/probe/forwarded"
+            probe "$site + CF-Connecting-IP" -H 'CF-Connecting-IP: 203.0.113.10' "$site/api/v1/probe/forwarded"
           done
