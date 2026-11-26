@@ -71,7 +71,7 @@ own check". Check the current picocli release and how to build one runnable jar 
 **Phase 9: hardening and launch.** Blueprint: "rate limits, caching, docs, README with diagrams,
 demo video, resume and portfolio updated; version 1.0 tagged". Slices, each tested and live:
 
-- **9.1 Rate limits (next).** First settle the client address. Requests come either straight to
+- **9.1 Rate limits (in progress: a temporary probe, `ForwardedProbeController` and `probe.yml`, is measuring the address chain live; both go in this slice).** First settle the client address. Requests come either straight to
   Render or through Vercel's `/api` rewrite, so check live which `X-Forwarded-For` entries Render
   and Vercel add, by adding a temporary log of the header chain (no other request data) and calling
   both ways from the live smoke workflow. Then Bucket4j (the Blueprint's choice; check its current

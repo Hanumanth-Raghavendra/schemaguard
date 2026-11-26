@@ -1,0 +1,28 @@
+name: Probe forwarded headers
+
+# TEMPORARY (Phase 9.1, removed in the same slice): how a caller's address reaches the API,
+# directly and through the web app's /api rewrite, with and without headers a client made up.
+on: workflow_dispatch
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Call the probe four ways
+        run: |
+          set -euo pipefail
+          api=https://schemaguard-api-c00y.onrender.com
+          web=https://schemaguard-v1.vercel.app
+          echo "This runner's public address: $(curl -fsS https://api.ipify.org)"
+          for i in $(seq 1 30); do curl -fsS -m 10 -o /dev/null "$api/actuator/health" && break; sleep 5; done
+          spoof=(-H 'X-Forwarded-For: 203.0.113.7' -H 'X-Real-IP: 203.0.113.8' -H 'True-Client-IP: 203.0.113.9' -H 'CF-Connecting-IP: 203.0.113.10')
+          for site in "$api" "$web"; do
+            echo "== $site"
+            curl -fsS "$site/api/v1/probe/forwarded" | jq .
+            echo "== $site, with made-up address headers"
+            curl -fsS "${spoof[@]}" "$site/api/v1/probe/forwarded" | jq .
+          done
