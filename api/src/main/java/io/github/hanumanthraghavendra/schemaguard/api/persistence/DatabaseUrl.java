@@ -6,6 +6,7 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -72,6 +73,44 @@ public record DatabaseUrl(String jdbcUrl, Optional<String> username, Optional<St
             jdbc.append('?').append(query);
         }
         return new DatabaseUrl(jdbc.toString(), user, secret);
+    }
+
+    /**
+     * The same database without Neon's pooler, if this URL goes through it. Neon names a pooled
+     * endpoint by adding {@code -pooler} to its endpoint ID
+     * ({@code ep-cool-darkness-a1b2c3d4-pooler.us-east-2.aws.neon.tech}); the same host without it
+     * is the direct connection, which migrations need: the pooler runs PgBouncer in transaction
+     * mode, where session-level advisory locks do not work (D-118).
+     *
+     * @return the direct URL with the same credentials, or empty if this is not a Neon pooled URL
+     */
+    public Optional<DatabaseUrl> withoutNeonPooler() {
+        String scheme = "jdbc:postgresql://";
+        if (!jdbcUrl.startsWith(scheme)) {
+            return Optional.empty();
+        }
+        String rest = jdbcUrl.substring(scheme.length());
+        int end = rest.length();
+        for (char stop : new char[] {'/', '?'}) {
+            int at = rest.indexOf(stop);
+            if (at >= 0 && at < end) {
+                end = at;
+            }
+        }
+        String hostAndPort = rest.substring(0, end);
+        if (hostAndPort.contains(",") || hostAndPort.startsWith("[")) {
+            return Optional.empty();
+        }
+        int colon = hostAndPort.indexOf(':');
+        String host = colon < 0 ? hostAndPort : hostAndPort.substring(0, colon);
+        int dot = host.indexOf('.');
+        String lower = host.toLowerCase(Locale.ROOT);
+        String suffix = "-pooler";
+        if (dot < 0 || !lower.endsWith(".neon.tech") || !lower.startsWith("ep-") || !lower.substring(0, dot).endsWith(suffix)) {
+            return Optional.empty();
+        }
+        String direct = host.substring(0, dot - suffix.length()) + host.substring(dot) + hostAndPort.substring(host.length());
+        return Optional.of(new DatabaseUrl(scheme + direct + rest.substring(end), username, password));
     }
 
     private static String query(String raw) {

@@ -64,4 +64,40 @@ class DatabaseUrlTest {
                 .doesNotContain("topsecret")
                 .contains("user=u");
     }
+    @Test
+    void neonsPooledHostLeadsToItsDirectHost() {
+        // Neon's two strings differ only by -pooler after the endpoint ID (D-118).
+        DatabaseUrl pooled =
+                DatabaseUrl.parse(
+                        "postgresql://app:s3cret@ep-cool-darkness-a1b2c3d4-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require",
+                        null,
+                        null);
+        DatabaseUrl direct = pooled.withoutNeonPooler().orElseThrow();
+        assertThat(direct.jdbcUrl())
+                .isEqualTo("jdbc:postgresql://ep-cool-darkness-a1b2c3d4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require");
+        assertThat(direct.username()).contains("app");
+        assertThat(direct.password()).contains("s3cret");
+
+        assertThat(DatabaseUrl.parse("jdbc:postgresql://EP-X-123-POOLER.us-east-2.aws.neon.tech:5432?sslmode=require", "u", "p")
+                        .withoutNeonPooler()
+                        .map(DatabaseUrl::jdbcUrl))
+                .contains("jdbc:postgresql://EP-X-123.us-east-2.aws.neon.tech:5432?sslmode=require");
+    }
+
+    @Test
+    void anyOtherUrlHasNoDirectHostOfItsOwn() {
+        for (String url : new String[] {
+            "postgresql://u:p@ep-cool-darkness-a1b2c3d4.ap-southeast-1.aws.neon.tech/neondb",
+            "postgresql://u:p@db-pooler.example.com/app",
+            "postgresql://u:p@ep-x-pooler.example.com/app",
+            "postgresql://u:p@pooler.neon.tech/app",
+            "postgresql://u:p@my-pooler.us-east-2.aws.neon.tech/app",
+            "jdbc:postgresql://ep-a-pooler.x.neon.tech,ep-b-pooler.x.neon.tech/db",
+            "jdbc:postgresql://[::1]:5432/db",
+            "jdbc:postgresql:localdb",
+            "postgresql://u:p@localhost/app"
+        }) {
+            assertThat(DatabaseUrl.parse(url, null, null).withoutNeonPooler()).as(url).isEmpty();
+        }
+    }
 }

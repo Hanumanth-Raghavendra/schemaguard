@@ -7,6 +7,7 @@ import io.github.hanumanthraghavendra.schemaguard.api.projects.ProjectStore;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import java.time.Clock;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionOutcome;
@@ -16,6 +17,7 @@ import org.springframework.context.annotation.ConditionContext;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.type.AnnotatedTypeMetadata;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 
@@ -55,9 +57,30 @@ public class PersistenceConfig {
         return new HikariDataSource(config);
     }
 
+    /**
+     * Migrations get their own connections (D-118): to {@code migration-url} if set, else to Neon's
+     * direct host when the URL is its pooler, else to the same URL. Not from the pool, so their
+     * lock timeout stays theirs.
+     */
     @Bean
-    Database database(HikariDataSource analysisDataSource) {
-        return new Database(analysisDataSource);
+    Database database(HikariDataSource analysisDataSource, ApiProperties properties) {
+        ApiProperties.Persistence settings = properties.persistence();
+        DatabaseUrl url = DatabaseUrl.parse(settings.url(), settings.username(), settings.password());
+        DatabaseUrl migrations;
+        String where;
+        if (settings.migrationUrl() != null && !settings.migrationUrl().isBlank()) {
+            migrations = DatabaseUrl.parse(settings.migrationUrl(), settings.username(), settings.password());
+            where = "the migration URL";
+        } else {
+            Optional<DatabaseUrl> direct = url.withoutNeonPooler();
+            migrations = direct.orElse(url);
+            where = direct.isPresent() ? "Neon's direct host (the pooled one without -pooler)" : "the same URL";
+        }
+        LOG.info("Migrations connect to {}: {}", where, migrations);
+        DriverManagerDataSource connections = new DriverManagerDataSource(migrations.jdbcUrl());
+        migrations.username().ifPresent(connections::setUsername);
+        migrations.password().ifPresent(connections::setPassword);
+        return new Database(analysisDataSource, connections, settings.migrationLockTimeout());
     }
 
     @Bean

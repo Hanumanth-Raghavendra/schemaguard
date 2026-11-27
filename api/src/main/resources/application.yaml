@@ -53,6 +53,10 @@ schemaguard:
     max-total-bytes: 200000000
     pool-size: 3
     connect-timeout: 10s
+    # Migrations connect directly, never through a transaction pooler (D-118): set migration-url
+    # (SCHEMAGUARD_PERSISTENCE_MIGRATION_URL) for a pooler other than Neon's, whose direct host is
+    # found by dropping -pooler from the pooled one.
+    migration-lock-timeout: 10s
   # Accounts. SCHEMAGUARD_AUTH_JWT_SECRET (at least 32 characters) signs access tokens; without it a
   # random key is made at startup and access tokens stop working on restart (clients renew them).
   auth:

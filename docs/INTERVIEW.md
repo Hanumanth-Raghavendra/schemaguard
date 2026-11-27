@@ -822,3 +822,29 @@ saved analyses 30 an hour, sign-ups 20 an hour, logins 30 per 10 minutes. Refusa
 - *How do you know it works behind the real proxies?* The live smoke test saves once straight to
   Render and once through the Vercel site from the same runner, and requires the second answer to
   report fewer left. Counted by Vercel's address instead, it would start from a fresh count.
+
+## Phase 9.2: migrations over a direct connection
+
+**What it is.** The API's own Flyway migrations run on their own connections with a session-level
+lock and a lock timeout, so a migration can build an index with `CREATE INDEX CONCURRENTLY`.
+
+**Likely questions**
+
+- *What was wrong?* Flyway's default PostgreSQL lock is a transaction-level advisory lock held
+  open on one connection while migrations run on another. `CREATE INDEX CONCURRENTLY` waits for
+  every transaction older than it to finish, including Flyway's own, so it waited forever. I found
+  it dogfooding SchemaGuard's own advice (SG-R101) and confirmed it in `pg_locks` (D-115).
+- *Why not just switch Flyway to a session lock?* A session-level advisory lock breaks behind a
+  transaction pooler: Neon's pooler is PgBouncer in transaction mode, so the lock and unlock can
+  land on different server connections. Migrations need a direct connection.
+- *How does the service know the direct address?* Neon documents that the pooled host is the
+  direct host with `-pooler` after the endpoint ID, so the service derives it; an explicit
+  `migration-url` covers other providers. No second secret, and nobody had to reveal what kind of
+  string is in the hosting dashboard.
+- *Why a lock timeout?* Migrations run on the first database request, not at startup. A migration
+  stuck on a lock would freeze every database request; with `lock_timeout` it fails in seconds,
+  that request gets a 503 and the next one retries. A test keeps the old hang as proof: under the
+  default lock the build is ended by the timeout instead of waiting forever.
+- *Why their own connections and not the pool?* `SET lock_timeout` sticks to a connection. From
+  the requests' pool it would leak into later requests.
+

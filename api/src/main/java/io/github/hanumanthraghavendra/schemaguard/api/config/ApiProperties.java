@@ -54,6 +54,11 @@ public record ApiProperties(
      *                         as Neon shows it); empty means permalinks are switched off
      * @param username         the user, if the URL does not carry one
      * @param password         the password, if the URL does not carry one
+     * @param migrationUrl     where schema migrations connect, in either form, if not to
+     *                         {@code url}; it must reach the database directly, not through a
+     *                         transaction pooler (D-118). Unset, a Neon pooled host
+     *                         ({@code ep-...-pooler...neon.tech}) is used without
+     *                         {@code -pooler}, and any other URL as it is
      * @param retention        how long a saved analysis is kept
      * @param maxAnalysisBytes the largest analysis that is saved: request and result together
      * @param maxTotalBytes    the most all saved analyses may take together; beyond it, saving
@@ -61,16 +66,21 @@ public record ApiProperties(
      * @param poolSize         the most database connections held at once
      * @param connectTimeout   how long a request waits for a database connection before it
      *                         gets a 503
+     * @param migrationLockTimeout how long a migration statement may wait for a lock before it
+     *                         fails, so a migration that cannot get its lock fails fast instead
+     *                         of holding up every request (D-118)
      */
     public record Persistence(
             String url,
             String username,
             String password,
+            String migrationUrl,
             @NotNull @DefaultValue("30d") Duration retention,
             @Min(1024) @DefaultValue("1000000") long maxAnalysisBytes,
             @Min(1024) @DefaultValue("200000000") long maxTotalBytes,
             @Min(1) @DefaultValue("3") int poolSize,
-            @NotNull @DefaultValue("10s") Duration connectTimeout) {
+            @NotNull @DefaultValue("10s") Duration connectTimeout,
+            @NotNull @DefaultValue("10s") Duration migrationLockTimeout) {
 
         /** True if a database is configured. */
         public boolean enabled() {

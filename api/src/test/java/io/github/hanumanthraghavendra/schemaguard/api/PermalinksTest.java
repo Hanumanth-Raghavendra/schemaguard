@@ -199,7 +199,8 @@ class PermalinksTest {
     @Test
     void savingStopsWhenTheRoomIsUsedUp() {
         ApiProperties.Persistence tiny =
-                new ApiProperties.Persistence("x", null, null, Duration.ofDays(30), 1024, 2048, 1, Duration.ofSeconds(5));
+                new ApiProperties.Persistence(
+                        "x", null, null, null, Duration.ofDays(30), 1024, 2048, 1, Duration.ofSeconds(5), Duration.ofSeconds(10));
         JdbcAnalysisStore full = new JdbcAnalysisStore(new Database(dataSource), tiny, Clock.fixed(Instant.now(), ZoneOffset.UTC));
         Instant now = Instant.now();
         AnalysisStore.Saved large =

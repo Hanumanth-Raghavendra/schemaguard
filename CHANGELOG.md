@@ -6,6 +6,11 @@ each release is a git tag (`v0.5.0`) on `main`. Details and reasons: `PROGRESS.m
 
 ## Unreleased (0.6.0)
 
+- **Migrations over a direct connection**: the API's own schema migrations now use a session-level
+  lock on their own connections, with a 10-second lock timeout, so a migration may build an index
+  with `CREATE INDEX CONCURRENTLY` (it used to wait forever). Behind Neon's pooler they connect to
+  Neon's direct host by themselves; `SCHEMAGUARD_PERSISTENCE_MIGRATION_URL` sets the address for
+  any other pooler.
 - **Rate limits** per client address: analyses (and saving a project version) 60 a minute, saved
   analyses 30 an hour, sign-ups 20 an hour, logins 30 per 10 minutes. A refusal is
   `429 Too Many Requests` with `Retry-After` and a message saying how long to wait; limited

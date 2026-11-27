@@ -137,7 +137,9 @@ analyses 30 an hour, sign-ups 20 an hour, logins 30 per 10 minutes. Limited endp
 
 Saving, accounts, projects and API keys need PostgreSQL: set `SCHEMAGUARD_PERSISTENCE_URL` to a JDBC URL or a connection
 string such as `postgresql://user:password@host/db?sslmode=require`. Without it everything else
-works and those endpoints answer 503. Set `SCHEMAGUARD_AUTH_JWT_SECRET` (32 characters or more) to
+works and those endpoints answer 503. Schema migrations need a direct connection: behind Neon's
+pooler (`-pooler` in the host) they find the direct host themselves; behind any other pooler set
+`SCHEMAGUARD_PERSISTENCE_MIGRATION_URL`. Set `SCHEMAGUARD_AUTH_JWT_SECRET` (32 characters or more) to
 keep access tokens valid across restarts. SchemaGuard lints its own database migrations in its tests.
 
 ## Use the CLI
